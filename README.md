@@ -121,3 +121,9 @@ The runtime can use a domain definition to answer which action contracts are cur
 Brick 4 makes the audit trail queryable enough to reconstruct what happened.
 
 Audit records can be queried by entity, kind, and actor. The runtime exposes a timeline method so a domain can explain an entity's operational path in chronological order.
+
+## Brick 5: Store Boundaries
+
+Brick 5 groups the core stores into a small store bundle.
+
+The bundle gives applications one clear place to inject event, decision, approval, and audit stores. The default demo still uses in-memory stores, but future persistence adapters can implement the same package-level store interfaces and plug into the runtime without changing domain code.

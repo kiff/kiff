@@ -79,6 +79,82 @@ func TestRuntimeAppendsAuditRecordsDuringEventIngestionAndActionExecution(t *tes
 	}
 }
 
+func TestRuntimeUsesInjectedStoreBundle(t *testing.T) {
+	bundle := store.NewInMemoryBundle()
+	rt := New(Config{
+		Stores:       &bundle,
+		StateMachine: state.NewTransitionMachine(state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"}),
+	})
+
+	err := rt.IngestEvent(event.Event{
+		ID:         "evt-1",
+		Type:       "MISSION_SUBMITTED",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Source:     "test",
+		ActorID:    "human",
+		OccurredAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("ingest event: %v", err)
+	}
+
+	events, err := bundle.Events.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list events from bundle: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event in injected bundle, got %d", len(events))
+	}
+
+	auditRecords, err := bundle.Audit.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list audit from bundle: %v", err)
+	}
+	if len(auditRecords) != 2 {
+		t.Fatalf("expected event and state audit records in injected bundle, got %d", len(auditRecords))
+	}
+}
+
+func TestRuntimeIndividualStoresOverrideBundleStores(t *testing.T) {
+	bundle := store.NewInMemoryBundle()
+	overrideEvents := event.NewInMemoryStore()
+	rt := New(Config{
+		Stores:       &bundle,
+		EventStore:   overrideEvents,
+		StateMachine: state.NewTransitionMachine(state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"}),
+	})
+
+	err := rt.IngestEvent(event.Event{
+		ID:         "evt-1",
+		Type:       "MISSION_SUBMITTED",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Source:     "test",
+		ActorID:    "human",
+		OccurredAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("ingest event: %v", err)
+	}
+
+	bundleEvents, err := bundle.Events.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list bundle events: %v", err)
+	}
+	if len(bundleEvents) != 0 {
+		t.Fatalf("expected bundle event store to be overridden, got %d events", len(bundleEvents))
+	}
+
+	overrideStoredEvents, err := overrideEvents.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list override events: %v", err)
+	}
+	if len(overrideStoredEvents) != 1 {
+		t.Fatalf("expected 1 event in override store, got %d", len(overrideStoredEvents))
+	}
+}
+
 func TestRuntimeUsesGrantedApprovalRecordForActionValidation(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")

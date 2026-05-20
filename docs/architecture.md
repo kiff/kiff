@@ -84,6 +84,8 @@ It ingests events, applies state transitions, records decisions, validates actio
 
 The store package contains common store-level helpers and errors when they are useful across packages.
 
+Brick 5 adds a store bundle that groups the core event, decision, approval, and audit stores. The bundle is an injection boundary for future persistence adapters. It does not introduce a database or change the package-specific store contracts.
+
 ## Domain Boundary
 
 KIFF does not define business meaning. Domains do.

@@ -20,6 +20,7 @@ import (
 // Config wires the stores and policies used by a Runtime.
 type Config struct {
 	Domain           *domain.Definition
+	Stores           *store.Bundle
 	EventStore       event.Store
 	DecisionStore    decision.Store
 	AuditStore       audit.Store
@@ -55,6 +56,20 @@ func New(config Config) *Runtime {
 		Permissions: config.PermissionPolicy,
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
+	}
+	if config.Stores != nil {
+		if rt.Events == nil {
+			rt.Events = config.Stores.Events
+		}
+		if rt.Decisions == nil {
+			rt.Decisions = config.Stores.Decisions
+		}
+		if rt.Audit == nil {
+			rt.Audit = config.Stores.Audit
+		}
+		if rt.Approvals == nil {
+			rt.Approvals = config.Stores.Approvals
+		}
 	}
 	if config.Domain != nil {
 		if rt.States == nil {
