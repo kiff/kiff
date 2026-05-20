@@ -28,6 +28,12 @@ The decision package records why an action, classification, recommendation, or n
 
 Decisions may come from humans, deterministic software, or AI agents. KIFF stores them as auditable operational records rather than hidden prompt output.
 
+### `pkg/kiff/proposal`
+
+The proposal package defines action proposals from humans, agents, services, or deterministic software.
+
+A proposal captures the proposed action, parameters, evidence, reasoning, confidence, and actor. Runtime can record a proposal as a decision and convert it into an action context for validation. Proposal recording is intentionally separate from action execution.
+
 ### `pkg/kiff/action`
 
 The action package defines action contracts and validation.

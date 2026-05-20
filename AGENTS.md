@@ -85,6 +85,7 @@ The core packages should provide primitives and interfaces for coordination mech
 - state
 - action
 - decision
+- proposal
 - permission
 - approval
 - audit

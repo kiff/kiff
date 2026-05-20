@@ -11,11 +11,11 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/proposal"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
 )
@@ -249,12 +249,11 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines = append(lines, fmt.Sprintf("allowed actions: %s", actionNames(allowed)))
 
-	if err := rt.ProposeDecision(decision.Decision{
-		ID:             "dec-001",
-		EntityID:       attemptID,
-		EntityType:     EntityTypeMissionAttempt,
-		Kind:           decision.KindActionProposal,
-		ProposedAction: ActionProposeMove,
+	moveProposal := proposal.ActionProposal{
+		ID:         "dec-001",
+		EntityID:   attemptID,
+		EntityType: EntityTypeMissionAttempt,
+		ActionName: ActionProposeMove,
 		Evidence: []evidence.Ref{
 			{ID: "evref-001", Kind: evidence.KindEvent, Source: "event-store", Summary: "mission was submitted", CreatedAt: time.Now().UTC()},
 		},
@@ -262,24 +261,19 @@ func RunHappyPath() (DemoResult, error) {
 		Confidence:       0.82,
 		ActorID:          AgentActor.ID,
 		CreatedAt:        time.Now().UTC(),
-	}); err != nil {
+		Parameters:       map[string]any{"move": "draft the first bounded move"},
+	}
+	if err := rt.RecordActionProposal(moveProposal); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "decision proposed: PROPOSE_MOVE")
+	lines = append(lines, "action proposal recorded: PROPOSE_MOVE")
 
-	proposeCtx := action.ActionContext{
-		ActionName:   ActionProposeMove,
-		EntityID:     attemptID,
-		EntityType:   EntityTypeMissionAttempt,
-		CurrentState: StateActive,
-		Actor:        AgentActor,
-		Parameters:   map[string]any{"move": "draft the first bounded move"},
-	}
 	proposeContract, err := contract(ActionProposeMove)
 	if err != nil {
 		return DemoResult{}, err
 	}
-	if err := rt.ValidateAction(proposeCtx, proposeContract); err != nil {
+	if err := rt.ValidateActionProposal(moveProposal, StateActive, AgentActor, proposeContract); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action validated: PROPOSE_MOVE")

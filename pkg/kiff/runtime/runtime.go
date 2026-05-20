@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
@@ -14,6 +15,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/proposal"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
@@ -199,6 +201,24 @@ func (r *Runtime) ProposeDecision(d decision.Decision) error {
 		"proposed_action": d.ProposedAction,
 		"confidence":      d.Confidence,
 	})
+}
+
+// RecordActionProposal records an action proposal as a decision.
+func (r *Runtime) RecordActionProposal(p proposal.ActionProposal) error {
+	d, err := p.Decision()
+	if err != nil {
+		return err
+	}
+	return r.ProposeDecision(d)
+}
+
+// ValidateActionProposal validates a proposal against an action contract.
+func (r *Runtime) ValidateActionProposal(p proposal.ActionProposal, currentState string, proposalActor actor.Actor, contract action.ActionContract) error {
+	actionCtx, err := p.ActionContext(currentState, proposalActor)
+	if err != nil {
+		return err
+	}
+	return r.ValidateAction(actionCtx, contract)
 }
 
 // AllowedActions returns the action contracts currently allowed for an entity.

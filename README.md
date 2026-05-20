@@ -40,6 +40,7 @@ The initial framework scaffold lives under `pkg/kiff/`:
 - `event`: normalized event records and event stores
 - `state`: domain-owned state machines and transitions
 - `decision`: explainable decision records
+- `proposal`: action proposals from agents, humans, or software
 - `action`: action contracts, risk, approval, and validation
 - `permission`: simple actor permission policies
 - `approval`: approval records and approval stores for high-risk actions
@@ -149,3 +150,9 @@ POST /events/raw
 GET  /entities/{entityID}/allowed-actions
 GET  /entities/{entityID}/timeline
 ```
+
+## Brick 8: Proposal Boundary
+
+Brick 8 adds a proposal boundary for agentic systems without integrating an LLM SDK.
+
+An actor may propose an action with parameters, evidence, reasoning, and confidence. KIFF records that proposal as a decision and can convert it into an action context for validation. Recording a proposal never executes the action.

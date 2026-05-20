@@ -15,6 +15,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/proposal"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
@@ -150,6 +151,70 @@ func TestRuntimeIngestRawUsesRegisteredAdapter(t *testing.T) {
 	}
 	if len(events) != 1 {
 		t.Fatalf("expected 1 ingested event, got %d", len(events))
+	}
+}
+
+func TestRuntimeRecordsActionProposalAsDecision(t *testing.T) {
+	rt := New(Config{})
+	p := proposal.ActionProposal{
+		ID:               "proposal-1",
+		EntityID:         "attempt-1",
+		EntityType:       "MissionAttempt",
+		ActionName:       "PROPOSE_MOVE",
+		ActorID:          "mission-agent",
+		ReasoningSummary: "The active attempt can accept a proposed move.",
+		Confidence:       0.82,
+		CreatedAt:        time.Now().UTC(),
+	}
+
+	if err := rt.RecordActionProposal(p); err != nil {
+		t.Fatalf("record action proposal: %v", err)
+	}
+
+	decisions, err := rt.Decisions.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list decisions: %v", err)
+	}
+	if len(decisions) != 1 {
+		t.Fatalf("expected 1 decision, got %d", len(decisions))
+	}
+	if decisions[0].Kind != decision.KindActionProposal {
+		t.Fatalf("expected action proposal decision, got %q", decisions[0].Kind)
+	}
+}
+
+func TestRuntimeValidatesActionProposalWithoutExecuting(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("mission-agent", "mission.propose_move")
+	rt := New(Config{PermissionPolicy: policy})
+	p := proposal.ActionProposal{
+		ID:         "proposal-1",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		ActionName: "PROPOSE_MOVE",
+		ActorID:    "mission-agent",
+		Parameters: map[string]any{
+			"move": "draft the first bounded move",
+		},
+		CreatedAt: time.Now().UTC(),
+	}
+	executed := false
+	contract := action.ActionContract{
+		Name:                "PROPOSE_MOVE",
+		AllowedStates:       []string{"ACTIVE"},
+		RequiredParameters:  []string{"move"},
+		RequiredPermissions: []permission.Permission{"mission.propose_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			executed = true
+			return action.ActionResult{Executed: true}, nil
+		},
+	}
+
+	if err := rt.ValidateActionProposal(p, "ACTIVE", actor.Actor{ID: "mission-agent"}, contract); err != nil {
+		t.Fatalf("validate action proposal: %v", err)
+	}
+	if executed {
+		t.Fatal("expected proposal validation not to execute the action")
 	}
 }
 
