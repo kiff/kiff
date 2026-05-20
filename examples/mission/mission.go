@@ -115,12 +115,14 @@ func Contracts() []action.ActionContract {
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
 				move, _ := ctx.Parameters["move"].(string)
 				return action.ActionResult{
-					ActionName: ActionExecuteMove,
-					EntityID:   ctx.EntityID,
-					Executed:   true,
-					Message:    fmt.Sprintf("move executed: %s", move),
-					Output:     map[string]any{"move": move},
-					ExecutedAt: time.Now().UTC(),
+					ActionName:     ActionExecuteMove,
+					EntityID:       ctx.EntityID,
+					Status:         action.ExecutionSucceeded,
+					Executed:       true,
+					Message:        fmt.Sprintf("move executed: %s", move),
+					EffectsSummary: "recorded the bounded move execution",
+					Output:         map[string]any{"move": move},
+					ExecutedAt:     time.Now().UTC(),
 				}, nil
 			},
 		},
@@ -336,10 +338,12 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines = append(lines, "approval granted: EXECUTE_MOVE")
 
-	if _, err := rt.ExecuteAction(executeCtx, executeContract); err != nil {
+	executeResult, err := rt.ExecuteAction(executeCtx, executeContract)
+	if err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action executed: EXECUTE_MOVE")
+	lines = append(lines, fmt.Sprintf("execution result: %s (%s)", executeResult.Status, executeResult.EffectsSummary))
 
 	if err := rt.IngestEvent(newEvent("evt-005", EventMoveExecuted, attemptID, AgentActor.ID, map[string]any{"move": "draft the first bounded move"})); err != nil {
 		return DemoResult{}, err

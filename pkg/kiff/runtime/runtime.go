@@ -344,17 +344,20 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 		result, err = contract.Executor(ctx, actionCtx)
 	}
 	if err != nil {
+		result = action.FailedResult(contract.Name, actionCtx.EntityID, err)
 		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action execution failed", map[string]any{
-			"action": contract.Name,
-			"error":  err.Error(),
+			"action":          contract.Name,
+			"status":          result.Status,
+			"error":           result.Error,
+			"message":         result.Message,
+			"effects_summary": result.EffectsSummary,
+			"output":          result.Output,
+			"executed_at":     result.ExecutedAt,
 		})
 		if auditErr != nil {
 			return action.ActionResult{}, auditErr
 		}
-		return action.ActionResult{}, err
-	}
-	if result.ExecutedAt.IsZero() {
-		result.ExecutedAt = time.Now().UTC()
+		return result, err
 	}
 	if result.ActionName == "" {
 		result.ActionName = contract.Name
@@ -362,9 +365,19 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 	if result.EntityID == "" {
 		result.EntityID = actionCtx.EntityID
 	}
+	if result.Status == "" {
+		result.Executed = true
+	}
+	result = result.Normalize()
 	return result, r.appendAudit(ctx, audit.KindActionExecuted, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action executed", map[string]any{
-		"action":  contract.Name,
-		"message": result.Message,
+		"action":          contract.Name,
+		"status":          result.Status,
+		"executed":        result.Executed,
+		"message":         result.Message,
+		"error":           result.Error,
+		"effects_summary": result.EffectsSummary,
+		"output":          result.Output,
+		"executed_at":     result.ExecutedAt,
 	})
 }
 

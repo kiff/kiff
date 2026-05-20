@@ -67,3 +67,26 @@ func TestValidationMarksActionAsRequiringApproval(t *testing.T) {
 		t.Fatalf("expected ErrApprovalRequired, got %v", err)
 	}
 }
+
+func TestActionResultNormalizeSetsSucceededStatus(t *testing.T) {
+	result := ActionResult{Executed: true}.Normalize()
+	if result.Status != ExecutionSucceeded {
+		t.Fatalf("expected succeeded status, got %q", result.Status)
+	}
+	if result.ExecutedAt.IsZero() {
+		t.Fatal("expected executed at timestamp")
+	}
+}
+
+func TestFailedResultRecordsError(t *testing.T) {
+	result := FailedResult("EXECUTE_MOVE", "attempt-1", errors.New("executor failed"))
+	if result.Status != ExecutionFailed {
+		t.Fatalf("expected failed status, got %q", result.Status)
+	}
+	if result.Error != "executor failed" {
+		t.Fatalf("expected error message, got %q", result.Error)
+	}
+	if result.Executed {
+		t.Fatal("expected failed result not to be executed")
+	}
+}

@@ -37,6 +37,15 @@ const (
 	ApprovalRequired ApprovalRequirement = "required"
 )
 
+// ExecutionStatus describes the result status of an action execution.
+type ExecutionStatus string
+
+const (
+	ExecutionSucceeded ExecutionStatus = "succeeded"
+	ExecutionFailed    ExecutionStatus = "failed"
+	ExecutionSkipped   ExecutionStatus = "skipped"
+)
+
 // ActionContract describes when and how an action is allowed to run.
 type ActionContract struct {
 	Name                string
@@ -62,12 +71,50 @@ type ActionContext struct {
 
 // ActionResult records the execution outcome.
 type ActionResult struct {
-	ActionName string
-	EntityID   string
-	Executed   bool
-	Message    string
-	Output     map[string]any
-	ExecutedAt time.Time
+	ActionName     string
+	EntityID       string
+	Status         ExecutionStatus
+	Executed       bool
+	Message        string
+	Error          string
+	EffectsSummary string
+	Output         map[string]any
+	ExecutedAt     time.Time
+}
+
+// Normalize fills default status and timestamp fields.
+func (r ActionResult) Normalize() ActionResult {
+	if r.Status == "" {
+		if r.Executed {
+			r.Status = ExecutionSucceeded
+		} else {
+			r.Status = ExecutionSkipped
+		}
+	}
+	if r.Status == ExecutionSucceeded {
+		r.Executed = true
+	}
+	if r.ExecutedAt.IsZero() {
+		r.ExecutedAt = time.Now().UTC()
+	}
+	return r
+}
+
+// FailedResult creates a failed execution result.
+func FailedResult(actionName, entityID string, err error) ActionResult {
+	message := ""
+	if err != nil {
+		message = err.Error()
+	}
+	return ActionResult{
+		ActionName: actionName,
+		EntityID:   entityID,
+		Status:     ExecutionFailed,
+		Executed:   false,
+		Message:    "action execution failed",
+		Error:      message,
+		ExecutedAt: time.Now().UTC(),
+	}
 }
 
 // ValidationResult records validation facts that may be audited.

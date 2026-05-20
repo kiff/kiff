@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -370,6 +371,95 @@ func TestRuntimeAllowedActionsReturnsNotFoundForUnknownEntity(t *testing.T) {
 	_, err := rt.AllowedActions("missing")
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected store.ErrNotFound, got %v", err)
+	}
+}
+
+func TestRuntimeAuditsSuccessfulExecutionResultDetails(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{PermissionPolicy: policy})
+
+	result, err := rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "READY",
+		Actor:        actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"READY"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{
+				Message:        "move executed",
+				EffectsSummary: "created move artifact",
+				Output:         map[string]any{"artifact_id": "artifact-1"},
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute action: %v", err)
+	}
+	if result.Status != action.ExecutionSucceeded {
+		t.Fatalf("expected succeeded status, got %q", result.Status)
+	}
+
+	records, err := rt.Audit.Query(context.Background(), audit.Filter{EntityID: "attempt-1", Kind: audit.KindActionExecuted})
+	if err != nil {
+		t.Fatalf("query audit: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 execution audit record, got %d", len(records))
+	}
+	if records[0].Data["status"] != action.ExecutionSucceeded {
+		t.Fatalf("expected audit status succeeded, got %#v", records[0].Data["status"])
+	}
+	if records[0].Data["effects_summary"] != "created move artifact" {
+		t.Fatalf("expected effects summary in audit, got %#v", records[0].Data["effects_summary"])
+	}
+}
+
+func TestRuntimeAuditsFailedExecutionResultDetails(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{PermissionPolicy: policy})
+
+	result, err := rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "READY",
+		Actor:        actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"READY"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{}, fmt.Errorf("executor failed")
+		},
+	})
+	if err == nil {
+		t.Fatal("expected execution error")
+	}
+	if result.Status != action.ExecutionFailed {
+		t.Fatalf("expected failed status, got %q", result.Status)
+	}
+	if result.Error != "executor failed" {
+		t.Fatalf("expected failed result error, got %q", result.Error)
+	}
+
+	records, err := rt.Audit.Query(context.Background(), audit.Filter{EntityID: "attempt-1", Kind: audit.KindActionFailed})
+	if err != nil {
+		t.Fatalf("query audit: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 failure audit record, got %d", len(records))
+	}
+	if records[0].Data["status"] != action.ExecutionFailed {
+		t.Fatalf("expected audit status failed, got %#v", records[0].Data["status"])
+	}
+	if records[0].Data["error"] != "executor failed" {
+		t.Fatalf("expected audit error, got %#v", records[0].Data["error"])
 	}
 }
 

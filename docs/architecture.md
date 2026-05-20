@@ -40,6 +40,8 @@ The action package defines action contracts and validation.
 
 An action contract declares its name, allowed states, required parameters, required permissions, risk level, approval requirement, and optional executor function. The default validator checks state, parameters, permissions, and approval before execution.
 
+Action execution returns an explicit result with status, message, error, effects summary, output, and timestamp. Runtime audit stores those result fields so execution can be reconstructed separately from validation.
+
 Action catalogs let domains register contracts by name. The catalog is a convenience layer, not a global registry. Domains still own the action vocabulary.
 
 ### `pkg/kiff/approval`

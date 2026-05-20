@@ -156,3 +156,9 @@ GET  /entities/{entityID}/timeline
 Brick 8 adds a proposal boundary for agentic systems without integrating an LLM SDK.
 
 An actor may propose an action with parameters, evidence, reasoning, and confidence. KIFF records that proposal as a decision and can convert it into an action context for validation. Recording a proposal never executes the action.
+
+## Brick 9: Execution Results
+
+Brick 9 makes action execution outcomes explicit.
+
+Execution results include status, message, error, effects summary, output, and timestamp. Runtime audit records include those result details so successful and failed executions can be reconstructed later.
