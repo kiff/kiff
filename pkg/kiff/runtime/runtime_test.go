@@ -1,0 +1,75 @@
+package runtime
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
+)
+
+func TestRuntimeAppendsAuditRecordsDuringEventIngestionAndActionExecution(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{
+		StateMachine:     state.NewTransitionMachine(state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"}),
+		PermissionPolicy: policy,
+	})
+
+	if err := rt.IngestEvent(event.Event{
+		ID:         "evt-1",
+		Type:       "MISSION_SUBMITTED",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Source:     "test",
+		ActorID:    "agent",
+		OccurredAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("ingest event: %v", err)
+	}
+
+	_, err := rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "SUBMITTED",
+		Actor:        actor.Actor{ID: "agent"},
+		Approved:     true,
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"SUBMITTED"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		ApprovalRequirement: action.ApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("execute action: %v", err)
+	}
+
+	records, err := rt.Audit.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list audit: %v", err)
+	}
+	if len(records) < 4 {
+		t.Fatalf("expected at least 4 audit records, got %d", len(records))
+	}
+
+	var sawEvent, sawState, sawExecuted bool
+	for _, record := range records {
+		switch record.Kind {
+		case audit.KindEventIngested:
+			sawEvent = true
+		case audit.KindStateChanged:
+			sawState = true
+		case audit.KindActionExecuted:
+			sawExecuted = true
+		}
+	}
+	if !sawEvent || !sawState || !sawExecuted {
+		t.Fatalf("expected event, state, and execution audit records, got %#v", records)
+	}
+}
