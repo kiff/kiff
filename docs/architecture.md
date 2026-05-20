@@ -54,6 +54,8 @@ The audit package records important operational facts: event ingestion, state ch
 
 Audit is part of the KIFF protocol. It is not optional logging added after the system is built.
 
+Audit stores support filtered queries by entity, audit kind, and actor. Query results are returned in chronological order so a KIFF system can reconstruct the path of an entity after the fact.
+
 ### `pkg/kiff/actor`
 
 The actor package defines the identity of a human, AI agent, service, system, or external integration.
@@ -76,7 +78,7 @@ A domain definition names the domain, declares known entity and event types, and
 
 The runtime package wires the primitive stores and policies together.
 
-It ingests events, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, and appends audit records. It is a coordinator, not an application server.
+It ingests events, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, reconstructs audit timelines, and appends audit records. It is a coordinator, not an application server.
 
 ### `pkg/kiff/store`
 

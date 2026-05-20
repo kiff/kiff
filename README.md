@@ -115,3 +115,9 @@ A domain definition names a domain and bundles:
 - the domain action catalog
 
 The runtime can use a domain definition to answer which action contracts are currently allowed for an entity based on its state.
+
+## Brick 4: Audit Reconstruction
+
+Brick 4 makes the audit trail queryable enough to reconstruct what happened.
+
+Audit records can be queried by entity, kind, and actor. The runtime exposes a timeline method so a domain can explain an entity's operational path in chronological order.

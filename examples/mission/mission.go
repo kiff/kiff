@@ -171,6 +171,7 @@ func NewRuntime() (*runtime.Runtime, error) {
 type DemoResult struct {
 	Lines      []string
 	Audit      []audit.Record
+	Timeline   []audit.Record
 	FinalState state.State
 }
 
@@ -330,13 +331,18 @@ func RunHappyPath() (DemoResult, error) {
 	if err != nil {
 		return DemoResult{}, err
 	}
+	timeline, err := rt.Timeline(attemptID)
+	if err != nil {
+		return DemoResult{}, err
+	}
 	finalState, _, err := rt.States.Current(context.Background(), attemptID)
 	if err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, fmt.Sprintf("audit records created: %d", len(records)))
+	lines = append(lines, fmt.Sprintf("timeline records reconstructed: %d", len(timeline)))
 
-	return DemoResult{Lines: lines, Audit: records, FinalState: finalState}, nil
+	return DemoResult{Lines: lines, Audit: records, Timeline: timeline, FinalState: finalState}, nil
 }
 
 func newEvent(id, eventType, attemptID, actorID string, payload map[string]any) event.Event {

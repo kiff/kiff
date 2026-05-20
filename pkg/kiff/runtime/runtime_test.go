@@ -10,6 +10,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
@@ -176,5 +177,109 @@ func TestRuntimeAllowedActionsReturnsNotFoundForUnknownEntity(t *testing.T) {
 	_, err := rt.AllowedActions("missing")
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected store.ErrNotFound, got %v", err)
+	}
+}
+
+func TestRuntimeTimelineReconstructsOperationalPath(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"},
+		),
+		PermissionPolicy: policy,
+	})
+
+	if err := rt.IngestEvent(event.Event{
+		ID:         "evt-1",
+		Type:       "MISSION_SUBMITTED",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Source:     "test",
+		ActorID:    "human",
+		OccurredAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("ingest event: %v", err)
+	}
+	if err := rt.ProposeDecision(decisionForTest("dec-1", "attempt-1")); err != nil {
+		t.Fatalf("propose decision: %v", err)
+	}
+	err := rt.ValidateAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "SUBMITTED",
+		Actor:        actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"SUBMITTED"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		ApprovalRequirement: action.ApprovalRequired,
+	})
+	if !errors.Is(err, action.ErrApprovalRequired) {
+		t.Fatalf("expected approval requirement, got %v", err)
+	}
+	if err := rt.RecordApproval(approval.Approval{
+		ID:          "approval-1",
+		EntityID:    "attempt-1",
+		EntityType:  "MissionAttempt",
+		ActionName:  "EXECUTE_MOVE",
+		RequestedBy: "agent",
+		ReviewedBy:  "human",
+		Status:      approval.StatusGranted,
+		CreatedAt:   time.Now().UTC(),
+		ReviewedAt:  time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("record approval: %v", err)
+	}
+	_, err = rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "SUBMITTED",
+		Actor:        actor.Actor{ID: "agent"},
+		ApprovalID:   "approval-1",
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"SUBMITTED"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		ApprovalRequirement: action.ApprovalRequired,
+	})
+	if err != nil {
+		t.Fatalf("execute action: %v", err)
+	}
+
+	timeline, err := rt.Timeline("attempt-1")
+	if err != nil {
+		t.Fatalf("timeline: %v", err)
+	}
+	expectedKinds := []audit.Kind{
+		audit.KindEventIngested,
+		audit.KindStateChanged,
+		audit.KindDecisionProposed,
+		audit.KindApprovalRequired,
+		audit.KindApprovalGranted,
+		audit.KindActionValidated,
+		audit.KindActionExecuted,
+	}
+	if len(timeline) != len(expectedKinds) {
+		t.Fatalf("expected %d timeline records, got %d: %#v", len(expectedKinds), len(timeline), timeline)
+	}
+	for i, kind := range expectedKinds {
+		if timeline[i].Kind != kind {
+			t.Fatalf("expected timeline kind %q at index %d, got %q", kind, i, timeline[i].Kind)
+		}
+	}
+}
+
+func decisionForTest(id, entityID string) decision.Decision {
+	return decision.Decision{
+		ID:             id,
+		EntityID:       entityID,
+		EntityType:     "MissionAttempt",
+		Kind:           decision.KindActionProposal,
+		ProposedAction: "EXECUTE_MOVE",
+		ActorID:        "agent",
+		CreatedAt:      time.Now().UTC(),
 	}
 }

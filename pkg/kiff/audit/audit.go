@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 )
@@ -43,6 +44,13 @@ type Record struct {
 // AuditRecord is kept as an explicit alias for readability.
 type AuditRecord = Record
 
+// Filter narrows audit queries by entity, kind, and actor.
+type Filter struct {
+	EntityID string
+	Kind     Kind
+	ActorID  string
+}
+
 // Validate checks the minimum fields needed for reconstruction.
 func (r Record) Validate() error {
 	if r.ID == "" {
@@ -67,6 +75,7 @@ func (r Record) Validate() error {
 type Store interface {
 	Append(context.Context, Record) error
 	List(context.Context, string) ([]Record, error)
+	Query(context.Context, Filter) ([]Record, error)
 }
 
 // AuditStore is kept as an explicit alias for readability.
@@ -107,6 +116,11 @@ func (s *InMemoryStore) Append(ctx context.Context, r Record) error {
 
 // List returns audit records for an entity. An empty entity id returns all records.
 func (s *InMemoryStore) List(ctx context.Context, entityID string) ([]Record, error) {
+	return s.Query(ctx, Filter{EntityID: entityID})
+}
+
+// Query returns audit records matching the filter in chronological order.
+func (s *InMemoryStore) Query(ctx context.Context, filter Filter) ([]Record, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -115,9 +129,37 @@ func (s *InMemoryStore) List(ctx context.Context, entityID string) ([]Record, er
 
 	records := make([]Record, 0, len(s.records))
 	for _, r := range s.records {
-		if entityID == "" || r.EntityID == entityID {
+		if matchesFilter(r, filter) {
+			r.Data = copyData(r.Data)
 			records = append(records, r)
 		}
 	}
+	sort.SliceStable(records, func(i, j int) bool {
+		return records[i].CreatedAt.Before(records[j].CreatedAt)
+	})
 	return records, nil
+}
+
+func matchesFilter(r Record, filter Filter) bool {
+	if filter.EntityID != "" && r.EntityID != filter.EntityID {
+		return false
+	}
+	if filter.Kind != "" && r.Kind != filter.Kind {
+		return false
+	}
+	if filter.ActorID != "" && r.ActorID != filter.ActorID {
+		return false
+	}
+	return true
+}
+
+func copyData(data map[string]any) map[string]any {
+	if data == nil {
+		return nil
+	}
+	copied := make(map[string]any, len(data))
+	for key, value := range data {
+		copied[key] = value
+	}
+	return copied
 }

@@ -178,6 +178,12 @@ func (r *Runtime) AllowedActions(entityID string) ([]action.ActionContract, erro
 	return contracts, nil
 }
 
+// Timeline returns the chronological audit trail for an entity.
+func (r *Runtime) Timeline(entityID string) ([]audit.Record, error) {
+	ctx := context.Background()
+	return r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
+}
+
 // RecordApproval stores and audits an approval record.
 func (r *Runtime) RecordApproval(a approval.Approval) error {
 	ctx := context.Background()
