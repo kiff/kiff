@@ -86,6 +86,7 @@ The core packages should provide primitives and interfaces for coordination mech
 - action
 - decision
 - permission
+- approval
 - audit
 - actor
 - evidence

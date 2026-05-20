@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
@@ -77,16 +78,16 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 }
 
 // Contracts returns the mission action contracts.
-func Contracts() map[string]action.ActionContract {
-	return map[string]action.ActionContract{
-		ActionCreateAttempt: {
+func Contracts() []action.ActionContract {
+	return []action.ActionContract{
+		{
 			Name:                ActionCreateAttempt,
 			AllowedStates:       []string{StateSubmitted},
 			RequiredPermissions: []permission.Permission{PermissionCreateAttempt},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
 		},
-		ActionProposeMove: {
+		{
 			Name:                ActionProposeMove,
 			AllowedStates:       []string{StateActive},
 			RequiredParameters:  []string{"move"},
@@ -94,14 +95,14 @@ func Contracts() map[string]action.ActionContract {
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 		},
-		ActionRequestHumanApproval: {
+		{
 			Name:                ActionRequestHumanApproval,
 			AllowedStates:       []string{StateWaitingApproval},
 			RequiredPermissions: []permission.Permission{PermissionRequestHumanApproval},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 		},
-		ActionExecuteMove: {
+		{
 			Name:                ActionExecuteMove,
 			AllowedStates:       []string{StateWaitingApproval},
 			RequiredPermissions: []permission.Permission{PermissionExecuteMove},
@@ -122,12 +123,28 @@ func Contracts() map[string]action.ActionContract {
 	}
 }
 
+// NewActionCatalog creates the mission action catalog.
+func NewActionCatalog() (*action.Catalog, error) {
+	catalog := action.NewCatalog()
+	for _, contract := range Contracts() {
+		if err := catalog.Register(contract); err != nil {
+			return nil, err
+		}
+	}
+	return catalog, nil
+}
+
 // NewRuntime creates a runtime wired for the mission example.
-func NewRuntime() *runtime.Runtime {
+func NewRuntime() (*runtime.Runtime, error) {
+	catalog, err := NewActionCatalog()
+	if err != nil {
+		return nil, err
+	}
 	return runtime.New(runtime.Config{
 		StateMachine:     NewStateMachine(),
 		PermissionPolicy: NewPermissionPolicy(),
-	})
+		ActionCatalog:    catalog,
+	}), nil
 }
 
 // DemoResult captures the observable outcome of the mission happy path.
@@ -140,9 +157,18 @@ type DemoResult struct {
 // RunHappyPath runs a compact mission attempt through the KIFF loop.
 func RunHappyPath() (DemoResult, error) {
 	attemptID := "mission-attempt-001"
-	rt := NewRuntime()
-	contracts := Contracts()
+	rt, err := NewRuntime()
+	if err != nil {
+		return DemoResult{}, err
+	}
 	lines := []string{}
+	contract := func(name string) (action.ActionContract, error) {
+		contract, ok := rt.Actions.Get(name)
+		if !ok {
+			return action.ActionContract{}, fmt.Errorf("missing mission action contract %q", name)
+		}
+		return contract, nil
+	}
 
 	if err := rt.IngestEvent(newEvent("evt-001", EventMissionSubmitted, attemptID, HumanActor.ID, map[string]any{"mission": "cross the line"})); err != nil {
 		return DemoResult{}, err
@@ -157,7 +183,11 @@ func RunHappyPath() (DemoResult, error) {
 		CurrentState: StateSubmitted,
 		Actor:        AgentActor,
 	}
-	if _, err := rt.ExecuteAction(createCtx, contracts[ActionCreateAttempt]); err != nil {
+	createContract, err := contract(ActionCreateAttempt)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	if _, err := rt.ExecuteAction(createCtx, createContract); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action validated: CREATE_ATTEMPT")
@@ -193,7 +223,11 @@ func RunHappyPath() (DemoResult, error) {
 		Actor:        AgentActor,
 		Parameters:   map[string]any{"move": "draft the first bounded move"},
 	}
-	if err := rt.ValidateAction(proposeCtx, contracts[ActionProposeMove]); err != nil {
+	proposeContract, err := contract(ActionProposeMove)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	if err := rt.ValidateAction(proposeCtx, proposeContract); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action validated: PROPOSE_MOVE")
@@ -210,19 +244,53 @@ func RunHappyPath() (DemoResult, error) {
 		CurrentState: StateWaitingApproval,
 		Actor:        AgentActor,
 		Parameters:   map[string]any{"move": "draft the first bounded move"},
+		ApprovalID:   "approval-001",
 	}
-	if err := rt.ValidateAction(executeCtx, contracts[ActionExecuteMove]); !errors.Is(err, action.ErrApprovalRequired) {
+	executeContract, err := contract(ActionExecuteMove)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	if err := rt.ValidateAction(executeCtx, executeContract); !errors.Is(err, action.ErrApprovalRequired) {
 		return DemoResult{}, fmt.Errorf("expected approval requirement, got %v", err)
 	}
 	lines = append(lines, "approval required: EXECUTE_MOVE")
+
+	if err := rt.RecordApproval(approval.Approval{
+		ID:          executeCtx.ApprovalID,
+		EntityID:    attemptID,
+		EntityType:  EntityTypeMissionAttempt,
+		ActionName:  ActionExecuteMove,
+		RequestedBy: AgentActor.ID,
+		Status:      approval.StatusPending,
+		Reason:      "high-risk move execution requires human authority",
+		CreatedAt:   time.Now().UTC(),
+	}); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "approval recorded: pending")
 
 	if err := rt.IngestEvent(newEvent("evt-004", EventHumanApprovalGranted, attemptID, HumanActor.ID, map[string]any{"approved_action": ActionExecuteMove})); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "event ingested: HUMAN_APPROVAL_GRANTED")
 
-	executeCtx.Approved = true
-	if _, err := rt.ExecuteAction(executeCtx, contracts[ActionExecuteMove]); err != nil {
+	if err := rt.RecordApproval(approval.Approval{
+		ID:          executeCtx.ApprovalID,
+		EntityID:    attemptID,
+		EntityType:  EntityTypeMissionAttempt,
+		ActionName:  ActionExecuteMove,
+		RequestedBy: AgentActor.ID,
+		ReviewedBy:  HumanActor.ID,
+		Status:      approval.StatusGranted,
+		Reason:      "human approved the bounded move",
+		CreatedAt:   time.Now().UTC(),
+		ReviewedAt:  time.Now().UTC(),
+	}); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "approval granted: EXECUTE_MOVE")
+
+	if _, err := rt.ExecuteAction(executeCtx, executeContract); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action executed: EXECUTE_MOVE")

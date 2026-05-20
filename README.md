@@ -42,6 +42,7 @@ The initial framework scaffold lives under `pkg/kiff/`:
 - `decision`: explainable decision records
 - `action`: action contracts, risk, approval, and validation
 - `permission`: simple actor permission policies
+- `approval`: approval records and approval stores for high-risk actions
 - `audit`: append-only audit records
 - `actor`: human, agent, service, and system actor identity
 - `evidence`: references used to support decisions or actions
@@ -89,3 +90,14 @@ The important boundary is simple:
 Domain semantics live in examples, apps, or product code.
 Coordination mechanics live in pkg/kiff.
 ```
+
+## Brick 2: Approvals And Action Catalogs
+
+Brick 2 adds two small governance ergonomics:
+
+- approval records for actions that require human authority
+- action catalogs for registering and looking up domain action contracts
+
+An approval record is not just a boolean. It captures which action was reviewed, which entity it affects, who requested it, who reviewed it, whether it was granted or denied, and when that happened.
+
+An action catalog belongs to a domain. It keeps action contracts discoverable without putting domain vocabulary into the KIFF core.

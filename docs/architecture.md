@@ -2,7 +2,7 @@
 
 KIFF is a protocol-first backend framework. It gives Go developers the reusable mechanics needed to coordinate humans, AI agents, services, and integrations around shared operational state.
 
-The framework is intentionally small in Brick 1. There is no HTTP server, database adapter, LLM integration, UI, or workflow engine. The first version proves the local coordination loop:
+The framework is intentionally small. There is no HTTP server, database adapter, LLM integration, UI, or workflow engine. The first version proves the local coordination loop:
 
 ```text
 Event ingested -> State changed -> Decision recorded -> Action validated -> Execution audited
@@ -33,6 +33,14 @@ Decisions may come from humans, deterministic software, or AI agents. KIFF store
 The action package defines action contracts and validation.
 
 An action contract declares its name, allowed states, required parameters, required permissions, risk level, approval requirement, and optional executor function. The default validator checks state, parameters, permissions, and approval before execution.
+
+Action catalogs let domains register contracts by name. The catalog is a convenience layer, not a global registry. Domains still own the action vocabulary.
+
+### `pkg/kiff/approval`
+
+The approval package records human authority over actions that require review.
+
+An approval identifies the affected entity, action name, requester, reviewer, status, reason, and timestamps. Brick 2 includes an in-memory approval store. Runtime validation can resolve an approval id from an action context and treat a granted approval as the approval signal for that action.
 
 ### `pkg/kiff/permission`
 
@@ -84,4 +92,4 @@ It defines:
 - states: `SUBMITTED`, `ACTIVE`, `WAITING_APPROVAL`, `COMPLETED`
 - actions: `CREATE_ATTEMPT`, `PROPOSE_MOVE`, `REQUEST_HUMAN_APPROVAL`, `EXECUTE_MOVE`
 
-The example exists to teach the KIFF coordination loop. It is not part of the framework core.
+The example uses an action catalog and an approval record to show how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.

@@ -15,6 +15,8 @@ var (
 	ErrMissingParameter = errors.New("action required parameter missing")
 	ErrPermissionDenied = errors.New("action permission denied")
 	ErrApprovalRequired = errors.New("action requires approval")
+	ErrInvalidContract  = errors.New("invalid action contract")
+	ErrDuplicateAction  = errors.New("duplicate action contract")
 )
 
 // RiskLevel describes the operational risk of an action.
@@ -54,6 +56,7 @@ type ActionContext struct {
 	CurrentState string
 	Actor        actor.Actor
 	Parameters   map[string]any
+	ApprovalID   string
 	Approved     bool
 }
 

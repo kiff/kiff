@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
@@ -19,9 +20,11 @@ type Config struct {
 	EventStore       event.Store
 	DecisionStore    decision.Store
 	AuditStore       audit.Store
+	ApprovalStore    approval.Store
 	StateMachine     state.StateMachine
 	PermissionPolicy permission.Policy
 	ActionValidator  action.Validator
+	ActionCatalog    *action.Catalog
 }
 
 // Runtime coordinates event ingestion, decisions, action validation, execution, and audit.
@@ -29,9 +32,11 @@ type Runtime struct {
 	Events      event.Store
 	Decisions   decision.Store
 	Audit       audit.Store
+	Approvals   approval.Store
 	States      state.StateMachine
 	Permissions permission.Policy
 	Validator   action.Validator
+	Actions     *action.Catalog
 }
 
 // New creates a runtime with in-memory defaults for omitted stores.
@@ -40,9 +45,11 @@ func New(config Config) *Runtime {
 		Events:      config.EventStore,
 		Decisions:   config.DecisionStore,
 		Audit:       config.AuditStore,
+		Approvals:   config.ApprovalStore,
 		States:      config.StateMachine,
 		Permissions: config.PermissionPolicy,
 		Validator:   config.ActionValidator,
+		Actions:     config.ActionCatalog,
 	}
 	if rt.Events == nil {
 		rt.Events = event.NewInMemoryStore()
@@ -53,8 +60,14 @@ func New(config Config) *Runtime {
 	if rt.Audit == nil {
 		rt.Audit = audit.NewInMemoryStore()
 	}
+	if rt.Approvals == nil {
+		rt.Approvals = approval.NewInMemoryStore()
+	}
 	if rt.Validator == nil {
 		rt.Validator = action.NewDefaultValidator()
+	}
+	if rt.Actions == nil {
+		rt.Actions = action.NewCatalog()
 	}
 	return rt
 }
@@ -109,9 +122,43 @@ func (r *Runtime) ProposeDecision(d decision.Decision) error {
 	})
 }
 
+// RecordApproval stores and audits an approval record.
+func (r *Runtime) RecordApproval(a approval.Approval) error {
+	ctx := context.Background()
+	if err := r.Approvals.Save(ctx, a); err != nil {
+		return err
+	}
+
+	kind := audit.KindApprovalRecorded
+	message := "approval recorded"
+	switch a.Status {
+	case approval.StatusGranted:
+		kind = audit.KindApprovalGranted
+		message = "approval granted"
+	case approval.StatusDenied:
+		kind = audit.KindApprovalDenied
+		message = "approval denied"
+	}
+
+	actorID := a.ReviewedBy
+	if actorID == "" {
+		actorID = a.RequestedBy
+	}
+
+	return r.appendAudit(ctx, kind, a.EntityID, a.EntityType, actorID, message, map[string]any{
+		"approval_id":  a.ID,
+		"action":       a.ActionName,
+		"requested_by": a.RequestedBy,
+		"reviewed_by":  a.ReviewedBy,
+		"status":       a.Status,
+		"reason":       a.Reason,
+	})
+}
+
 // ValidateAction validates an action and appends the corresponding audit record.
 func (r *Runtime) ValidateAction(actionCtx action.ActionContext, contract action.ActionContract) error {
 	ctx := context.Background()
+	actionCtx = r.applyApproval(ctx, actionCtx, contract)
 	result, err := r.Validator.Validate(ctx, actionCtx, contract, r.Permissions)
 	if err != nil {
 		kind := audit.KindActionFailed
@@ -123,6 +170,7 @@ func (r *Runtime) ValidateAction(actionCtx action.ActionContext, contract action
 		auditErr := r.appendAudit(ctx, kind, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, message, map[string]any{
 			"action":            contract.Name,
 			"error":             err.Error(),
+			"approval_id":       actionCtx.ApprovalID,
 			"requires_approval": result.RequiresApproval,
 		})
 		if auditErr != nil {
@@ -132,17 +180,19 @@ func (r *Runtime) ValidateAction(actionCtx action.ActionContext, contract action
 	}
 	return r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
 		"action":            contract.Name,
+		"approval_id":       actionCtx.ApprovalID,
 		"requires_approval": result.RequiresApproval,
 	})
 }
 
 // ExecuteAction validates, executes, and audits an action.
 func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.ActionContract) (action.ActionResult, error) {
+	ctx := context.Background()
+	actionCtx = r.applyApproval(ctx, actionCtx, contract)
 	if err := r.ValidateAction(actionCtx, contract); err != nil {
 		return action.ActionResult{}, err
 	}
 
-	ctx := context.Background()
 	result := action.ActionResult{
 		ActionName: contract.Name,
 		EntityID:   actionCtx.EntityID,
@@ -177,6 +227,20 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 		"action":  contract.Name,
 		"message": result.Message,
 	})
+}
+
+func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) action.ActionContext {
+	if actionCtx.Approved || actionCtx.ApprovalID == "" || r.Approvals == nil {
+		return actionCtx
+	}
+	if contract.ApprovalRequirement != action.ApprovalRequired {
+		return actionCtx
+	}
+	granted, err := r.Approvals.IsGranted(ctx, actionCtx.ApprovalID, actionCtx.EntityID, contract.Name)
+	if err == nil && granted {
+		actionCtx.Approved = true
+	}
+	return actionCtx
 }
 
 func (r *Runtime) appendAudit(ctx context.Context, kind audit.Kind, entityID, entityType, actorID, message string, data map[string]any) error {

@@ -18,6 +18,9 @@ const (
 	KindDecisionProposed Kind = "decision_proposed"
 	KindActionValidated  Kind = "action_validated"
 	KindApprovalRequired Kind = "approval_required"
+	KindApprovalRecorded Kind = "approval_recorded"
+	KindApprovalGranted  Kind = "approval_granted"
+	KindApprovalDenied   Kind = "approval_denied"
 	KindActionExecuted   Kind = "action_executed"
 	KindActionFailed     Kind = "action_failed"
 )
