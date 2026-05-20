@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
@@ -20,6 +21,8 @@ import (
 )
 
 const (
+	AdapterMission = "mission"
+
 	EntityTypeMissionAttempt = "MissionAttempt"
 
 	EventMissionSubmitted     = "MISSION_SUBMITTED"
@@ -156,14 +159,24 @@ func NewDomainDefinition() (domain.Definition, error) {
 	}, nil
 }
 
+// NewInputAdapter creates the mission input adapter.
+func NewInputAdapter() (adapter.Adapter, error) {
+	return adapter.NewPassthroughAdapter(AdapterMission)
+}
+
 // NewRuntime creates a runtime wired for the mission example.
 func NewRuntime() (*runtime.Runtime, error) {
 	definition, err := NewDomainDefinition()
 	if err != nil {
 		return nil, err
 	}
+	inputAdapter, err := NewInputAdapter()
+	if err != nil {
+		return nil, err
+	}
 	return runtime.NewForDomain(definition, runtime.Config{
 		PermissionPolicy: NewPermissionPolicy(),
+		Adapters:         []adapter.Adapter{inputAdapter},
 	})
 }
 
@@ -191,9 +204,21 @@ func RunHappyPath() (DemoResult, error) {
 		return contract, nil
 	}
 
-	if err := rt.IngestEvent(newEvent("evt-001", EventMissionSubmitted, attemptID, HumanActor.ID, map[string]any{"mission": "cross the line"})); err != nil {
+	_, err = rt.IngestRaw(adapter.RawInput{
+		ID:         "evt-001",
+		Adapter:    AdapterMission,
+		Type:       EventMissionSubmitted,
+		Source:     "examples/mission/raw",
+		EntityID:   attemptID,
+		EntityType: EntityTypeMissionAttempt,
+		ActorID:    HumanActor.ID,
+		ReceivedAt: time.Now().UTC(),
+		Payload:    map[string]any{"mission": "cross the line"},
+	})
+	if err != nil {
 		return DemoResult{}, err
 	}
+	lines = append(lines, "raw input normalized: MISSION_SUBMITTED")
 	lines = append(lines, "event ingested: MISSION_SUBMITTED")
 	lines = append(lines, "state changed: SUBMITTED")
 

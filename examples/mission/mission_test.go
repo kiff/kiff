@@ -21,6 +21,16 @@ func TestMissionDomainDefinitionDeclaresVocabulary(t *testing.T) {
 	}
 }
 
+func TestMissionInputAdapterExists(t *testing.T) {
+	inputAdapter, err := NewInputAdapter()
+	if err != nil {
+		t.Fatalf("new input adapter: %v", err)
+	}
+	if inputAdapter.Name() != AdapterMission {
+		t.Fatalf("expected adapter name %q, got %q", AdapterMission, inputAdapter.Name())
+	}
+}
+
 func TestMissionHappyPathWorks(t *testing.T) {
 	result, err := RunHappyPath()
 	if err != nil {

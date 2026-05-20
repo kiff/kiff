@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
@@ -29,6 +30,7 @@ type Config struct {
 	PermissionPolicy permission.Policy
 	ActionValidator  action.Validator
 	ActionCatalog    *action.Catalog
+	Adapters         []adapter.Adapter
 }
 
 // Runtime coordinates event ingestion, decisions, action validation, execution, and audit.
@@ -42,6 +44,7 @@ type Runtime struct {
 	Permissions permission.Policy
 	Validator   action.Validator
 	Actions     *action.Catalog
+	Adapters    map[string]adapter.Adapter
 }
 
 // New creates a runtime with in-memory defaults for omitted stores.
@@ -56,6 +59,7 @@ func New(config Config) *Runtime {
 		Permissions: config.PermissionPolicy,
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
+		Adapters:    map[string]adapter.Adapter{},
 	}
 	if config.Stores != nil {
 		if rt.Events == nil {
@@ -96,6 +100,9 @@ func New(config Config) *Runtime {
 	}
 	if rt.Actions == nil {
 		rt.Actions = action.NewCatalog()
+	}
+	for _, configuredAdapter := range config.Adapters {
+		_ = rt.RegisterAdapter(configuredAdapter)
 	}
 	return rt
 }
@@ -143,6 +150,41 @@ func (r *Runtime) IngestEvent(ev event.Event) error {
 		"event_id":   ev.ID,
 		"event_type": ev.Type,
 	})
+}
+
+// RegisterAdapter registers an input adapter by name.
+func (r *Runtime) RegisterAdapter(inputAdapter adapter.Adapter) error {
+	if inputAdapter == nil {
+		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter is nil"))
+	}
+	if inputAdapter.Name() == "" {
+		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter name is required"))
+	}
+	if r.Adapters == nil {
+		r.Adapters = map[string]adapter.Adapter{}
+	}
+	r.Adapters[inputAdapter.Name()] = inputAdapter
+	return nil
+}
+
+// IngestRaw normalizes raw input with a registered adapter, then ingests the event.
+func (r *Runtime) IngestRaw(input adapter.RawInput) (event.Event, error) {
+	ctx := context.Background()
+	if err := input.Validate(); err != nil {
+		return event.Event{}, err
+	}
+	inputAdapter, ok := r.Adapters[input.Adapter]
+	if !ok {
+		return event.Event{}, fmt.Errorf("%w: %q", adapter.ErrAdapterNotFound, input.Adapter)
+	}
+	ev, err := inputAdapter.Normalize(ctx, input)
+	if err != nil {
+		return event.Event{}, err
+	}
+	if err := r.IngestEvent(ev); err != nil {
+		return event.Event{}, err
+	}
+	return ev, nil
 }
 
 // ProposeDecision stores and audits a decision.

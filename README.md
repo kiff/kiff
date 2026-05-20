@@ -47,6 +47,7 @@ The initial framework scaffold lives under `pkg/kiff/`:
 - `actor`: human, agent, service, and system actor identity
 - `evidence`: references used to support decisions or actions
 - `domain`: domain definitions that bundle state machines and action catalogs
+- `adapter`: raw input normalization before events enter KIFF
 - `runtime`: a small coordinator that wires stores, policies, validation, and audit
 - `store`: common store-level helpers
 
@@ -127,3 +128,9 @@ Audit records can be queried by entity, kind, and actor. The runtime exposes a t
 Brick 5 groups the core stores into a small store bundle.
 
 The bundle gives applications one clear place to inject event, decision, approval, and audit stores. The default demo still uses in-memory stores, but future persistence adapters can implement the same package-level store interfaces and plug into the runtime without changing domain code.
+
+## Brick 6: Input Adapters
+
+Brick 6 adds the first adapter boundary.
+
+Adapters normalize raw inputs into KIFF events. They do not own transport. A webhook handler, queue consumer, CLI command, or agent runtime can receive input however it wants, then hand a raw input to an adapter before KIFF ingests the normalized event.

@@ -74,11 +74,17 @@ The domain package defines a small boundary object for domain-owned coordination
 
 A domain definition names the domain, declares known entity and event types, and bundles the state machine with the action catalog. This keeps application setup readable without moving mission, financial, marketplace, or post-purchase semantics into the KIFF core.
 
+### `pkg/kiff/adapter`
+
+The adapter package defines how raw inputs become normalized KIFF events.
+
+Adapters do not own HTTP, queues, files, or SDK integrations. They sit after transport and before event ingestion. Their job is to validate raw input, map it into an `event.Event`, and let runtime ingestion apply the normal state and audit behavior.
+
 ### `pkg/kiff/runtime`
 
 The runtime package wires the primitive stores and policies together.
 
-It ingests events, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, reconstructs audit timelines, and appends audit records. It is a coordinator, not an application server.
+It ingests normalized events or adapter-normalized raw inputs, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, reconstructs audit timelines, and appends audit records. It is a coordinator, not an application server.
 
 ### `pkg/kiff/store`
 

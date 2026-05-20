@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
@@ -113,6 +114,57 @@ func TestRuntimeUsesInjectedStoreBundle(t *testing.T) {
 	}
 	if len(auditRecords) != 2 {
 		t.Fatalf("expected event and state audit records in injected bundle, got %d", len(auditRecords))
+	}
+}
+
+func TestRuntimeIngestRawUsesRegisteredAdapter(t *testing.T) {
+	inputAdapter, err := adapter.NewPassthroughAdapter("mission")
+	if err != nil {
+		t.Fatalf("new adapter: %v", err)
+	}
+	rt := New(Config{
+		StateMachine: state.NewTransitionMachine(state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"}),
+		Adapters:     []adapter.Adapter{inputAdapter},
+	})
+
+	ev, err := rt.IngestRaw(adapter.RawInput{
+		ID:         "raw-1",
+		Adapter:    "mission",
+		Type:       "MISSION_SUBMITTED",
+		Source:     "mission-cli",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		ActorID:    "human",
+		ReceivedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		t.Fatalf("ingest raw input: %v", err)
+	}
+	if ev.Type != "MISSION_SUBMITTED" {
+		t.Fatalf("expected normalized event type, got %q", ev.Type)
+	}
+
+	events, err := rt.Events.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 ingested event, got %d", len(events))
+	}
+}
+
+func TestRuntimeIngestRawReturnsAdapterNotFound(t *testing.T) {
+	rt := New(Config{})
+
+	_, err := rt.IngestRaw(adapter.RawInput{
+		ID:         "raw-1",
+		Adapter:    "missing",
+		Type:       "MISSION_SUBMITTED",
+		Source:     "mission-cli",
+		ReceivedAt: time.Now().UTC(),
+	})
+	if !errors.Is(err, adapter.ErrAdapterNotFound) {
+		t.Fatalf("expected adapter.ErrAdapterNotFound, got %v", err)
 	}
 }
 
