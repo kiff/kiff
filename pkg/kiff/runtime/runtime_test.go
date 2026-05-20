@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,9 +10,11 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
 
 func TestRuntimeAppendsAuditRecordsDuringEventIngestionAndActionExecution(t *testing.T) {
@@ -131,5 +134,47 @@ func TestRuntimeUsesGrantedApprovalRecordForActionValidation(t *testing.T) {
 	}
 	if !sawApprovalGranted {
 		t.Fatalf("expected approval granted audit record, got %#v", records)
+	}
+}
+
+func TestRuntimeAllowedActionsUsesDomainStateAndCatalog(t *testing.T) {
+	machine := state.NewTransitionMachine()
+	machine.Set(state.State{EntityID: "attempt-1", EntityType: "MissionAttempt", Value: "ACTIVE"})
+	machine.SetAllowedActions("ACTIVE", []string{"PROPOSE_MOVE"})
+
+	catalog := action.NewCatalog()
+	if err := catalog.Register(action.ActionContract{Name: "PROPOSE_MOVE", AllowedStates: []string{"ACTIVE"}}); err != nil {
+		t.Fatalf("register contract: %v", err)
+	}
+
+	rt, err := NewForDomain(domain.Definition{
+		Name:         "mission",
+		EntityTypes:  []string{"MissionAttempt"},
+		EventTypes:   []string{"MOVE_PROPOSED"},
+		StateMachine: machine,
+		Actions:      catalog,
+	}, Config{})
+	if err != nil {
+		t.Fatalf("new runtime for domain: %v", err)
+	}
+
+	contracts, err := rt.AllowedActions("attempt-1")
+	if err != nil {
+		t.Fatalf("allowed actions: %v", err)
+	}
+	if len(contracts) != 1 {
+		t.Fatalf("expected 1 allowed action, got %d", len(contracts))
+	}
+	if contracts[0].Name != "PROPOSE_MOVE" {
+		t.Fatalf("expected PROPOSE_MOVE, got %q", contracts[0].Name)
+	}
+}
+
+func TestRuntimeAllowedActionsReturnsNotFoundForUnknownEntity(t *testing.T) {
+	rt := New(Config{StateMachine: state.NewTransitionMachine()})
+
+	_, err := rt.AllowedActions("missing")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected store.ErrNotFound, got %v", err)
 	}
 }

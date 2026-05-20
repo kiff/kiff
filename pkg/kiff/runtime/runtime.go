@@ -10,13 +10,16 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
 
 // Config wires the stores and policies used by a Runtime.
 type Config struct {
+	Domain           *domain.Definition
 	EventStore       event.Store
 	DecisionStore    decision.Store
 	AuditStore       audit.Store
@@ -29,6 +32,7 @@ type Config struct {
 
 // Runtime coordinates event ingestion, decisions, action validation, execution, and audit.
 type Runtime struct {
+	Domain      *domain.Definition
 	Events      event.Store
 	Decisions   decision.Store
 	Audit       audit.Store
@@ -42,6 +46,7 @@ type Runtime struct {
 // New creates a runtime with in-memory defaults for omitted stores.
 func New(config Config) *Runtime {
 	rt := &Runtime{
+		Domain:      config.Domain,
 		Events:      config.EventStore,
 		Decisions:   config.DecisionStore,
 		Audit:       config.AuditStore,
@@ -50,6 +55,14 @@ func New(config Config) *Runtime {
 		Permissions: config.PermissionPolicy,
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
+	}
+	if config.Domain != nil {
+		if rt.States == nil {
+			rt.States = config.Domain.StateMachine
+		}
+		if rt.Actions == nil {
+			rt.Actions = config.Domain.Actions
+		}
 	}
 	if rt.Events == nil {
 		rt.Events = event.NewInMemoryStore()
@@ -70,6 +83,15 @@ func New(config Config) *Runtime {
 		rt.Actions = action.NewCatalog()
 	}
 	return rt
+}
+
+// NewForDomain validates a domain definition and creates a runtime wired to it.
+func NewForDomain(definition domain.Definition, config Config) (*Runtime, error) {
+	if err := definition.Validate(); err != nil {
+		return nil, err
+	}
+	config.Domain = &definition
+	return New(config), nil
 }
 
 // IngestEvent stores an event, applies state when a state machine is present, and audits both facts.
@@ -120,6 +142,40 @@ func (r *Runtime) ProposeDecision(d decision.Decision) error {
 		"proposed_action": d.ProposedAction,
 		"confidence":      d.Confidence,
 	})
+}
+
+// AllowedActions returns the action contracts currently allowed for an entity.
+func (r *Runtime) AllowedActions(entityID string) ([]action.ActionContract, error) {
+	ctx := context.Background()
+	if r.States == nil {
+		return nil, fmt.Errorf("%w: state machine is not configured", store.ErrNotFound)
+	}
+	if r.Actions == nil {
+		return nil, fmt.Errorf("%w: action catalog is not configured", store.ErrNotFound)
+	}
+
+	current, ok, err := r.States.Current(ctx, entityID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("%w: state for entity %q", store.ErrNotFound, entityID)
+	}
+
+	names, err := r.States.AllowedActions(ctx, current)
+	if err != nil {
+		return nil, err
+	}
+
+	contracts := make([]action.ActionContract, 0, len(names))
+	for _, name := range names {
+		contract, ok := r.Actions.Get(name)
+		if !ok {
+			return nil, fmt.Errorf("%w: action contract %q", store.ErrNotFound, name)
+		}
+		contracts = append(contracts, contract)
+	}
+	return contracts, nil
 }
 
 // RecordApproval stores and audits an approval record.

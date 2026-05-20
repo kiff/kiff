@@ -11,6 +11,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/domain"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
@@ -134,17 +135,36 @@ func NewActionCatalog() (*action.Catalog, error) {
 	return catalog, nil
 }
 
+// NewDomainDefinition creates the mission domain definition.
+func NewDomainDefinition() (domain.Definition, error) {
+	catalog, err := NewActionCatalog()
+	if err != nil {
+		return domain.Definition{}, err
+	}
+	return domain.Definition{
+		Name:        "mission",
+		EntityTypes: []string{EntityTypeMissionAttempt},
+		EventTypes: []string{
+			EventMissionSubmitted,
+			EventAttemptCreated,
+			EventMoveProposed,
+			EventHumanApprovalGranted,
+			EventMoveExecuted,
+		},
+		StateMachine: NewStateMachine(),
+		Actions:      catalog,
+	}, nil
+}
+
 // NewRuntime creates a runtime wired for the mission example.
 func NewRuntime() (*runtime.Runtime, error) {
-	catalog, err := NewActionCatalog()
+	definition, err := NewDomainDefinition()
 	if err != nil {
 		return nil, err
 	}
-	return runtime.New(runtime.Config{
-		StateMachine:     NewStateMachine(),
+	return runtime.NewForDomain(definition, runtime.Config{
 		PermissionPolicy: NewPermissionPolicy(),
-		ActionCatalog:    catalog,
-	}), nil
+	})
 }
 
 // DemoResult captures the observable outcome of the mission happy path.
@@ -196,6 +216,12 @@ func RunHappyPath() (DemoResult, error) {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "state changed: ACTIVE")
+
+	allowed, err := rt.AllowedActions(attemptID)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, fmt.Sprintf("allowed actions: %s", actionNames(allowed)))
 
 	if err := rt.ProposeDecision(decision.Decision{
 		ID:             "dec-001",
@@ -324,4 +350,12 @@ func newEvent(id, eventType, attemptID, actorID string, payload map[string]any) 
 		OccurredAt: time.Now().UTC(),
 		Payload:    payload,
 	}
+}
+
+func actionNames(contracts []action.ActionContract) string {
+	names := make([]string, 0, len(contracts))
+	for _, contract := range contracts {
+		names = append(names, contract.Name)
+	}
+	return fmt.Sprintf("%v", names)
 }

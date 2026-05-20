@@ -66,11 +66,17 @@ The evidence package defines references to material used to support a decision o
 
 Evidence can point to documents, events, system data, external APIs, agent analysis, human review, or logs.
 
+### `pkg/kiff/domain`
+
+The domain package defines a small boundary object for domain-owned coordination vocabulary.
+
+A domain definition names the domain, declares known entity and event types, and bundles the state machine with the action catalog. This keeps application setup readable without moving mission, financial, marketplace, or post-purchase semantics into the KIFF core.
+
 ### `pkg/kiff/runtime`
 
 The runtime package wires the primitive stores and policies together.
 
-It ingests events, applies state transitions, records decisions, validates actions, executes actions, and appends audit records. It is a coordinator, not an application server.
+It ingests events, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, and appends audit records. It is a coordinator, not an application server.
 
 ### `pkg/kiff/store`
 
@@ -92,4 +98,4 @@ It defines:
 - states: `SUBMITTED`, `ACTIVE`, `WAITING_APPROVAL`, `COMPLETED`
 - actions: `CREATE_ATTEMPT`, `PROPOSE_MOVE`, `REQUEST_HUMAN_APPROVAL`, `EXECUTE_MOVE`
 
-The example uses an action catalog and an approval record to show how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.
+The example exposes a mission domain definition, uses an action catalog and an approval record, and shows how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.

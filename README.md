@@ -46,6 +46,7 @@ The initial framework scaffold lives under `pkg/kiff/`:
 - `audit`: append-only audit records
 - `actor`: human, agent, service, and system actor identity
 - `evidence`: references used to support decisions or actions
+- `domain`: domain definitions that bundle state machines and action catalogs
 - `runtime`: a small coordinator that wires stores, policies, validation, and audit
 - `store`: common store-level helpers
 
@@ -101,3 +102,16 @@ Brick 2 adds two small governance ergonomics:
 An approval record is not just a boolean. It captures which action was reviewed, which entity it affects, who requested it, who reviewed it, whether it was granted or denied, and when that happened.
 
 An action catalog belongs to a domain. It keeps action contracts discoverable without putting domain vocabulary into the KIFF core.
+
+## Brick 3: Domain Definitions
+
+Brick 3 adds a small `domain` package and runtime allowed-action lookup.
+
+A domain definition names a domain and bundles:
+
+- known entity types
+- known event types
+- the domain state machine
+- the domain action catalog
+
+The runtime can use a domain definition to answer which action contracts are currently allowed for an entity based on its state.

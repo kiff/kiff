@@ -90,6 +90,7 @@ The core packages should provide primitives and interfaces for coordination mech
 - audit
 - actor
 - evidence
+- domain
 - runtime
 - store
 
