@@ -92,6 +92,7 @@ The core packages should provide primitives and interfaces for coordination mech
 - evidence
 - domain
 - adapter
+- httpapi
 - runtime
 - store
 

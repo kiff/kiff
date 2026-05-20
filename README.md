@@ -48,6 +48,7 @@ The initial framework scaffold lives under `pkg/kiff/`:
 - `evidence`: references used to support decisions or actions
 - `domain`: domain definitions that bundle state machines and action catalogs
 - `adapter`: raw input normalization before events enter KIFF
+- `httpapi`: optional standard-library HTTP handlers around runtime methods
 - `runtime`: a small coordinator that wires stores, policies, validation, and audit
 - `store`: common store-level helpers
 
@@ -134,3 +135,17 @@ The bundle gives applications one clear place to inject event, decision, approva
 Brick 6 adds the first adapter boundary.
 
 Adapters normalize raw inputs into KIFF events. They do not own transport. A webhook handler, queue consumer, CLI command, or agent runtime can receive input however it wants, then hand a raw input to an adapter before KIFF ingests the normalized event.
+
+## Brick 7: HTTP API
+
+Brick 7 adds an optional `net/http` surface over the runtime.
+
+The HTTP API is intentionally thin. It exposes raw input ingestion, allowed action lookup, and audit timelines without introducing a web framework, authentication layer, database, or UI.
+
+Initial routes:
+
+```text
+POST /events/raw
+GET  /entities/{entityID}/allowed-actions
+GET  /entities/{entityID}/timeline
+```

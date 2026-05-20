@@ -80,6 +80,12 @@ The adapter package defines how raw inputs become normalized KIFF events.
 
 Adapters do not own HTTP, queues, files, or SDK integrations. They sit after transport and before event ingestion. Their job is to validate raw input, map it into an `event.Event`, and let runtime ingestion apply the normal state and audit behavior.
 
+### `pkg/kiff/httpapi`
+
+The httpapi package exposes a small optional `net/http` handler around runtime methods.
+
+It is a transport wrapper, not a web framework. It can ingest raw inputs, list allowed actions for an entity, and return audit timelines. Applications remain responsible for authentication, authorization at the edge, deployment, routing composition, and production middleware.
+
 ### `pkg/kiff/runtime`
 
 The runtime package wires the primitive stores and policies together.
