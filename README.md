@@ -220,3 +220,11 @@ KIFF enforces governance at the framework level, not by convention:
 All public `Runtime` methods accept `context.Context` as the first argument. Callers can cancel ingestion, validation, execution, approval review, audit queries, and state rebuilds with a deadline or context.
 
 Core serialized types now carry stable `snake_case` JSON tags. The HTTP API field names are decoupled from Go field renames.
+
+## Brick 17: Trace Correlation
+
+Audit records carry `trace_id`, `correlation_id`, and `causation_id`. The runtime propagates trace metadata from ingested events into every downstream audit record and into follow-up events emitted by executors. `audit.Filter.TraceID` returns the full operational chain for one external request.
+
+## Brick 18: Domain Builder and Authoring Guide
+
+`pkg/kiff/domain.Builder` provides a chainable helper for declaring a domain's events, transitions, allowed actions, and contracts. `docs/build-a-domain.md` walks a developer through modeling a small domain end to end.

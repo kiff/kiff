@@ -183,25 +183,31 @@ func NewActionCatalog() (*action.Catalog, error) {
 	return catalog, nil
 }
 
-// NewDomainDefinition creates the mission domain definition.
+// NewDomainDefinition creates the mission domain definition using the
+// domain.Builder so it reads as the canonical example for new domains.
 func NewDomainDefinition() (domain.Definition, error) {
-	catalog, err := NewActionCatalog()
-	if err != nil {
-		return domain.Definition{}, err
+	policy := NewPermissionPolicy()
+	_ = policy // policy is wired into the runtime, not the domain definition
+
+	b := domain.New("mission").
+		Entity(EntityTypeMissionAttempt).
+		Event(EventMissionSubmitted).
+		Event(EventAttemptCreated).
+		Event(EventMoveProposed).
+		Event(EventHumanApprovalGranted).
+		Event(EventMoveExecuted).
+		Transition(EventMissionSubmitted, "", StateSubmitted).
+		Transition(EventAttemptCreated, StateSubmitted, StateActive).
+		Transition(EventMoveProposed, StateActive, StateWaitingApproval).
+		Transition(EventHumanApprovalGranted, StateWaitingApproval, StateWaitingApproval).
+		Transition(EventMoveExecuted, StateWaitingApproval, StateCompleted).
+		Allow(StateSubmitted, ActionCreateAttempt).
+		Allow(StateActive, ActionProposeMove).
+		Allow(StateWaitingApproval, ActionRequestHumanApproval, ActionExecuteMove)
+	for _, contract := range Contracts() {
+		b = b.Action(contract)
 	}
-	return domain.Definition{
-		Name:        "mission",
-		EntityTypes: []string{EntityTypeMissionAttempt},
-		EventTypes: []string{
-			EventMissionSubmitted,
-			EventAttemptCreated,
-			EventMoveProposed,
-			EventHumanApprovalGranted,
-			EventMoveExecuted,
-		},
-		StateMachine: NewStateMachine(),
-		Actions:      catalog,
-	}, nil
+	return b.Build()
 }
 
 // NewInputAdapter creates the mission input adapter.
