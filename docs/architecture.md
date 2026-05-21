@@ -104,6 +104,8 @@ Action validation and execution routes resolve contracts from the runtime action
 
 Approval routes expose request, list, grant, and deny operations. Requesting approval validates the action first and only allows the approval requirement itself to remain unresolved.
 
+`cmd/kiff-http-demo` hosts this handler with the mission example runtime so developers can exercise the HTTP boundary locally.
+
 ### `pkg/kiff/runtime`
 
 The runtime package wires the primitive stores and policies together.

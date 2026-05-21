@@ -61,6 +61,12 @@ Run the mission demo:
 go run ./cmd/kiff-demo
 ```
 
+Run the HTTP mission demo:
+
+```bash
+go run ./cmd/kiff-http-demo
+```
+
 Run the tests:
 
 ```bash
@@ -186,3 +192,9 @@ The HTTP API resolves action contracts from the runtime action catalog and curre
 Brick 13 exposes approval requests, approval listing, and grant/deny review through the optional HTTP API.
 
 Approval routes still use runtime validation and audit. They make approval available over transport without adding authentication, assignment workflows, notifications, or a UI.
+
+## Brick 14: HTTP Demo Command
+
+Brick 14 adds `cmd/kiff-http-demo`, a runnable local HTTP server for the mission example.
+
+The command hosts the optional `httpapi` handler with the mission runtime and documents curl examples for the full governed loop.
