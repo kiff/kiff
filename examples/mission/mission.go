@@ -306,19 +306,10 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines = append(lines, "approval required: EXECUTE_MOVE")
 
-	if err := rt.RecordApproval(approval.Approval{
-		ID:          executeCtx.ApprovalID,
-		EntityID:    attemptID,
-		EntityType:  EntityTypeMissionAttempt,
-		ActionName:  ActionExecuteMove,
-		RequestedBy: AgentActor.ID,
-		Status:      approval.StatusPending,
-		Reason:      "high-risk move execution requires human authority",
-		CreatedAt:   time.Now().UTC(),
-	}); err != nil {
+	if _, err := rt.RequestApproval(executeCtx.ApprovalID, executeCtx, executeContract, "high-risk move execution requires human authority"); err != nil {
 		return DemoResult{}, err
 	}
-	lines = append(lines, "approval recorded: pending")
+	lines = append(lines, "approval requested: EXECUTE_MOVE")
 
 	if err := rt.IngestEvent(newEvent("evt-004", EventHumanApprovalGranted, attemptID, HumanActor.ID, map[string]any{"approved_action": ActionExecuteMove})); err != nil {
 		return DemoResult{}, err

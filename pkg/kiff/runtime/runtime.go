@@ -261,6 +261,34 @@ func (r *Runtime) Timeline(entityID string) ([]audit.Record, error) {
 	return r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
 }
 
+// RequestApproval creates a pending approval for an action that requires approval.
+func (r *Runtime) RequestApproval(approvalID string, actionCtx action.ActionContext, contract action.ActionContract, reason string) (approval.Approval, error) {
+	if contract.ApprovalRequirement != action.ApprovalRequired {
+		return approval.Approval{}, fmt.Errorf("%w: action %q does not require approval", action.ErrApprovalRequired, contract.Name)
+	}
+	if approvalID == "" {
+		return approval.Approval{}, fmt.Errorf("%w: approval id is required", approval.ErrInvalidApproval)
+	}
+	actionName := contract.Name
+	if actionName == "" {
+		actionName = actionCtx.ActionName
+	}
+	request := approval.Approval{
+		ID:          approvalID,
+		EntityID:    actionCtx.EntityID,
+		EntityType:  actionCtx.EntityType,
+		ActionName:  actionName,
+		RequestedBy: actionCtx.Actor.ID,
+		Status:      approval.StatusPending,
+		Reason:      reason,
+		CreatedAt:   time.Now().UTC(),
+	}
+	if err := r.RecordApproval(request); err != nil {
+		return approval.Approval{}, err
+	}
+	return request, nil
+}
+
 // RecordApproval stores and audits an approval record.
 func (r *Runtime) RecordApproval(a approval.Approval) error {
 	ctx := context.Background()

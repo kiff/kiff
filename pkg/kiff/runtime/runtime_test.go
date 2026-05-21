@@ -332,6 +332,99 @@ func TestRuntimeUsesGrantedApprovalRecordForActionValidation(t *testing.T) {
 	}
 }
 
+func TestRuntimeRequestApprovalCreatesPendingApproval(t *testing.T) {
+	rt := New(Config{})
+	actionCtx := action.ActionContext{
+		ActionName: "EXECUTE_MOVE",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Actor:      actor.Actor{ID: "agent"},
+	}
+	contract := action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		ApprovalRequirement: action.ApprovalRequired,
+	}
+
+	request, err := rt.RequestApproval("approval-1", actionCtx, contract, "high-risk move execution")
+	if err != nil {
+		t.Fatalf("request approval: %v", err)
+	}
+	if request.Status != approval.StatusPending {
+		t.Fatalf("expected pending approval, got %q", request.Status)
+	}
+	if request.RequestedBy != "agent" {
+		t.Fatalf("expected requester agent, got %q", request.RequestedBy)
+	}
+
+	stored, ok, err := rt.Approvals.Get(context.Background(), "approval-1")
+	if err != nil {
+		t.Fatalf("get approval: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected stored approval")
+	}
+	if stored.Status != approval.StatusPending {
+		t.Fatalf("expected stored pending approval, got %q", stored.Status)
+	}
+}
+
+func TestRuntimeRequestApprovalRejectsActionsWithoutApprovalRequirement(t *testing.T) {
+	rt := New(Config{})
+	_, err := rt.RequestApproval("approval-1", action.ActionContext{
+		ActionName: "PROPOSE_MOVE",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Actor:      actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "PROPOSE_MOVE",
+		ApprovalRequirement: action.ApprovalNever,
+	}, "not needed")
+	if !errors.Is(err, action.ErrApprovalRequired) {
+		t.Fatalf("expected action.ErrApprovalRequired, got %v", err)
+	}
+}
+
+func TestRuntimeRequestedAndGrantedApprovalAllowsExecution(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{PermissionPolicy: policy})
+	actionCtx := action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "WAITING_APPROVAL",
+		Actor:        actor.Actor{ID: "agent"},
+		ApprovalID:   "approval-1",
+	}
+	contract := action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"WAITING_APPROVAL"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		ApprovalRequirement: action.ApprovalRequired,
+	}
+
+	if _, err := rt.RequestApproval(actionCtx.ApprovalID, actionCtx, contract, "needs human authority"); err != nil {
+		t.Fatalf("request approval: %v", err)
+	}
+	if err := rt.RecordApproval(approval.Approval{
+		ID:          actionCtx.ApprovalID,
+		EntityID:    actionCtx.EntityID,
+		EntityType:  actionCtx.EntityType,
+		ActionName:  contract.Name,
+		RequestedBy: actionCtx.Actor.ID,
+		ReviewedBy:  "human",
+		Status:      approval.StatusGranted,
+		CreatedAt:   time.Now().UTC(),
+		ReviewedAt:  time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("grant approval: %v", err)
+	}
+
+	if _, err := rt.ExecuteAction(actionCtx, contract); err != nil {
+		t.Fatalf("execute with granted approval: %v", err)
+	}
+}
+
 func TestRuntimeAllowedActionsUsesDomainStateAndCatalog(t *testing.T) {
 	machine := state.NewTransitionMachine()
 	machine.Set(state.State{EntityID: "attempt-1", EntityType: "MissionAttempt", Value: "ACTIVE"})

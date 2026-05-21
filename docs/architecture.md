@@ -52,6 +52,8 @@ The approval package records human authority over actions that require review.
 
 An approval identifies the affected entity, action name, requester, reviewer, status, reason, and timestamps. Brick 2 includes an in-memory approval store. Runtime validation can resolve an approval id from an action context and treat a granted approval as the approval signal for that action.
 
+Runtime can also request approval for a contract that requires it. Requesting approval creates a pending approval record and audits that request. Granting or denying approval remains a separate human authority step.
+
 ### `pkg/kiff/permission`
 
 The permission package answers whether an actor is allowed to perform an action.

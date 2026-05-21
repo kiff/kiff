@@ -168,3 +168,9 @@ Execution results include status, message, error, effects summary, output, and t
 Brick 10 lets successful execution results include follow-up events.
 
 Actions still do not mutate state directly. When an execution result includes follow-up events, the runtime ingests those events through the normal event path so state transitions and audit records remain explicit.
+
+## Brick 11: Approval Requests
+
+Brick 11 makes pending approval requests explicit.
+
+Runtime can create a pending approval record for an action contract that requires approval. Granting or denying that approval remains a separate authority step.
