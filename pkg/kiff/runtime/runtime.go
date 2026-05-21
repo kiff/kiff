@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,6 +54,26 @@ type Runtime struct {
 	Validator   action.Validator
 	Actions     *action.Catalog
 	Adapters    map[string]adapter.Adapter
+
+	// trace tracks the last known trace metadata and event id per entity.
+	// It lets action and approval audit records inherit the trace context
+	// from the most recent ingested event for the same entity.
+	traceMu sync.RWMutex
+	trace   map[string]traceContext
+}
+
+// traceContext is the per-entity trace metadata snapshot.
+type traceContext struct {
+	TraceID       string
+	CorrelationID string
+	LastEventID   string
+}
+
+// auditMeta carries optional correlation fields for an audit record.
+type auditMeta struct {
+	TraceID       string
+	CorrelationID string
+	CausationID   string
 }
 
 // New creates a runtime with in-memory defaults for omitted stores.
@@ -74,6 +95,7 @@ func New(config Config) (*Runtime, error) {
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
 		Adapters:    map[string]adapter.Adapter{},
+		trace:       map[string]traceContext{},
 	}
 	if config.Stores != nil {
 		if rt.Events == nil {
@@ -147,10 +169,25 @@ func (r *Runtime) IngestEvent(ctx context.Context, ev event.Event) error {
 	if err := r.Events.Append(ctx, ev); err != nil {
 		return err
 	}
-	if err := r.appendAudit(ctx, audit.KindEventIngested, ev.EntityID, ev.EntityType, ev.ActorID, "event ingested", map[string]any{
+
+	// Snapshot the prior last-event-id before remembering this event, so the
+	// causation chain links to the previous fact rather than to itself.
+	priorEventID := r.lastEventID(ev.EntityID)
+	r.rememberTrace(ev)
+
+	meta := auditMeta{
+		TraceID:       ev.Metadata.TraceID,
+		CorrelationID: ev.Metadata.CorrelationID,
+		CausationID:   ev.Metadata.CausationID,
+	}
+	if meta.CausationID == "" {
+		meta.CausationID = priorEventID
+	}
+
+	if err := r.appendAuditWithMeta(ctx, audit.KindEventIngested, ev.EntityID, ev.EntityType, ev.ActorID, "event ingested", map[string]any{
 		"event_id":   ev.ID,
 		"event_type": ev.Type,
-	}); err != nil {
+	}, meta); err != nil {
 		return err
 	}
 
@@ -169,12 +206,12 @@ func (r *Runtime) IngestEvent(ctx context.Context, ev event.Event) error {
 	if err != nil {
 		return err
 	}
-	return r.appendAudit(ctx, audit.KindStateChanged, ev.EntityID, ev.EntityType, ev.ActorID, "state changed", map[string]any{
+	return r.appendAuditWithMeta(ctx, audit.KindStateChanged, ev.EntityID, ev.EntityType, ev.ActorID, "state changed", map[string]any{
 		"from":       current.Value,
 		"to":         next.Value,
 		"event_id":   ev.ID,
 		"event_type": ev.Type,
-	})
+	}, meta)
 }
 
 // IngestRaw normalizes raw input with a registered adapter, then ingests the event.
@@ -496,7 +533,19 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 		return action.ActionResult{}, err
 	}
 	if result.Status == action.ExecutionSucceeded {
+		parentTrace := r.entityTrace(actionCtx.EntityID)
+		parentEventID := r.lastEventID(actionCtx.EntityID)
 		for _, followUpEvent := range result.FollowUpEvents {
+			// Inherit trace metadata if executor did not set it explicitly.
+			if followUpEvent.Metadata.TraceID == "" {
+				followUpEvent.Metadata.TraceID = parentTrace.TraceID
+			}
+			if followUpEvent.Metadata.CorrelationID == "" {
+				followUpEvent.Metadata.CorrelationID = parentTrace.CorrelationID
+			}
+			if followUpEvent.Metadata.CausationID == "" {
+				followUpEvent.Metadata.CausationID = parentEventID
+			}
 			if err := r.IngestEvent(ctx, followUpEvent); err != nil {
 				return result, err
 			}
@@ -523,16 +572,70 @@ func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionCont
 }
 
 func (r *Runtime) appendAudit(ctx context.Context, kind audit.Kind, entityID, entityType, actorID, message string, data map[string]any) error {
+	return r.appendAuditWithMeta(ctx, kind, entityID, entityType, actorID, message, data, r.entityTrace(entityID))
+}
+
+func (r *Runtime) appendAuditWithMeta(ctx context.Context, kind audit.Kind, entityID, entityType, actorID, message string, data map[string]any, meta auditMeta) error {
 	return r.Audit.Append(ctx, audit.Record{
-		ID:         generateAuditID(),
-		Kind:       kind,
-		EntityID:   entityID,
-		EntityType: entityType,
-		ActorID:    actorID,
-		Message:    message,
-		Data:       data,
-		CreatedAt:  time.Now().UTC(),
+		ID:            generateAuditID(),
+		Kind:          kind,
+		EntityID:      entityID,
+		EntityType:    entityType,
+		ActorID:       actorID,
+		Message:       message,
+		Data:          data,
+		TraceID:       meta.TraceID,
+		CorrelationID: meta.CorrelationID,
+		CausationID:   meta.CausationID,
+		CreatedAt:     time.Now().UTC(),
 	})
+}
+
+// entityTrace returns the latest trace metadata snapshot for an entity.
+func (r *Runtime) entityTrace(entityID string) auditMeta {
+	if r.trace == nil || entityID == "" {
+		return auditMeta{}
+	}
+	r.traceMu.RLock()
+	defer r.traceMu.RUnlock()
+	tc, ok := r.trace[entityID]
+	if !ok {
+		return auditMeta{}
+	}
+	return auditMeta{TraceID: tc.TraceID, CorrelationID: tc.CorrelationID}
+}
+
+// rememberTrace updates the latest trace metadata for an entity from an event.
+func (r *Runtime) rememberTrace(ev event.Event) {
+	if r.trace == nil || ev.EntityID == "" {
+		return
+	}
+	if ev.Metadata.TraceID == "" && ev.Metadata.CorrelationID == "" {
+		// Even with no metadata, remember the last event id for causation.
+		r.traceMu.Lock()
+		existing := r.trace[ev.EntityID]
+		existing.LastEventID = ev.ID
+		r.trace[ev.EntityID] = existing
+		r.traceMu.Unlock()
+		return
+	}
+	r.traceMu.Lock()
+	r.trace[ev.EntityID] = traceContext{
+		TraceID:       ev.Metadata.TraceID,
+		CorrelationID: ev.Metadata.CorrelationID,
+		LastEventID:   ev.ID,
+	}
+	r.traceMu.Unlock()
+}
+
+// lastEventID returns the most recent event id observed for an entity.
+func (r *Runtime) lastEventID(entityID string) string {
+	if r.trace == nil || entityID == "" {
+		return ""
+	}
+	r.traceMu.RLock()
+	defer r.traceMu.RUnlock()
+	return r.trace[entityID].LastEventID
 }
 
 // generateAuditID produces a unique audit record ID using an atomic counter and random bytes.

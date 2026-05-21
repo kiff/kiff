@@ -32,24 +32,29 @@ type AuditKind = Kind
 
 // Record is an append-only operational trace.
 type Record struct {
-	ID         string         `json:"id"`
-	Kind       Kind           `json:"kind"`
-	EntityID   string         `json:"entity_id"`
-	EntityType string         `json:"entity_type"`
-	ActorID    string         `json:"actor_id,omitempty"`
-	Message    string         `json:"message,omitempty"`
-	Data       map[string]any `json:"data,omitempty"`
-	CreatedAt  time.Time      `json:"created_at"`
+	ID            string         `json:"id"`
+	Kind          Kind           `json:"kind"`
+	EntityID      string         `json:"entity_id"`
+	EntityType    string         `json:"entity_type"`
+	ActorID       string         `json:"actor_id,omitempty"`
+	Message       string         `json:"message,omitempty"`
+	Data          map[string]any `json:"data,omitempty"`
+	TraceID       string         `json:"trace_id,omitempty"`
+	CorrelationID string         `json:"correlation_id,omitempty"`
+	CausationID   string         `json:"causation_id,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
 }
 
 // AuditRecord is kept as an explicit alias for readability.
 type AuditRecord = Record
 
-// Filter narrows audit queries by entity, kind, and actor.
+// Filter narrows audit queries by entity, kind, actor, and trace metadata.
 type Filter struct {
-	EntityID string
-	Kind     Kind
-	ActorID  string
+	EntityID      string
+	Kind          Kind
+	ActorID       string
+	TraceID       string
+	CorrelationID string
 }
 
 // Validate checks the minimum fields needed for reconstruction.
@@ -149,6 +154,12 @@ func matchesFilter(r Record, filter Filter) bool {
 		return false
 	}
 	if filter.ActorID != "" && r.ActorID != filter.ActorID {
+		return false
+	}
+	if filter.TraceID != "" && r.TraceID != filter.TraceID {
+		return false
+	}
+	if filter.CorrelationID != "" && r.CorrelationID != filter.CorrelationID {
 		return false
 	}
 	return true

@@ -21,7 +21,11 @@ func main() {
 	}
 	fmt.Println("  Timeline:")
 	for _, record := range happyResult.Timeline {
-		fmt.Printf("    %s actor=%s message=%s\n", record.Kind, record.ActorID, record.Message)
+		trace := record.TraceID
+		if trace == "" {
+			trace = "-"
+		}
+		fmt.Printf("    %s actor=%s trace=%s message=%s\n", record.Kind, record.ActorID, trace, record.Message)
 	}
 	fmt.Printf("  Final state: %s\n", happyResult.FinalState.Value)
 

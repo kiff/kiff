@@ -705,3 +705,185 @@ func decisionForTest(id, entityID string) decision.Decision {
 		ActorID: "agent", CreatedAt: time.Now().UTC(),
 	}
 }
+
+// === Brick 17: Trace Correlation Tests ===
+
+func TestRuntimeIngestPropagatesTraceMetadataToAudit(t *testing.T) {
+	rt := mustNew(t, Config{
+		StateMachine: state.NewTransitionMachine(state.Transition{EventType: "X", From: "", To: "A"}),
+	})
+	_ = rt.IngestEvent(context.Background(), event.Event{
+		ID: "evt-1", Type: "X", EntityID: "e1", EntityType: "T",
+		Source: "test", ActorID: "a", OccurredAt: time.Now().UTC(),
+		Metadata: event.Metadata{TraceID: "trace-abc", CorrelationID: "corr-xyz"},
+	})
+	records, _ := rt.Audit.List(context.Background(), "e1")
+	if len(records) != 2 {
+		t.Fatalf("expected 2 audit records, got %d", len(records))
+	}
+	for _, r := range records {
+		if r.TraceID != "trace-abc" {
+			t.Fatalf("expected trace_id trace-abc on %s, got %q", r.Kind, r.TraceID)
+		}
+		if r.CorrelationID != "corr-xyz" {
+			t.Fatalf("expected correlation_id corr-xyz on %s, got %q", r.Kind, r.CorrelationID)
+		}
+	}
+}
+
+func TestRuntimeFollowUpEventsCarryParentCausation(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "p")
+	rt := mustNew(t, Config{
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "PARENT", From: "", To: "ACTIVE"},
+			state.Transition{EventType: "CHILD", From: "ACTIVE", To: "DONE"},
+		),
+		PermissionPolicy: policy,
+	})
+	// Ingest a parent event with trace metadata.
+	_ = rt.IngestEvent(context.Background(), event.Event{
+		ID: "parent-1", Type: "PARENT", EntityID: "e1", EntityType: "T",
+		Source: "test", ActorID: "a", OccurredAt: time.Now().UTC(),
+		Metadata: event.Metadata{TraceID: "trace-1", CorrelationID: "corr-1"},
+	})
+	// Execute an action whose executor emits a follow-up event.
+	_, err := rt.ExecuteAction(context.Background(), action.ActionContext{
+		ActionName: "DO", EntityID: "e1", EntityType: "T",
+		CurrentState: "ACTIVE", Actor: actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name: "DO", AllowedStates: []string{"ACTIVE"},
+		RequiredPermissions: []permission.Permission{"p"},
+		Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{
+				FollowUpEvents: []event.Event{{
+					ID: "child-1", Type: "CHILD", EntityID: "e1", EntityType: "T",
+					Source: "executor", ActorID: "agent", OccurredAt: time.Now().UTC(),
+					// Note: executor does NOT set metadata; runtime should inherit.
+				}},
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	events, _ := rt.Events.List(context.Background(), "e1")
+	if len(events) != 2 {
+		t.Fatalf("expected parent + child = 2 events, got %d", len(events))
+	}
+	var child event.Event
+	for _, ev := range events {
+		if ev.ID == "child-1" {
+			child = ev
+		}
+	}
+	if child.ID == "" {
+		t.Fatal("expected child-1 event in store")
+	}
+	if child.Metadata.TraceID != "trace-1" {
+		t.Fatalf("expected child to inherit trace_id, got %q", child.Metadata.TraceID)
+	}
+	if child.Metadata.CorrelationID != "corr-1" {
+		t.Fatalf("expected child to inherit correlation_id, got %q", child.Metadata.CorrelationID)
+	}
+	if child.Metadata.CausationID != "parent-1" {
+		t.Fatalf("expected causation_id=parent-1, got %q", child.Metadata.CausationID)
+	}
+}
+
+func TestRuntimeActionAuditCarriesEntityTraceMetadata(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "p")
+	rt := mustNew(t, Config{
+		StateMachine:     state.NewTransitionMachine(state.Transition{EventType: "X", From: "", To: "A"}),
+		PermissionPolicy: policy,
+	})
+	_ = rt.IngestEvent(context.Background(), event.Event{
+		ID: "evt-1", Type: "X", EntityID: "e1", EntityType: "T",
+		Source: "test", ActorID: "human", OccurredAt: time.Now().UTC(),
+		Metadata: event.Metadata{TraceID: "trace-9", CorrelationID: "corr-9"},
+	})
+	_, err := rt.ExecuteAction(context.Background(), action.ActionContext{
+		ActionName: "DO", EntityID: "e1", EntityType: "T",
+		CurrentState: "A", Actor: actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name: "DO", AllowedStates: []string{"A"},
+		RequiredPermissions: []permission.Permission{"p"},
+		Executor:            noopExecutor,
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	records, _ := rt.Audit.Query(context.Background(), audit.Filter{EntityID: "e1", Kind: audit.KindActionExecuted})
+	if len(records) != 1 {
+		t.Fatalf("expected 1 action_executed record, got %d", len(records))
+	}
+	if records[0].TraceID != "trace-9" {
+		t.Fatalf("expected action audit to carry trace-9, got %q", records[0].TraceID)
+	}
+}
+
+func TestAuditFilterByTraceIDReturnsFullChain(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "p")
+	rt := mustNew(t, Config{
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "X", From: "", To: "A"},
+			state.Transition{EventType: "Y", From: "A", To: "B"},
+		),
+		PermissionPolicy: policy,
+	})
+	// Two entities, each with its own trace
+	_ = rt.IngestEvent(context.Background(), event.Event{
+		ID: "evt-1", Type: "X", EntityID: "e1", EntityType: "T",
+		Source: "t", ActorID: "a", OccurredAt: time.Now().UTC(),
+		Metadata: event.Metadata{TraceID: "trace-A"},
+	})
+	_ = rt.IngestEvent(context.Background(), event.Event{
+		ID: "evt-2", Type: "X", EntityID: "e2", EntityType: "T",
+		Source: "t", ActorID: "a", OccurredAt: time.Now().UTC(),
+		Metadata: event.Metadata{TraceID: "trace-B"},
+	})
+	_, _ = rt.ExecuteAction(context.Background(), action.ActionContext{
+		ActionName: "DO", EntityID: "e1", EntityType: "T",
+		CurrentState: "A", Actor: actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name: "DO", AllowedStates: []string{"A"},
+		RequiredPermissions: []permission.Permission{"p"},
+		Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{
+				FollowUpEvents: []event.Event{{
+					ID: "follow-1", Type: "Y", EntityID: "e1", EntityType: "T",
+					Source: "x", ActorID: "agent", OccurredAt: time.Now().UTC(),
+				}},
+			}, nil
+		},
+	})
+	records, _ := rt.Audit.Query(context.Background(), audit.Filter{TraceID: "trace-A"})
+	if len(records) == 0 {
+		t.Fatal("expected records for trace-A")
+	}
+	for _, r := range records {
+		if r.EntityID != "e1" {
+			t.Fatalf("trace-A filter returned record from %s", r.EntityID)
+		}
+		if r.TraceID != "trace-A" {
+			t.Fatalf("expected trace-A on every record, got %q", r.TraceID)
+		}
+	}
+	// Verify the chain includes ingest, state, execute, follow-up ingest, follow-up state
+	expectedKinds := map[audit.Kind]bool{
+		audit.KindEventIngested: false, audit.KindStateChanged: false,
+		audit.KindActionValidated: false, audit.KindActionExecuted: false,
+	}
+	for _, r := range records {
+		if _, ok := expectedKinds[r.Kind]; ok {
+			expectedKinds[r.Kind] = true
+		}
+	}
+	for kind, seen := range expectedKinds {
+		if !seen {
+			t.Fatalf("expected kind %q in trace-A chain", kind)
+		}
+	}
+}

@@ -251,6 +251,7 @@ func RunHappyPath() (DemoResult, error) {
 	}
 
 	// 1. Ingest raw event: MISSION_SUBMITTED
+	traceID := "trace-mission-001"
 	_, err = rt.IngestRaw(ctx, adapter.RawInput{
 		ID:         "evt-001",
 		Adapter:    AdapterMission,
@@ -260,12 +261,13 @@ func RunHappyPath() (DemoResult, error) {
 		EntityType: EntityTypeMissionAttempt,
 		ActorID:    HumanActor.ID,
 		ReceivedAt: time.Now().UTC(),
+		Metadata:   event.Metadata{TraceID: traceID, CorrelationID: "corr-mission-001"},
 		Payload:    map[string]any{"mission": "cross the line"},
 	})
 	if err != nil {
 		return DemoResult{}, err
 	}
-	lines = append(lines, "raw input normalized: MISSION_SUBMITTED")
+	lines = append(lines, fmt.Sprintf("raw input normalized: MISSION_SUBMITTED (trace=%s)", traceID))
 	lines = append(lines, "event ingested: MISSION_SUBMITTED")
 	lines = append(lines, "state changed: SUBMITTED")
 
