@@ -509,6 +509,89 @@ func TestRuntimeAllowedActionsReturnsNotFoundForUnknownEntity(t *testing.T) {
 	}
 }
 
+func TestRuntimeRebuildStateFromStoredEvents(t *testing.T) {
+	eventStore := event.NewInMemoryStore()
+	now := time.Now().UTC()
+	events := []event.Event{
+		{
+			ID:         "evt-1",
+			Type:       "MISSION_SUBMITTED",
+			EntityID:   "attempt-1",
+			EntityType: "MissionAttempt",
+			Source:     "test",
+			ActorID:    "human",
+			OccurredAt: now,
+		},
+		{
+			ID:         "evt-2",
+			Type:       "ATTEMPT_CREATED",
+			EntityID:   "attempt-1",
+			EntityType: "MissionAttempt",
+			Source:     "test",
+			ActorID:    "agent",
+			OccurredAt: now.Add(time.Second),
+		},
+	}
+	for _, ev := range events {
+		if err := eventStore.Append(context.Background(), ev); err != nil {
+			t.Fatalf("append event: %v", err)
+		}
+	}
+
+	rt := New(Config{
+		EventStore: eventStore,
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "MISSION_SUBMITTED", From: "", To: "SUBMITTED"},
+			state.Transition{EventType: "ATTEMPT_CREATED", From: "SUBMITTED", To: "ACTIVE"},
+		),
+	})
+
+	result, err := rt.RebuildState("attempt-1")
+	if err != nil {
+		t.Fatalf("rebuild state: %v", err)
+	}
+	if result.State.Value != "ACTIVE" {
+		t.Fatalf("expected ACTIVE, got %q", result.State.Value)
+	}
+	if len(result.Steps) != 2 {
+		t.Fatalf("expected 2 replay steps, got %d", len(result.Steps))
+	}
+
+	current, ok, err := rt.States.Current(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("current state: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected rebuilt state to be stored")
+	}
+	if current.Value != "ACTIVE" {
+		t.Fatalf("expected stored state ACTIVE, got %q", current.Value)
+	}
+
+	records, err := rt.Timeline("attempt-1")
+	if err != nil {
+		t.Fatalf("timeline: %v", err)
+	}
+	var sawRebuilt bool
+	for _, record := range records {
+		if record.Kind == audit.KindStateRebuilt {
+			sawRebuilt = true
+		}
+	}
+	if !sawRebuilt {
+		t.Fatalf("expected state rebuild audit record, got %#v", records)
+	}
+}
+
+func TestRuntimeRebuildStateReturnsNotFoundWithoutEvents(t *testing.T) {
+	rt := New(Config{StateMachine: state.NewTransitionMachine()})
+
+	_, err := rt.RebuildState("missing")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected store.ErrNotFound, got %v", err)
+	}
+}
+
 func TestRuntimeAuditsSuccessfulExecutionResultDetails(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")

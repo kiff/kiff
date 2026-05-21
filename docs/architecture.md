@@ -22,6 +22,8 @@ The state package defines the current operational condition of an entity and the
 
 Domains own their state vocabulary. KIFF only provides the state shape, transition structure, state machine interface, and invalid transition error.
 
+State can also be rebuilt from stored events. `state.Rebuild` replays an entity event stream through the domain state machine and returns the final state plus replay steps.
+
 ### `pkg/kiff/decision`
 
 The decision package records why an action, classification, recommendation, or next step was proposed.
@@ -70,6 +72,8 @@ Audit is part of the KIFF protocol. It is not optional logging added after the s
 
 Audit stores support filtered queries by entity, audit kind, and actor. Query results are returned in chronological order so a KIFF system can reconstruct the path of an entity after the fact.
 
+State rebuilds are audited with `state_rebuilt` so recovery and verification work can be reconstructed later.
+
 ### `pkg/kiff/actor`
 
 The actor package defines the identity of a human, AI agent, service, system, or external integration.
@@ -111,6 +115,8 @@ Approval routes expose request, list, grant, and deny operations. Requesting app
 The runtime package wires the primitive stores and policies together.
 
 It ingests normalized events or adapter-normalized raw inputs, applies state transitions, records decisions, validates actions, executes actions, resolves currently allowed actions, reconstructs audit timelines, and appends audit records. It is a coordinator, not an application server.
+
+Runtime can rebuild state from the event store with `RebuildState`. This replays stored events through the configured state machine and appends a state rebuild audit record.
 
 ### `pkg/kiff/store`
 

@@ -16,6 +16,7 @@ type Kind string
 const (
 	KindEventIngested    Kind = "event_ingested"
 	KindStateChanged     Kind = "state_changed"
+	KindStateRebuilt     Kind = "state_rebuilt"
 	KindDecisionProposed Kind = "decision_proposed"
 	KindActionValidated  Kind = "action_validated"
 	KindApprovalRequired Kind = "approval_required"

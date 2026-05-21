@@ -198,3 +198,9 @@ Approval routes still use runtime validation and audit. They make approval avail
 Brick 14 adds `cmd/kiff-http-demo`, a runnable local HTTP server for the mission example.
 
 The command hosts the optional `httpapi` handler with the mission runtime and documents curl examples for the full governed loop.
+
+## Brick 15: Event Replay And State Rebuild
+
+Brick 15 realigns with the original roadmap's Event Replay / State Rebuild item.
+
+Runtime can rebuild an entity's current state by replaying stored events through the configured domain state machine. The rebuild returns replay steps and records a `state_rebuilt` audit fact.

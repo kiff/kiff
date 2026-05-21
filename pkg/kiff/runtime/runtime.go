@@ -261,6 +261,43 @@ func (r *Runtime) Timeline(entityID string) ([]audit.Record, error) {
 	return r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
 }
 
+// RebuildState reconstructs an entity state by replaying its stored events.
+func (r *Runtime) RebuildState(entityID string) (state.ReplayResult, error) {
+	ctx := context.Background()
+	if entityID == "" {
+		return state.ReplayResult{}, fmt.Errorf("%w: entity id is required", state.ErrInvalidReplay)
+	}
+	if r.Events == nil {
+		return state.ReplayResult{}, fmt.Errorf("%w: event store is not configured", store.ErrNotFound)
+	}
+	if r.States == nil {
+		return state.ReplayResult{}, fmt.Errorf("%w: state machine is not configured", store.ErrNotFound)
+	}
+
+	events, err := r.Events.List(ctx, entityID)
+	if err != nil {
+		return state.ReplayResult{}, err
+	}
+	if len(events) == 0 {
+		return state.ReplayResult{}, fmt.Errorf("%w: events for entity %q", store.ErrNotFound, entityID)
+	}
+
+	result, err := state.Rebuild(ctx, r.States, events)
+	if err != nil {
+		return state.ReplayResult{}, err
+	}
+	if r.Audit != nil {
+		if err := r.appendAudit(ctx, audit.KindStateRebuilt, result.EntityID, result.EntityType, "", "state rebuilt", map[string]any{
+			"events_replayed": len(events),
+			"final_state":     result.State.Value,
+			"final_version":   result.State.Version,
+		}); err != nil {
+			return state.ReplayResult{}, err
+		}
+	}
+	return result, nil
+}
+
 // RequestApproval creates a pending approval for an action that requires approval.
 func (r *Runtime) RequestApproval(approvalID string, actionCtx action.ActionContext, contract action.ActionContract, reason string) (approval.Approval, error) {
 	if contract.ApprovalRequirement != action.ApprovalRequired {
