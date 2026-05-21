@@ -384,6 +384,48 @@ func TestRuntimeRequestApprovalRejectsActionsWithoutApprovalRequirement(t *testi
 	}
 }
 
+func TestRuntimeReviewApprovalGrantsPendingApproval(t *testing.T) {
+	rt := New(Config{})
+	actionCtx := action.ActionContext{
+		ActionName: "EXECUTE_MOVE",
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Actor:      actor.Actor{ID: "agent"},
+	}
+	contract := action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		ApprovalRequirement: action.ApprovalRequired,
+	}
+	if _, err := rt.RequestApproval("approval-1", actionCtx, contract, "needs human authority"); err != nil {
+		t.Fatalf("request approval: %v", err)
+	}
+
+	reviewed, err := rt.ReviewApproval("approval-1", "human", approval.StatusGranted, "approved after review")
+	if err != nil {
+		t.Fatalf("review approval: %v", err)
+	}
+	if reviewed.Status != approval.StatusGranted {
+		t.Fatalf("expected granted approval, got %q", reviewed.Status)
+	}
+	if reviewed.ReviewedBy != "human" {
+		t.Fatalf("expected reviewer human, got %q", reviewed.ReviewedBy)
+	}
+
+	records, err := rt.Timeline("attempt-1")
+	if err != nil {
+		t.Fatalf("timeline: %v", err)
+	}
+	var sawGranted bool
+	for _, record := range records {
+		if record.Kind == audit.KindApprovalGranted {
+			sawGranted = true
+		}
+	}
+	if !sawGranted {
+		t.Fatalf("expected approval granted audit record, got %#v", records)
+	}
+}
+
 func TestRuntimeRequestedAndGrantedApprovalAllowsExecution(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")

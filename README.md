@@ -180,3 +180,9 @@ Runtime can create a pending approval record for an action contract that require
 Brick 12 adds guarded HTTP routes for action validation and execution.
 
 The HTTP API resolves action contracts from the runtime action catalog and current state from the state machine. Clients provide actor, parameters, and approval id, but not the contract itself.
+
+## Brick 13: HTTP Approval Routes
+
+Brick 13 exposes approval requests, approval listing, and grant/deny review through the optional HTTP API.
+
+Approval routes still use runtime validation and audit. They make approval available over transport without adding authentication, assignment workflows, notifications, or a UI.

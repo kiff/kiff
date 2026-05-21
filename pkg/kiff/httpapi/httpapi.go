@@ -9,6 +9,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
@@ -34,6 +35,12 @@ type actionRequest struct {
 	Parameters map[string]any `json:"parameters,omitempty"`
 	ApprovalID string         `json:"approval_id,omitempty"`
 	Approved   bool           `json:"approved,omitempty"`
+	Reason     string         `json:"reason,omitempty"`
+}
+
+type approvalReviewRequest struct {
+	Actor  actor.Actor `json:"actor"`
+	Reason string      `json:"reason,omitempty"`
 }
 
 // NewHandler creates an HTTP handler for a runtime.
@@ -59,6 +66,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleValidateAction(w, r)
 	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/execute"):
 		h.handleExecuteAction(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/approvals"):
+		h.handleRequestApproval(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/approvals"):
+		h.handleListApprovals(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/approvals/") && strings.HasSuffix(r.URL.Path, "/grant"):
+		h.handleReviewApproval(w, r, approval.StatusGranted, "/grant")
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/approvals/") && strings.HasSuffix(r.URL.Path, "/deny"):
+		h.handleReviewApproval(w, r, approval.StatusDenied, "/deny")
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -121,7 +136,7 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleValidateAction(w http.ResponseWriter, r *http.Request) {
-	actionCtx, contract, ok := h.actionContextFromRequest(w, r, "/validate")
+	actionCtx, contract, _, ok := h.actionContextFromRequest(w, r, "/validate")
 	if !ok {
 		return
 	}
@@ -136,7 +151,7 @@ func (h *Handler) handleValidateAction(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) handleExecuteAction(w http.ResponseWriter, r *http.Request) {
-	actionCtx, contract, ok := h.actionContextFromRequest(w, r, "/execute")
+	actionCtx, contract, _, ok := h.actionContextFromRequest(w, r, "/execute")
 	if !ok {
 		return
 	}
@@ -150,47 +165,118 @@ func (h *Handler) handleExecuteAction(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Request, suffix string) (action.ActionContext, action.ActionContract, bool) {
+func (h *Handler) handleRequestApproval(w http.ResponseWriter, r *http.Request) {
+	actionCtx, contract, request, ok := h.actionContextFromRequest(w, r, "/approvals")
+	if !ok {
+		return
+	}
+	actionCtx.Approved = false
+
+	if err := h.Runtime.ValidateAction(actionCtx, contract); err != nil && !errors.Is(err, action.ErrApprovalRequired) {
+		writeRuntimeError(w, err)
+		return
+	}
+
+	requested, err := h.Runtime.RequestApproval(request.ApprovalID, actionCtx, contract, request.Reason)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"approval": requested,
+	})
+}
+
+func (h *Handler) handleListApprovals(w http.ResponseWriter, r *http.Request) {
+	entityID := entityIDFromPath(r.URL.Path, "/approvals")
+	if entityID == "" {
+		writeError(w, http.StatusNotFound, "entity id is required")
+		return
+	}
+	if h.Runtime.Approvals == nil {
+		writeRuntimeError(w, store.ErrNotFound)
+		return
+	}
+	approvals, err := h.Runtime.Approvals.List(r.Context(), entityID)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"approvals": approvals,
+	})
+}
+
+func (h *Handler) handleReviewApproval(w http.ResponseWriter, r *http.Request, status approval.Status, suffix string) {
+	defer r.Body.Close()
+
+	approvalID := approvalIDFromPath(r.URL.Path, suffix)
+	if approvalID == "" {
+		writeError(w, http.StatusNotFound, "approval id is required")
+		return
+	}
+
+	var request approvalReviewRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return
+	}
+	if request.Actor.ID == "" {
+		writeError(w, http.StatusBadRequest, "actor id is required")
+		return
+	}
+
+	reviewed, err := h.Runtime.ReviewApproval(approvalID, request.Actor.ID, status, request.Reason)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"approval": reviewed,
+	})
+}
+
+func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Request, suffix string) (action.ActionContext, action.ActionContract, actionRequest, bool) {
 	defer r.Body.Close()
 
 	entityID, actionName := actionPathParts(r.URL.Path, suffix)
 	if entityID == "" || actionName == "" {
 		writeError(w, http.StatusNotFound, "entity id and action name are required")
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 
 	var request actionRequest
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json body")
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 	if request.Actor.ID == "" {
 		writeError(w, http.StatusBadRequest, "actor id is required")
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 
 	if h.Runtime.Actions == nil {
 		writeRuntimeError(w, store.ErrNotFound)
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 	contract, ok := h.Runtime.Actions.Get(actionName)
 	if !ok {
 		writeError(w, http.StatusNotFound, "action contract not found")
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 
 	if h.Runtime.States == nil {
 		writeRuntimeError(w, store.ErrNotFound)
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 	current, ok, err := h.Runtime.States.Current(r.Context(), entityID)
 	if err != nil {
 		writeRuntimeError(w, err)
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 	if !ok {
 		writeRuntimeError(w, store.ErrNotFound)
-		return action.ActionContext{}, action.ActionContract{}, false
+		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
 
 	entityType := request.EntityType
@@ -207,7 +293,7 @@ func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Reques
 		ApprovalID:   request.ApprovalID,
 		Approved:     request.Approved,
 	}
-	return actionCtx, contract, true
+	return actionCtx, contract, request, true
 }
 
 func entityIDFromPath(path string, suffix string) string {
@@ -225,6 +311,12 @@ func actionPathParts(path string, suffix string) (string, string) {
 		return "", ""
 	}
 	return strings.Trim(parts[0], "/"), strings.Trim(parts[1], "/")
+}
+
+func approvalIDFromPath(path string, suffix string) string {
+	value := strings.TrimPrefix(path, "/approvals/")
+	value = strings.TrimSuffix(value, suffix)
+	return strings.Trim(value, "/")
 }
 
 func actionContractResponses(contracts []action.ActionContract) []actionContractResponse {
@@ -256,6 +348,10 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, action.ErrMissingParameter):
 		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, approval.ErrInvalidApproval):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, approval.ErrApprovalNotFound):
+		writeError(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, err.Error())
 	default:

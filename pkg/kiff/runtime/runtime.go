@@ -289,6 +289,42 @@ func (r *Runtime) RequestApproval(approvalID string, actionCtx action.ActionCont
 	return request, nil
 }
 
+// ReviewApproval grants or denies an existing pending approval.
+func (r *Runtime) ReviewApproval(approvalID string, reviewedBy string, status approval.Status, reason string) (approval.Approval, error) {
+	ctx := context.Background()
+	if approvalID == "" {
+		return approval.Approval{}, fmt.Errorf("%w: approval id is required", approval.ErrInvalidApproval)
+	}
+	if reviewedBy == "" {
+		return approval.Approval{}, fmt.Errorf("%w: approval reviewed by is required", approval.ErrInvalidApproval)
+	}
+	if status != approval.StatusGranted && status != approval.StatusDenied {
+		return approval.Approval{}, fmt.Errorf("%w: approval review status must be granted or denied", approval.ErrInvalidApproval)
+	}
+
+	existing, ok, err := r.Approvals.Get(ctx, approvalID)
+	if err != nil {
+		return approval.Approval{}, err
+	}
+	if !ok {
+		return approval.Approval{}, fmt.Errorf("%w: %s", approval.ErrApprovalNotFound, approvalID)
+	}
+	if existing.Status != approval.StatusPending {
+		return approval.Approval{}, fmt.Errorf("%w: approval %q has already been reviewed", approval.ErrInvalidApproval, approvalID)
+	}
+
+	existing.Status = status
+	existing.ReviewedBy = reviewedBy
+	existing.ReviewedAt = time.Now().UTC()
+	if reason != "" {
+		existing.Reason = reason
+	}
+	if err := r.RecordApproval(existing); err != nil {
+		return approval.Approval{}, err
+	}
+	return existing, nil
+}
+
 // RecordApproval stores and audits an approval record.
 func (r *Runtime) RecordApproval(a approval.Approval) error {
 	ctx := context.Background()

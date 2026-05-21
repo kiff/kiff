@@ -146,6 +146,106 @@ func TestHandlerReturnsConflictWhenApprovalRequired(t *testing.T) {
 	}
 }
 
+func TestHandlerRequestsApproval(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+
+	recorder := requestMoveApproval(t, handler, "approval-1")
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("expected status 201, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"pending"`)) {
+		t.Fatalf("expected pending approval, got %s", recorder.Body.String())
+	}
+}
+
+func TestHandlerListsApprovals(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+	recorder := requestMoveApproval(t, handler, "approval-1")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("request approval failed with status %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/entities/attempt-1/approvals", nil)
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte("approval-1")) {
+		t.Fatalf("expected approval-1 in response, got %s", recorder.Body.String())
+	}
+}
+
+func TestHandlerGrantsApprovalAndExecutesAction(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+	recorder := requestMoveApproval(t, handler, "approval-1")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("request approval failed with status %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	body := mustJSON(t, approvalReviewRequest{
+		Actor:  mission.HumanActor,
+		Reason: "approved after human review",
+	})
+	recorder = httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/approvals/approval-1/grant", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"granted"`)) {
+		t.Fatalf("expected granted approval, got %s", recorder.Body.String())
+	}
+
+	body = mustJSON(t, actionRequest{
+		Actor:      mission.AgentActor,
+		ApprovalID: "approval-1",
+		Parameters: map[string]any{
+			"move": "draft the first bounded move",
+		},
+	})
+	recorder = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/EXECUTE_MOVE/execute", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"succeeded"`)) {
+		t.Fatalf("expected succeeded result, got %s", recorder.Body.String())
+	}
+}
+
+func TestHandlerDeniesApproval(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+	recorder := requestMoveApproval(t, handler, "approval-1")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("request approval failed with status %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	body := mustJSON(t, approvalReviewRequest{
+		Actor:  mission.HumanActor,
+		Reason: "not enough evidence",
+	})
+	recorder = httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/approvals/approval-1/deny", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"denied"`)) {
+		t.Fatalf("expected denied approval, got %s", recorder.Body.String())
+	}
+}
+
 func TestHandlerReturnsBadRequestForMissingAdapter(t *testing.T) {
 	handler := newMissionHandler(t)
 	body := mustJSON(t, adapter.RawInput{
@@ -224,6 +324,22 @@ func prepareWaitingApprovalAttempt(t *testing.T, handler *Handler) {
 	if err := handler.Runtime.IngestEvent(moveProposed); err != nil {
 		t.Fatalf("ingest move proposed: %v", err)
 	}
+}
+
+func requestMoveApproval(t *testing.T, handler *Handler, approvalID string) *httptest.ResponseRecorder {
+	t.Helper()
+	body := mustJSON(t, actionRequest{
+		Actor:      mission.AgentActor,
+		ApprovalID: approvalID,
+		Reason:     "high-risk move execution requires human authority",
+		Parameters: map[string]any{
+			"move": "draft the first bounded move",
+		},
+	})
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/EXECUTE_MOVE/approvals", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+	return recorder
 }
 
 func mustJSON(t *testing.T, value any) []byte {

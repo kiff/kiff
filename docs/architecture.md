@@ -54,6 +54,8 @@ An approval identifies the affected entity, action name, requester, reviewer, st
 
 Runtime can also request approval for a contract that requires it. Requesting approval creates a pending approval record and audits that request. Granting or denying approval remains a separate human authority step.
 
+Runtime can review pending approvals by marking them granted or denied. Review preserves the approval identity, records the reviewer and review time, and audits the final authority decision.
+
 ### `pkg/kiff/permission`
 
 The permission package answers whether an actor is allowed to perform an action.
@@ -99,6 +101,8 @@ The httpapi package exposes a small optional `net/http` handler around runtime m
 It is a transport wrapper, not a web framework. It can ingest raw inputs, list allowed actions for an entity, and return audit timelines. Applications remain responsible for authentication, authorization at the edge, deployment, routing composition, and production middleware.
 
 Action validation and execution routes resolve contracts from the runtime action catalog. HTTP clients cannot submit arbitrary action contracts.
+
+Approval routes expose request, list, grant, and deny operations. Requesting approval validates the action first and only allows the approval requirement itself to remain unresolved.
 
 ### `pkg/kiff/runtime`
 
