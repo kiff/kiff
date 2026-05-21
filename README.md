@@ -162,3 +162,9 @@ An actor may propose an action with parameters, evidence, reasoning, and confide
 Brick 9 makes action execution outcomes explicit.
 
 Execution results include status, message, error, effects summary, output, and timestamp. Runtime audit records include those result details so successful and failed executions can be reconstructed later.
+
+## Brick 10: Follow-Up Events
+
+Brick 10 lets successful execution results include follow-up events.
+
+Actions still do not mutate state directly. When an execution result includes follow-up events, the runtime ingests those events through the normal event path so state transitions and audit records remain explicit.

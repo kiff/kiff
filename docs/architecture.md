@@ -42,6 +42,8 @@ An action contract declares its name, allowed states, required parameters, requi
 
 Action execution returns an explicit result with status, message, error, effects summary, output, and timestamp. Runtime audit stores those result fields so execution can be reconstructed separately from validation.
 
+Successful execution results may include follow-up events. Runtime ingests those events through the normal event path after auditing execution. This keeps state changes event-driven rather than action-driven.
+
 Action catalogs let domains register contracts by name. The catalog is a convenience layer, not a global registry. Domains still own the action vocabulary.
 
 ### `pkg/kiff/approval`

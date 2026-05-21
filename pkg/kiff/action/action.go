@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
 )
 
@@ -79,6 +80,7 @@ type ActionResult struct {
 	Error          string
 	EffectsSummary string
 	Output         map[string]any
+	FollowUpEvents []event.Event
 	ExecutedAt     time.Time
 }
 

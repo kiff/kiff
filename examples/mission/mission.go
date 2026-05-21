@@ -122,7 +122,10 @@ func Contracts() []action.ActionContract {
 					Message:        fmt.Sprintf("move executed: %s", move),
 					EffectsSummary: "recorded the bounded move execution",
 					Output:         map[string]any{"move": move},
-					ExecutedAt:     time.Now().UTC(),
+					FollowUpEvents: []event.Event{
+						newEvent("evt-005", EventMoveExecuted, ctx.EntityID, ctx.Actor.ID, map[string]any{"move": move}),
+					},
+					ExecutedAt: time.Now().UTC(),
 				}, nil
 			},
 		},
@@ -344,10 +347,7 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines = append(lines, "action executed: EXECUTE_MOVE")
 	lines = append(lines, fmt.Sprintf("execution result: %s (%s)", executeResult.Status, executeResult.EffectsSummary))
-
-	if err := rt.IngestEvent(newEvent("evt-005", EventMoveExecuted, attemptID, AgentActor.ID, map[string]any{"move": "draft the first bounded move"})); err != nil {
-		return DemoResult{}, err
-	}
+	lines = append(lines, "follow-up event ingested: MOVE_EXECUTED")
 	lines = append(lines, "state changed: COMPLETED")
 
 	records, err := rt.Audit.List(context.Background(), attemptID)

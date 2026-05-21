@@ -346,13 +346,14 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 	if err != nil {
 		result = action.FailedResult(contract.Name, actionCtx.EntityID, err)
 		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action execution failed", map[string]any{
-			"action":          contract.Name,
-			"status":          result.Status,
-			"error":           result.Error,
-			"message":         result.Message,
-			"effects_summary": result.EffectsSummary,
-			"output":          result.Output,
-			"executed_at":     result.ExecutedAt,
+			"action":           contract.Name,
+			"status":           result.Status,
+			"error":            result.Error,
+			"message":          result.Message,
+			"effects_summary":  result.EffectsSummary,
+			"output":           result.Output,
+			"follow_up_events": len(result.FollowUpEvents),
+			"executed_at":      result.ExecutedAt,
 		})
 		if auditErr != nil {
 			return action.ActionResult{}, auditErr
@@ -369,16 +370,27 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 		result.Executed = true
 	}
 	result = result.Normalize()
-	return result, r.appendAudit(ctx, audit.KindActionExecuted, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action executed", map[string]any{
-		"action":          contract.Name,
-		"status":          result.Status,
-		"executed":        result.Executed,
-		"message":         result.Message,
-		"error":           result.Error,
-		"effects_summary": result.EffectsSummary,
-		"output":          result.Output,
-		"executed_at":     result.ExecutedAt,
-	})
+	if err := r.appendAudit(ctx, audit.KindActionExecuted, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action executed", map[string]any{
+		"action":           contract.Name,
+		"status":           result.Status,
+		"executed":         result.Executed,
+		"message":          result.Message,
+		"error":            result.Error,
+		"effects_summary":  result.EffectsSummary,
+		"output":           result.Output,
+		"follow_up_events": len(result.FollowUpEvents),
+		"executed_at":      result.ExecutedAt,
+	}); err != nil {
+		return action.ActionResult{}, err
+	}
+	if result.Status == action.ExecutionSucceeded {
+		for _, followUpEvent := range result.FollowUpEvents {
+			if err := r.IngestEvent(followUpEvent); err != nil {
+				return result, err
+			}
+		}
+	}
+	return result, nil
 }
 
 func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) action.ActionContext {

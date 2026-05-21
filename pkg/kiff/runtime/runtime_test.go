@@ -463,6 +463,147 @@ func TestRuntimeAuditsFailedExecutionResultDetails(t *testing.T) {
 	}
 }
 
+func TestRuntimeIngestsFollowUpEventsAfterSuccessfulExecution(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "MOVE_EXECUTED", From: "WAITING_APPROVAL", To: "COMPLETED"},
+		),
+		PermissionPolicy: policy,
+	})
+	rt.States.(*state.TransitionMachine).Set(state.State{
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Value:      "WAITING_APPROVAL",
+	})
+
+	result, err := rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "WAITING_APPROVAL",
+		Actor:        actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"WAITING_APPROVAL"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{
+				Message:        "move executed",
+				EffectsSummary: "emitted move executed event",
+				FollowUpEvents: []event.Event{
+					{
+						ID:         "evt-follow-up-1",
+						Type:       "MOVE_EXECUTED",
+						EntityID:   "attempt-1",
+						EntityType: "MissionAttempt",
+						Source:     "executor",
+						ActorID:    "agent",
+						OccurredAt: time.Now().UTC(),
+					},
+				},
+			}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute action: %v", err)
+	}
+	if result.Status != action.ExecutionSucceeded {
+		t.Fatalf("expected succeeded status, got %q", result.Status)
+	}
+
+	events, err := rt.Events.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 follow-up event, got %d", len(events))
+	}
+	current, ok, err := rt.States.Current(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("current state: %v", err)
+	}
+	if !ok || current.Value != "COMPLETED" {
+		t.Fatalf("expected COMPLETED state, got %#v", current)
+	}
+
+	timeline, err := rt.Timeline("attempt-1")
+	if err != nil {
+		t.Fatalf("timeline: %v", err)
+	}
+	expectedKinds := []audit.Kind{audit.KindActionValidated, audit.KindActionExecuted, audit.KindEventIngested, audit.KindStateChanged}
+	if len(timeline) != len(expectedKinds) {
+		t.Fatalf("expected %d timeline records, got %d: %#v", len(expectedKinds), len(timeline), timeline)
+	}
+	for i, kind := range expectedKinds {
+		if timeline[i].Kind != kind {
+			t.Fatalf("expected timeline kind %q at index %d, got %q", kind, i, timeline[i].Kind)
+		}
+	}
+}
+
+func TestRuntimeDoesNotIngestFollowUpEventsAfterFailedExecution(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := New(Config{
+		StateMachine: state.NewTransitionMachine(
+			state.Transition{EventType: "MOVE_EXECUTED", From: "WAITING_APPROVAL", To: "COMPLETED"},
+		),
+		PermissionPolicy: policy,
+	})
+	rt.States.(*state.TransitionMachine).Set(state.State{
+		EntityID:   "attempt-1",
+		EntityType: "MissionAttempt",
+		Value:      "WAITING_APPROVAL",
+	})
+
+	_, err := rt.ExecuteAction(action.ActionContext{
+		ActionName:   "EXECUTE_MOVE",
+		EntityID:     "attempt-1",
+		EntityType:   "MissionAttempt",
+		CurrentState: "WAITING_APPROVAL",
+		Actor:        actor.Actor{ID: "agent"},
+	}, action.ActionContract{
+		Name:                "EXECUTE_MOVE",
+		AllowedStates:       []string{"WAITING_APPROVAL"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{
+				FollowUpEvents: []event.Event{
+					{
+						ID:         "evt-follow-up-1",
+						Type:       "MOVE_EXECUTED",
+						EntityID:   "attempt-1",
+						EntityType: "MissionAttempt",
+						Source:     "executor",
+						ActorID:    "agent",
+						OccurredAt: time.Now().UTC(),
+					},
+				},
+			}, fmt.Errorf("executor failed")
+		},
+	})
+	if err == nil {
+		t.Fatal("expected executor failure")
+	}
+
+	events, err := rt.Events.List(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("list events: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("expected no follow-up events after failure, got %d", len(events))
+	}
+	current, ok, err := rt.States.Current(context.Background(), "attempt-1")
+	if err != nil {
+		t.Fatalf("current state: %v", err)
+	}
+	if !ok || current.Value != "WAITING_APPROVAL" {
+		t.Fatalf("expected WAITING_APPROVAL state, got %#v", current)
+	}
+}
+
 func TestRuntimeTimelineReconstructsOperationalPath(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")
