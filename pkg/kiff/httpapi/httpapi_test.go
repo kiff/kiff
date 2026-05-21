@@ -88,6 +88,64 @@ func TestHandlerReturnsTimeline(t *testing.T) {
 	}
 }
 
+func TestHandlerValidatesAction(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareActiveAttempt(t, handler)
+	body := mustJSON(t, actionRequest{
+		Actor: mission.AgentActor,
+		Parameters: map[string]any{
+			"move": "draft the first bounded move",
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/PROPOSE_MOVE/validate", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"valid":true`)) {
+		t.Fatalf("expected valid response, got %s", recorder.Body.String())
+	}
+}
+
+func TestHandlerExecutesAction(t *testing.T) {
+	handler := newMissionHandler(t)
+	ingestMissionSubmitted(t, handler)
+	body := mustJSON(t, actionRequest{Actor: mission.AgentActor})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/CREATE_ATTEMPT/execute", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"succeeded"`)) {
+		t.Fatalf("expected succeeded result, got %s", recorder.Body.String())
+	}
+}
+
+func TestHandlerReturnsConflictWhenApprovalRequired(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+	body := mustJSON(t, actionRequest{
+		Actor: mission.AgentActor,
+		Parameters: map[string]any{
+			"move": "draft the first bounded move",
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/EXECUTE_MOVE/execute", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestHandlerReturnsBadRequestForMissingAdapter(t *testing.T) {
 	handler := newMissionHandler(t)
 	body := mustJSON(t, adapter.RawInput{
@@ -130,6 +188,41 @@ func ingestMissionSubmitted(t *testing.T, handler *Handler) {
 	})
 	if err != nil {
 		t.Fatalf("ingest mission submitted: %v", err)
+	}
+}
+
+func prepareActiveAttempt(t *testing.T, handler *Handler) {
+	t.Helper()
+	ingestMissionSubmitted(t, handler)
+	createAttempt := event.Event{
+		ID:         "evt-2",
+		Type:       mission.EventAttemptCreated,
+		EntityID:   "attempt-1",
+		EntityType: mission.EntityTypeMissionAttempt,
+		Source:     "http-test",
+		ActorID:    mission.AgentActor.ID,
+		OccurredAt: time.Now().UTC(),
+	}
+	if err := handler.Runtime.IngestEvent(createAttempt); err != nil {
+		t.Fatalf("ingest attempt created: %v", err)
+	}
+}
+
+func prepareWaitingApprovalAttempt(t *testing.T, handler *Handler) {
+	t.Helper()
+	prepareActiveAttempt(t, handler)
+	moveProposed := event.Event{
+		ID:         "evt-3",
+		Type:       mission.EventMoveProposed,
+		EntityID:   "attempt-1",
+		EntityType: mission.EntityTypeMissionAttempt,
+		Source:     "http-test",
+		ActorID:    mission.AgentActor.ID,
+		OccurredAt: time.Now().UTC(),
+		Payload:    map[string]any{"move": "draft the first bounded move"},
+	}
+	if err := handler.Runtime.IngestEvent(moveProposed); err != nil {
+		t.Fatalf("ingest move proposed: %v", err)
 	}
 }
 

@@ -98,6 +98,8 @@ The httpapi package exposes a small optional `net/http` handler around runtime m
 
 It is a transport wrapper, not a web framework. It can ingest raw inputs, list allowed actions for an entity, and return audit timelines. Applications remain responsible for authentication, authorization at the edge, deployment, routing composition, and production middleware.
 
+Action validation and execution routes resolve contracts from the runtime action catalog. HTTP clients cannot submit arbitrary action contracts.
+
 ### `pkg/kiff/runtime`
 
 The runtime package wires the primitive stores and policies together.

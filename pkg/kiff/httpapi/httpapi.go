@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/permission"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
@@ -25,6 +26,14 @@ type actionContractResponse struct {
 	RequiredPermissions []permission.Permission    `json:"required_permissions,omitempty"`
 	Risk                action.RiskLevel           `json:"risk,omitempty"`
 	ApprovalRequirement action.ApprovalRequirement `json:"approval_requirement,omitempty"`
+}
+
+type actionRequest struct {
+	EntityType string         `json:"entity_type"`
+	Actor      actor.Actor    `json:"actor"`
+	Parameters map[string]any `json:"parameters,omitempty"`
+	ApprovalID string         `json:"approval_id,omitempty"`
+	Approved   bool           `json:"approved,omitempty"`
 }
 
 // NewHandler creates an HTTP handler for a runtime.
@@ -46,6 +55,10 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleAllowedActions(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/timeline"):
 		h.handleTimeline(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/validate"):
+		h.handleValidateAction(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/entities/") && strings.HasSuffix(r.URL.Path, "/execute"):
+		h.handleExecuteAction(w, r)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
@@ -107,10 +120,111 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) handleValidateAction(w http.ResponseWriter, r *http.Request) {
+	actionCtx, contract, ok := h.actionContextFromRequest(w, r, "/validate")
+	if !ok {
+		return
+	}
+	if err := h.Runtime.ValidateAction(actionCtx, contract); err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":  true,
+		"action": contract.Name,
+	})
+}
+
+func (h *Handler) handleExecuteAction(w http.ResponseWriter, r *http.Request) {
+	actionCtx, contract, ok := h.actionContextFromRequest(w, r, "/execute")
+	if !ok {
+		return
+	}
+	result, err := h.Runtime.ExecuteAction(actionCtx, contract)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"result": result,
+	})
+}
+
+func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Request, suffix string) (action.ActionContext, action.ActionContract, bool) {
+	defer r.Body.Close()
+
+	entityID, actionName := actionPathParts(r.URL.Path, suffix)
+	if entityID == "" || actionName == "" {
+		writeError(w, http.StatusNotFound, "entity id and action name are required")
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+
+	var request actionRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json body")
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+	if request.Actor.ID == "" {
+		writeError(w, http.StatusBadRequest, "actor id is required")
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+
+	if h.Runtime.Actions == nil {
+		writeRuntimeError(w, store.ErrNotFound)
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+	contract, ok := h.Runtime.Actions.Get(actionName)
+	if !ok {
+		writeError(w, http.StatusNotFound, "action contract not found")
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+
+	if h.Runtime.States == nil {
+		writeRuntimeError(w, store.ErrNotFound)
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+	current, ok, err := h.Runtime.States.Current(r.Context(), entityID)
+	if err != nil {
+		writeRuntimeError(w, err)
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+	if !ok {
+		writeRuntimeError(w, store.ErrNotFound)
+		return action.ActionContext{}, action.ActionContract{}, false
+	}
+
+	entityType := request.EntityType
+	if entityType == "" {
+		entityType = current.EntityType
+	}
+	actionCtx := action.ActionContext{
+		ActionName:   actionName,
+		EntityID:     entityID,
+		EntityType:   entityType,
+		CurrentState: current.Value,
+		Actor:        request.Actor,
+		Parameters:   request.Parameters,
+		ApprovalID:   request.ApprovalID,
+		Approved:     request.Approved,
+	}
+	return actionCtx, contract, true
+}
+
 func entityIDFromPath(path string, suffix string) string {
 	value := strings.TrimPrefix(path, "/entities/")
 	value = strings.TrimSuffix(value, suffix)
 	return strings.Trim(value, "/")
+}
+
+func actionPathParts(path string, suffix string) (string, string) {
+	value := strings.TrimPrefix(path, "/entities/")
+	value = strings.TrimSuffix(value, suffix)
+	value = strings.Trim(value, "/")
+	parts := strings.Split(value, "/actions/")
+	if len(parts) != 2 {
+		return "", ""
+	}
+	return strings.Trim(parts[0], "/"), strings.Trim(parts[1], "/")
 }
 
 func actionContractResponses(contracts []action.ActionContract) []actionContractResponse {
@@ -133,6 +247,14 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 	case errors.Is(err, adapter.ErrInvalidRawInput):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, adapter.ErrAdapterNotFound):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, action.ErrPermissionDenied):
+		writeError(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, action.ErrApprovalRequired):
+		writeError(w, http.StatusConflict, err.Error())
+	case errors.Is(err, action.ErrStateNotAllowed):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, action.ErrMissingParameter):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, err.Error())

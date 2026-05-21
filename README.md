@@ -174,3 +174,9 @@ Actions still do not mutate state directly. When an execution result includes fo
 Brick 11 makes pending approval requests explicit.
 
 Runtime can create a pending approval record for an action contract that requires approval. Granting or denying that approval remains a separate authority step.
+
+## Brick 12: HTTP Action Routes
+
+Brick 12 adds guarded HTTP routes for action validation and execution.
+
+The HTTP API resolves action contracts from the runtime action catalog and current state from the state machine. Clients provide actor, parameters, and approval id, but not the contract itself.
