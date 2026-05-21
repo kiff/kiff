@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -56,7 +57,7 @@ func TestHandlerReturnsAllowedActions(t *testing.T) {
 		ActorID:    mission.AgentActor.ID,
 		OccurredAt: time.Now().UTC(),
 	}
-	if err := handler.Runtime.IngestEvent(createAttempt); err != nil {
+	if err := handler.Runtime.IngestEvent(context.Background(), createAttempt); err != nil {
 		t.Fatalf("ingest attempt created: %v", err)
 	}
 
@@ -122,7 +123,7 @@ func TestHandlerExecutesAction(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"succeeded"`)) {
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"succeeded"`)) {
 		t.Fatalf("expected succeeded result, got %s", recorder.Body.String())
 	}
 }
@@ -155,7 +156,7 @@ func TestHandlerRequestsApproval(t *testing.T) {
 	if recorder.Code != http.StatusCreated {
 		t.Fatalf("expected status 201, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"pending"`)) {
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"pending"`)) {
 		t.Fatalf("expected pending approval, got %s", recorder.Body.String())
 	}
 }
@@ -199,7 +200,7 @@ func TestHandlerGrantsApprovalAndExecutesAction(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"granted"`)) {
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"granted"`)) {
 		t.Fatalf("expected granted approval, got %s", recorder.Body.String())
 	}
 
@@ -217,7 +218,7 @@ func TestHandlerGrantsApprovalAndExecutesAction(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"succeeded"`)) {
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"succeeded"`)) {
 		t.Fatalf("expected succeeded result, got %s", recorder.Body.String())
 	}
 }
@@ -241,7 +242,7 @@ func TestHandlerDeniesApproval(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
 	}
-	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"Status":"denied"`)) {
+	if !bytes.Contains(recorder.Body.Bytes(), []byte(`"status":"denied"`)) {
 		t.Fatalf("expected denied approval, got %s", recorder.Body.String())
 	}
 }
@@ -276,7 +277,7 @@ func newMissionHandler(t *testing.T) *Handler {
 
 func ingestMissionSubmitted(t *testing.T, handler *Handler) {
 	t.Helper()
-	_, err := handler.Runtime.IngestRaw(adapter.RawInput{
+	_, err := handler.Runtime.IngestRaw(context.Background(), adapter.RawInput{
 		ID:         "evt-1",
 		Adapter:    mission.AdapterMission,
 		Type:       mission.EventMissionSubmitted,
@@ -303,7 +304,7 @@ func prepareActiveAttempt(t *testing.T, handler *Handler) {
 		ActorID:    mission.AgentActor.ID,
 		OccurredAt: time.Now().UTC(),
 	}
-	if err := handler.Runtime.IngestEvent(createAttempt); err != nil {
+	if err := handler.Runtime.IngestEvent(context.Background(), createAttempt); err != nil {
 		t.Fatalf("ingest attempt created: %v", err)
 	}
 }
@@ -321,7 +322,7 @@ func prepareWaitingApprovalAttempt(t *testing.T, handler *Handler) {
 		OccurredAt: time.Now().UTC(),
 		Payload:    map[string]any{"move": "draft the first bounded move"},
 	}
-	if err := handler.Runtime.IngestEvent(moveProposed); err != nil {
+	if err := handler.Runtime.IngestEvent(context.Background(), moveProposed); err != nil {
 		t.Fatalf("ingest move proposed: %v", err)
 	}
 }

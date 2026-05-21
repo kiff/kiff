@@ -32,14 +32,14 @@ type AuditKind = Kind
 
 // Record is an append-only operational trace.
 type Record struct {
-	ID         string
-	Kind       Kind
-	EntityID   string
-	EntityType string
-	ActorID    string
-	Message    string
-	Data       map[string]any
-	CreatedAt  time.Time
+	ID         string         `json:"id"`
+	Kind       Kind           `json:"kind"`
+	EntityID   string         `json:"entity_id"`
+	EntityType string         `json:"entity_type"`
+	ActorID    string         `json:"actor_id,omitempty"`
+	Message    string         `json:"message,omitempty"`
+	Data       map[string]any `json:"data,omitempty"`
+	CreatedAt  time.Time      `json:"created_at"`
 }
 
 // AuditRecord is kept as an explicit alias for readability.

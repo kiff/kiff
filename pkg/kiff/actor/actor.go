@@ -13,8 +13,8 @@ const (
 
 // Actor identifies a human, agent, service, system, or external integration.
 type Actor struct {
-	ID          string
-	Type        Type
-	DisplayName string
-	Roles       []string
+	ID          string   `json:"id"`
+	Type        Type     `json:"type,omitempty"`
+	DisplayName string   `json:"display_name,omitempty"`
+	Roles       []string `json:"roles,omitempty"`
 }

@@ -26,16 +26,16 @@ type DecisionKind = Kind
 
 // Decision records why an action, classification, recommendation, or next step was selected.
 type Decision struct {
-	ID               string
-	EntityID         string
-	EntityType       string
-	Kind             Kind
-	ProposedAction   string
-	Evidence         []evidence.Ref
-	ReasoningSummary string
-	Confidence       float64
-	ActorID          string
-	CreatedAt        time.Time
+	ID               string         `json:"id"`
+	EntityID         string         `json:"entity_id"`
+	EntityType       string         `json:"entity_type"`
+	Kind             Kind           `json:"kind"`
+	ProposedAction   string         `json:"proposed_action,omitempty"`
+	Evidence         []evidence.Ref `json:"evidence,omitempty"`
+	ReasoningSummary string         `json:"reasoning_summary,omitempty"`
+	Confidence       float64        `json:"confidence,omitempty"`
+	ActorID          string         `json:"actor_id"`
+	CreatedAt        time.Time      `json:"created_at"`
 }
 
 // Validate checks the minimum fields needed for an auditable decision.

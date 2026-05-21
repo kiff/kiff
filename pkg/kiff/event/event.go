@@ -11,23 +11,23 @@ var ErrInvalidEvent = errors.New("invalid event")
 
 // Metadata carries operational correlation information for an event.
 type Metadata struct {
-	TraceID       string
-	CorrelationID string
-	CausationID   string
-	Tags          map[string]string
+	TraceID       string            `json:"trace_id,omitempty"`
+	CorrelationID string            `json:"correlation_id,omitempty"`
+	CausationID   string            `json:"causation_id,omitempty"`
+	Tags          map[string]string `json:"tags,omitempty"`
 }
 
 // Event is a normalized record of something that happened.
 type Event struct {
-	ID         string
-	Type       string
-	EntityID   string
-	EntityType string
-	Source     string
-	ActorID    string
-	OccurredAt time.Time
-	Metadata   Metadata
-	Payload    map[string]any
+	ID         string         `json:"id"`
+	Type       string         `json:"type"`
+	EntityID   string         `json:"entity_id"`
+	EntityType string         `json:"entity_type"`
+	Source     string         `json:"source"`
+	ActorID    string         `json:"actor_id"`
+	OccurredAt time.Time      `json:"occurred_at"`
+	Metadata   Metadata       `json:"metadata,omitempty"`
+	Payload    map[string]any `json:"payload,omitempty"`
 }
 
 // Validate checks the minimum fields KIFF needs to preserve an event as an

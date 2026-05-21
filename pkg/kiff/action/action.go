@@ -18,6 +18,7 @@ var (
 	ErrApprovalRequired = errors.New("action requires approval")
 	ErrInvalidContract  = errors.New("invalid action contract")
 	ErrDuplicateAction  = errors.New("duplicate action contract")
+	ErrExecutorMissing  = errors.New("action contract has no executor")
 )
 
 // RiskLevel describes the operational risk of an action.
@@ -67,21 +68,32 @@ type ActionContext struct {
 	Actor        actor.Actor
 	Parameters   map[string]any
 	ApprovalID   string
-	Approved     bool
+	approved     bool
+}
+
+// IsApproved returns whether the runtime has resolved a granted approval for this context.
+func (c ActionContext) IsApproved() bool {
+	return c.approved
+}
+
+// GrantApproval marks the action context as approved. Only the runtime should call this.
+// It is exported so the runtime package can set it, but callers should not use it directly.
+func (c *ActionContext) GrantApproval() {
+	c.approved = true
 }
 
 // ActionResult records the execution outcome.
 type ActionResult struct {
-	ActionName     string
-	EntityID       string
-	Status         ExecutionStatus
-	Executed       bool
-	Message        string
-	Error          string
-	EffectsSummary string
-	Output         map[string]any
-	FollowUpEvents []event.Event
-	ExecutedAt     time.Time
+	ActionName     string          `json:"action_name"`
+	EntityID       string          `json:"entity_id"`
+	Status         ExecutionStatus `json:"status"`
+	Executed       bool            `json:"executed"`
+	Message        string          `json:"message,omitempty"`
+	Error          string          `json:"error,omitempty"`
+	EffectsSummary string          `json:"effects_summary,omitempty"`
+	Output         map[string]any  `json:"output,omitempty"`
+	FollowUpEvents []event.Event   `json:"follow_up_events,omitempty"`
+	ExecutedAt     time.Time       `json:"executed_at"`
 }
 
 // Normalize fills default status and timestamp fields.
@@ -164,7 +176,7 @@ func (DefaultValidator) Validate(ctx context.Context, actionCtx ActionContext, c
 	}
 
 	result := ValidationResult{RequiresApproval: contract.ApprovalRequirement == ApprovalRequired}
-	if result.RequiresApproval && !actionCtx.Approved {
+	if result.RequiresApproval && !actionCtx.IsApproved() {
 		return result, ErrApprovalRequired
 	}
 	return result, nil

@@ -43,3 +43,13 @@ func TestMissionHappyPathWorks(t *testing.T) {
 		t.Fatal("expected audit records")
 	}
 }
+
+func TestMissionDeniedPathWorks(t *testing.T) {
+	result, err := RunDeniedPath()
+	if err != nil {
+		t.Fatalf("run mission denied path: %v", err)
+	}
+	if result.FinalState.Value != StateWaitingApproval {
+		t.Fatalf("expected final state %q, got %q", StateWaitingApproval, result.FinalState.Value)
+	}
+}

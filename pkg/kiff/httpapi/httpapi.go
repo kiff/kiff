@@ -34,7 +34,6 @@ type actionRequest struct {
 	Actor      actor.Actor    `json:"actor"`
 	Parameters map[string]any `json:"parameters,omitempty"`
 	ApprovalID string         `json:"approval_id,omitempty"`
-	Approved   bool           `json:"approved,omitempty"`
 	Reason     string         `json:"reason,omitempty"`
 }
 
@@ -88,7 +87,7 @@ func (h *Handler) handleIngestRaw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ev, err := h.Runtime.IngestRaw(input)
+	ev, err := h.Runtime.IngestRaw(r.Context(), input)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -106,7 +105,7 @@ func (h *Handler) handleAllowedActions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contracts, err := h.Runtime.AllowedActions(entityID)
+	contracts, err := h.Runtime.AllowedActions(r.Context(), entityID)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -124,7 +123,7 @@ func (h *Handler) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	records, err := h.Runtime.Timeline(entityID)
+	records, err := h.Runtime.Timeline(r.Context(), entityID)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -140,7 +139,7 @@ func (h *Handler) handleValidateAction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := h.Runtime.ValidateAction(actionCtx, contract); err != nil {
+	if err := h.Runtime.ValidateAction(r.Context(), actionCtx, contract); err != nil {
 		writeRuntimeError(w, err)
 		return
 	}
@@ -155,7 +154,7 @@ func (h *Handler) handleExecuteAction(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	result, err := h.Runtime.ExecuteAction(actionCtx, contract)
+	result, err := h.Runtime.ExecuteAction(r.Context(), actionCtx, contract)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -170,14 +169,13 @@ func (h *Handler) handleRequestApproval(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	actionCtx.Approved = false
 
-	if err := h.Runtime.ValidateAction(actionCtx, contract); err != nil && !errors.Is(err, action.ErrApprovalRequired) {
+	if err := h.Runtime.ValidateAction(r.Context(), actionCtx, contract); err != nil && !errors.Is(err, action.ErrApprovalRequired) {
 		writeRuntimeError(w, err)
 		return
 	}
 
-	requested, err := h.Runtime.RequestApproval(request.ApprovalID, actionCtx, contract, request.Reason)
+	requested, err := h.Runtime.RequestApproval(r.Context(), request.ApprovalID, actionCtx, contract, request.Reason)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -226,7 +224,7 @@ func (h *Handler) handleReviewApproval(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 
-	reviewed, err := h.Runtime.ReviewApproval(approvalID, request.Actor.ID, status, request.Reason)
+	reviewed, err := h.Runtime.ReviewApproval(r.Context(), approvalID, request.Actor.ID, status, request.Reason)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -291,7 +289,6 @@ func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Reques
 		Actor:        request.Actor,
 		Parameters:   request.Parameters,
 		ApprovalID:   request.ApprovalID,
-		Approved:     request.Approved,
 	}
 	return actionCtx, contract, request, true
 }
@@ -348,6 +345,8 @@ func writeRuntimeError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, action.ErrMissingParameter):
 		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, action.ErrExecutorMissing):
+		writeError(w, http.StatusUnprocessableEntity, err.Error())
 	case errors.Is(err, approval.ErrInvalidApproval):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, approval.ErrApprovalNotFound):

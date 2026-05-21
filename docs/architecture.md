@@ -141,3 +141,23 @@ It defines:
 - actions: `CREATE_ATTEMPT`, `PROPOSE_MOVE`, `REQUEST_HUMAN_APPROVAL`, `EXECUTE_MOVE`
 
 The example exposes a mission domain definition, uses an action catalog and an approval record, and shows how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.
+
+## Trust Boundary (v0.1)
+
+The runtime enforces governance constraints that callers cannot bypass:
+
+1. **Approval is runtime-controlled.** The `approved` field on `ActionContext` is private. Only the runtime's `applyApproval` method can set it after verifying a granted approval exists in the approval store. Callers, agents, and HTTP clients cannot self-approve.
+
+2. **Execution requires an executor.** `ExecuteAction` returns `ErrExecutorMissing` for contracts without an `Executor` function. This prevents silent no-op successes from being confused with real execution.
+
+3. **Store errors are surfaced.** If the approval store returns an error during approval resolution, the runtime propagates it rather than silently downgrading to `ErrApprovalRequired`.
+
+4. **Audit IDs are collision-resistant.** Each audit record ID combines an atomic counter with random bytes, eliminating nanosecond-collision risk under concurrent writes.
+
+5. **Domain validation is mandatory.** `runtime.New` validates `Config.Domain` when provided, matching the behavior of `NewForDomain`.
+
+## Context Threading and JSON Tags (Brick 16)
+
+All public `Runtime` methods accept a `context.Context` as their first argument: `IngestEvent`, `IngestRaw`, `ProposeDecision`, `RecordActionProposal`, `ValidateActionProposal`, `ValidateAction`, `ExecuteAction`, `RequestApproval`, `ReviewApproval`, `RecordApproval`, `AllowedActions`, `Timeline`, `RebuildState`. The context is threaded through to stores, validators, executors, and adapters. Callers can cancel long operations and propagate deadlines.
+
+All types serialized over the optional HTTP API carry stable JSON struct tags. Field names use `snake_case` regardless of Go field names: `event.Event`, `state.State`, `state.ReplayResult`, `state.ReplayStep`, `actor.Actor`, `evidence.Ref`, `decision.Decision`, `approval.Approval`, `audit.Record`, `action.ActionResult`, `adapter.RawInput`, `event.Metadata`. External clients can rely on field names not changing when Go field names are renamed.

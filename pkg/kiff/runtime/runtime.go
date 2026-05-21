@@ -2,8 +2,11 @@ package runtime
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
@@ -19,6 +22,9 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
+
+// auditSeq is a process-wide counter used to guarantee unique audit IDs.
+var auditSeq atomic.Uint64
 
 // Config wires the stores and policies used by a Runtime.
 type Config struct {
@@ -50,7 +56,13 @@ type Runtime struct {
 }
 
 // New creates a runtime with in-memory defaults for omitted stores.
-func New(config Config) *Runtime {
+// If Config.Domain is provided, it must be valid.
+func New(config Config) (*Runtime, error) {
+	if config.Domain != nil {
+		if err := config.Domain.Validate(); err != nil {
+			return nil, err
+		}
+	}
 	rt := &Runtime{
 		Domain:      config.Domain,
 		Events:      config.EventStore,
@@ -106,21 +118,32 @@ func New(config Config) *Runtime {
 	for _, configuredAdapter := range config.Adapters {
 		_ = rt.RegisterAdapter(configuredAdapter)
 	}
-	return rt
+	return rt, nil
 }
 
 // NewForDomain validates a domain definition and creates a runtime wired to it.
 func NewForDomain(definition domain.Definition, config Config) (*Runtime, error) {
-	if err := definition.Validate(); err != nil {
-		return nil, err
-	}
 	config.Domain = &definition
-	return New(config), nil
+	return New(config)
+}
+
+// RegisterAdapter registers an input adapter by name.
+func (r *Runtime) RegisterAdapter(inputAdapter adapter.Adapter) error {
+	if inputAdapter == nil {
+		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter is nil"))
+	}
+	if inputAdapter.Name() == "" {
+		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter name is required"))
+	}
+	if r.Adapters == nil {
+		r.Adapters = map[string]adapter.Adapter{}
+	}
+	r.Adapters[inputAdapter.Name()] = inputAdapter
+	return nil
 }
 
 // IngestEvent stores an event, applies state when a state machine is present, and audits both facts.
-func (r *Runtime) IngestEvent(ev event.Event) error {
-	ctx := context.Background()
+func (r *Runtime) IngestEvent(ctx context.Context, ev event.Event) error {
 	if err := r.Events.Append(ctx, ev); err != nil {
 		return err
 	}
@@ -154,24 +177,8 @@ func (r *Runtime) IngestEvent(ev event.Event) error {
 	})
 }
 
-// RegisterAdapter registers an input adapter by name.
-func (r *Runtime) RegisterAdapter(inputAdapter adapter.Adapter) error {
-	if inputAdapter == nil {
-		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter is nil"))
-	}
-	if inputAdapter.Name() == "" {
-		return errors.Join(adapter.ErrInvalidAdapter, errors.New("adapter name is required"))
-	}
-	if r.Adapters == nil {
-		r.Adapters = map[string]adapter.Adapter{}
-	}
-	r.Adapters[inputAdapter.Name()] = inputAdapter
-	return nil
-}
-
 // IngestRaw normalizes raw input with a registered adapter, then ingests the event.
-func (r *Runtime) IngestRaw(input adapter.RawInput) (event.Event, error) {
-	ctx := context.Background()
+func (r *Runtime) IngestRaw(ctx context.Context, input adapter.RawInput) (event.Event, error) {
 	if err := input.Validate(); err != nil {
 		return event.Event{}, err
 	}
@@ -183,15 +190,14 @@ func (r *Runtime) IngestRaw(input adapter.RawInput) (event.Event, error) {
 	if err != nil {
 		return event.Event{}, err
 	}
-	if err := r.IngestEvent(ev); err != nil {
+	if err := r.IngestEvent(ctx, ev); err != nil {
 		return event.Event{}, err
 	}
 	return ev, nil
 }
 
 // ProposeDecision stores and audits a decision.
-func (r *Runtime) ProposeDecision(d decision.Decision) error {
-	ctx := context.Background()
+func (r *Runtime) ProposeDecision(ctx context.Context, d decision.Decision) error {
 	if err := r.Decisions.Append(ctx, d); err != nil {
 		return err
 	}
@@ -204,26 +210,25 @@ func (r *Runtime) ProposeDecision(d decision.Decision) error {
 }
 
 // RecordActionProposal records an action proposal as a decision.
-func (r *Runtime) RecordActionProposal(p proposal.ActionProposal) error {
+func (r *Runtime) RecordActionProposal(ctx context.Context, p proposal.ActionProposal) error {
 	d, err := p.Decision()
 	if err != nil {
 		return err
 	}
-	return r.ProposeDecision(d)
+	return r.ProposeDecision(ctx, d)
 }
 
 // ValidateActionProposal validates a proposal against an action contract.
-func (r *Runtime) ValidateActionProposal(p proposal.ActionProposal, currentState string, proposalActor actor.Actor, contract action.ActionContract) error {
+func (r *Runtime) ValidateActionProposal(ctx context.Context, p proposal.ActionProposal, currentState string, proposalActor actor.Actor, contract action.ActionContract) error {
 	actionCtx, err := p.ActionContext(currentState, proposalActor)
 	if err != nil {
 		return err
 	}
-	return r.ValidateAction(actionCtx, contract)
+	return r.ValidateAction(ctx, actionCtx, contract)
 }
 
 // AllowedActions returns the action contracts currently allowed for an entity.
-func (r *Runtime) AllowedActions(entityID string) ([]action.ActionContract, error) {
-	ctx := context.Background()
+func (r *Runtime) AllowedActions(ctx context.Context, entityID string) ([]action.ActionContract, error) {
 	if r.States == nil {
 		return nil, fmt.Errorf("%w: state machine is not configured", store.ErrNotFound)
 	}
@@ -256,14 +261,12 @@ func (r *Runtime) AllowedActions(entityID string) ([]action.ActionContract, erro
 }
 
 // Timeline returns the chronological audit trail for an entity.
-func (r *Runtime) Timeline(entityID string) ([]audit.Record, error) {
-	ctx := context.Background()
+func (r *Runtime) Timeline(ctx context.Context, entityID string) ([]audit.Record, error) {
 	return r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
 }
 
 // RebuildState reconstructs an entity state by replaying its stored events.
-func (r *Runtime) RebuildState(entityID string) (state.ReplayResult, error) {
-	ctx := context.Background()
+func (r *Runtime) RebuildState(ctx context.Context, entityID string) (state.ReplayResult, error) {
 	if entityID == "" {
 		return state.ReplayResult{}, fmt.Errorf("%w: entity id is required", state.ErrInvalidReplay)
 	}
@@ -299,7 +302,7 @@ func (r *Runtime) RebuildState(entityID string) (state.ReplayResult, error) {
 }
 
 // RequestApproval creates a pending approval for an action that requires approval.
-func (r *Runtime) RequestApproval(approvalID string, actionCtx action.ActionContext, contract action.ActionContract, reason string) (approval.Approval, error) {
+func (r *Runtime) RequestApproval(ctx context.Context, approvalID string, actionCtx action.ActionContext, contract action.ActionContract, reason string) (approval.Approval, error) {
 	if contract.ApprovalRequirement != action.ApprovalRequired {
 		return approval.Approval{}, fmt.Errorf("%w: action %q does not require approval", action.ErrApprovalRequired, contract.Name)
 	}
@@ -320,15 +323,14 @@ func (r *Runtime) RequestApproval(approvalID string, actionCtx action.ActionCont
 		Reason:      reason,
 		CreatedAt:   time.Now().UTC(),
 	}
-	if err := r.RecordApproval(request); err != nil {
+	if err := r.RecordApproval(ctx, request); err != nil {
 		return approval.Approval{}, err
 	}
 	return request, nil
 }
 
 // ReviewApproval grants or denies an existing pending approval.
-func (r *Runtime) ReviewApproval(approvalID string, reviewedBy string, status approval.Status, reason string) (approval.Approval, error) {
-	ctx := context.Background()
+func (r *Runtime) ReviewApproval(ctx context.Context, approvalID string, reviewedBy string, status approval.Status, reason string) (approval.Approval, error) {
 	if approvalID == "" {
 		return approval.Approval{}, fmt.Errorf("%w: approval id is required", approval.ErrInvalidApproval)
 	}
@@ -356,15 +358,14 @@ func (r *Runtime) ReviewApproval(approvalID string, reviewedBy string, status ap
 	if reason != "" {
 		existing.Reason = reason
 	}
-	if err := r.RecordApproval(existing); err != nil {
+	if err := r.RecordApproval(ctx, existing); err != nil {
 		return approval.Approval{}, err
 	}
 	return existing, nil
 }
 
 // RecordApproval stores and audits an approval record.
-func (r *Runtime) RecordApproval(a approval.Approval) error {
-	ctx := context.Background()
+func (r *Runtime) RecordApproval(ctx context.Context, a approval.Approval) error {
 	if err := r.Approvals.Save(ctx, a); err != nil {
 		return err
 	}
@@ -396,27 +397,30 @@ func (r *Runtime) RecordApproval(a approval.Approval) error {
 }
 
 // ValidateAction validates an action and appends the corresponding audit record.
-func (r *Runtime) ValidateAction(actionCtx action.ActionContext, contract action.ActionContract) error {
-	ctx := context.Background()
-	actionCtx = r.applyApproval(ctx, actionCtx, contract)
-	result, err := r.Validator.Validate(ctx, actionCtx, contract, r.Permissions)
+func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) error {
+	var err error
+	actionCtx, err = r.applyApproval(ctx, actionCtx, contract)
 	if err != nil {
+		return err
+	}
+	result, validationErr := r.Validator.Validate(ctx, actionCtx, contract, r.Permissions)
+	if validationErr != nil {
 		kind := audit.KindActionFailed
 		message := "action validation failed"
-		if errors.Is(err, action.ErrApprovalRequired) {
+		if errors.Is(validationErr, action.ErrApprovalRequired) {
 			kind = audit.KindApprovalRequired
 			message = "approval required"
 		}
 		auditErr := r.appendAudit(ctx, kind, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, message, map[string]any{
 			"action":            contract.Name,
-			"error":             err.Error(),
+			"error":             validationErr.Error(),
 			"approval_id":       actionCtx.ApprovalID,
 			"requires_approval": result.RequiresApproval,
 		})
 		if auditErr != nil {
 			return auditErr
 		}
-		return err
+		return validationErr
 	}
 	return r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
 		"action":            contract.Name,
@@ -426,24 +430,31 @@ func (r *Runtime) ValidateAction(actionCtx action.ActionContext, contract action
 }
 
 // ExecuteAction validates, executes, and audits an action.
-func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.ActionContract) (action.ActionResult, error) {
-	ctx := context.Background()
-	actionCtx = r.applyApproval(ctx, actionCtx, contract)
-	if err := r.ValidateAction(actionCtx, contract); err != nil {
+func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) (action.ActionResult, error) {
+	var err error
+	actionCtx, err = r.applyApproval(ctx, actionCtx, contract)
+	if err != nil {
+		return action.ActionResult{}, err
+	}
+	if err := r.ValidateAction(ctx, actionCtx, contract); err != nil {
 		return action.ActionResult{}, err
 	}
 
-	result := action.ActionResult{
-		ActionName: contract.Name,
-		EntityID:   actionCtx.EntityID,
-		Executed:   true,
-		Message:    "action executed",
-		ExecutedAt: time.Now().UTC(),
+	if contract.Executor == nil {
+		failResult := action.FailedResult(contract.Name, actionCtx.EntityID, action.ErrExecutorMissing)
+		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action execution failed", map[string]any{
+			"action":  contract.Name,
+			"status":  failResult.Status,
+			"error":   failResult.Error,
+			"message": failResult.Message,
+		})
+		if auditErr != nil {
+			return action.ActionResult{}, auditErr
+		}
+		return failResult, action.ErrExecutorMissing
 	}
-	var err error
-	if contract.Executor != nil {
-		result, err = contract.Executor(ctx, actionCtx)
-	}
+
+	result, err := contract.Executor(ctx, actionCtx)
 	if err != nil {
 		result = action.FailedResult(contract.Name, actionCtx.EntityID, err)
 		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action execution failed", map[string]any{
@@ -486,7 +497,7 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 	}
 	if result.Status == action.ExecutionSucceeded {
 		for _, followUpEvent := range result.FollowUpEvents {
-			if err := r.IngestEvent(followUpEvent); err != nil {
+			if err := r.IngestEvent(ctx, followUpEvent); err != nil {
 				return result, err
 			}
 		}
@@ -494,23 +505,26 @@ func (r *Runtime) ExecuteAction(actionCtx action.ActionContext, contract action.
 	return result, nil
 }
 
-func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) action.ActionContext {
-	if actionCtx.Approved || actionCtx.ApprovalID == "" || r.Approvals == nil {
-		return actionCtx
+func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) (action.ActionContext, error) {
+	if actionCtx.IsApproved() || actionCtx.ApprovalID == "" || r.Approvals == nil {
+		return actionCtx, nil
 	}
 	if contract.ApprovalRequirement != action.ApprovalRequired {
-		return actionCtx
+		return actionCtx, nil
 	}
 	granted, err := r.Approvals.IsGranted(ctx, actionCtx.ApprovalID, actionCtx.EntityID, contract.Name)
-	if err == nil && granted {
-		actionCtx.Approved = true
+	if err != nil {
+		return actionCtx, fmt.Errorf("approval store error: %w", err)
 	}
-	return actionCtx
+	if granted {
+		actionCtx.GrantApproval()
+	}
+	return actionCtx, nil
 }
 
 func (r *Runtime) appendAudit(ctx context.Context, kind audit.Kind, entityID, entityType, actorID, message string, data map[string]any) error {
 	return r.Audit.Append(ctx, audit.Record{
-		ID:         fmt.Sprintf("audit-%d", time.Now().UTC().UnixNano()),
+		ID:         generateAuditID(),
 		Kind:       kind,
 		EntityID:   entityID,
 		EntityType: entityType,
@@ -519,4 +533,12 @@ func (r *Runtime) appendAudit(ctx context.Context, kind audit.Kind, entityID, en
 		Data:       data,
 		CreatedAt:  time.Now().UTC(),
 	})
+}
+
+// generateAuditID produces a unique audit record ID using an atomic counter and random bytes.
+func generateAuditID() string {
+	seq := auditSeq.Add(1)
+	var buf [8]byte
+	_, _ = rand.Read(buf[:])
+	return fmt.Sprintf("audit-%d-%s", seq, hex.EncodeToString(buf[:]))
 }

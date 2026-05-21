@@ -204,3 +204,19 @@ The command hosts the optional `httpapi` handler with the mission runtime and do
 Brick 15 realigns with the original roadmap's Event Replay / State Rebuild item.
 
 Runtime can rebuild an entity's current state by replaying stored events through the configured domain state machine. The rebuild returns replay steps and records a `state_rebuilt` audit fact.
+
+## v0.1 Trust Boundary
+
+KIFF enforces governance at the framework level, not by convention:
+
+- Agents and callers can propose actions. KIFF validates state, permissions, parameters, and approvals before execution.
+- Callers cannot self-approve high-risk actions. The `approved` state is private to the runtime and can only be set through the approval flow (`RequestApproval` → `ReviewApproval` → granted `ApprovalID`).
+- Actions require explicit executors to be considered executed. A contract without an `Executor` function cannot produce a successful execution result.
+- Every validation, denial, approval, and execution is audited with collision-resistant IDs.
+- The demo proves both paths: granted approval completes the loop, denied approval blocks execution.
+
+## Brick 16: Context Threading and JSON Tags
+
+All public `Runtime` methods accept `context.Context` as the first argument. Callers can cancel ingestion, validation, execution, approval review, audit queries, and state rebuilds with a deadline or context.
+
+Core serialized types now carry stable `snake_case` JSON tags. The HTTP API field names are decoupled from Go field renames.

@@ -23,16 +23,16 @@ const (
 
 // Approval records human authority over an action.
 type Approval struct {
-	ID          string
-	EntityID    string
-	EntityType  string
-	ActionName  string
-	RequestedBy string
-	ReviewedBy  string
-	Status      Status
-	Reason      string
-	CreatedAt   time.Time
-	ReviewedAt  time.Time
+	ID          string    `json:"id"`
+	EntityID    string    `json:"entity_id"`
+	EntityType  string    `json:"entity_type"`
+	ActionName  string    `json:"action_name"`
+	RequestedBy string    `json:"requested_by"`
+	ReviewedBy  string    `json:"reviewed_by,omitempty"`
+	Status      Status    `json:"status"`
+	Reason      string    `json:"reason,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	ReviewedAt  time.Time `json:"reviewed_at,omitempty"`
 }
 
 // Validate checks the minimum fields needed for an auditable approval.

@@ -14,12 +14,12 @@ var ErrInvalidTransition = errors.New("invalid state transition")
 
 // State is the current operational condition of an entity.
 type State struct {
-	EntityID   string
-	EntityType string
-	Value      string
-	Version    int
-	UpdatedAt  time.Time
-	Metadata   map[string]any
+	EntityID   string         `json:"entity_id"`
+	EntityType string         `json:"entity_type"`
+	Value      string         `json:"value"`
+	Version    int            `json:"version"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	Metadata   map[string]any `json:"metadata,omitempty"`
 }
 
 // Transition maps an event type and source state to a target state.

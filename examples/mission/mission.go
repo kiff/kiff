@@ -90,6 +90,20 @@ func Contracts() []action.ActionContract {
 			RequiredPermissions: []permission.Permission{PermissionCreateAttempt},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
+			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+				return action.ActionResult{
+					ActionName:     ActionCreateAttempt,
+					EntityID:       ctx.EntityID,
+					Status:         action.ExecutionSucceeded,
+					Executed:       true,
+					Message:        "attempt created",
+					EffectsSummary: "emitted ATTEMPT_CREATED event",
+					FollowUpEvents: []event.Event{
+						newEvent("evt-002", EventAttemptCreated, ctx.EntityID, ctx.Actor.ID, nil),
+					},
+					ExecutedAt: time.Now().UTC(),
+				}, nil
+			},
 		},
 		{
 			Name:                ActionProposeMove,
@@ -98,6 +112,21 @@ func Contracts() []action.ActionContract {
 			RequiredPermissions: []permission.Permission{PermissionProposeMove},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
+			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+				move, _ := ctx.Parameters["move"].(string)
+				return action.ActionResult{
+					ActionName:     ActionProposeMove,
+					EntityID:       ctx.EntityID,
+					Status:         action.ExecutionSucceeded,
+					Executed:       true,
+					Message:        fmt.Sprintf("move proposed: %s", move),
+					EffectsSummary: "emitted MOVE_PROPOSED event",
+					FollowUpEvents: []event.Event{
+						newEvent("evt-003", EventMoveProposed, ctx.EntityID, ctx.Actor.ID, map[string]any{"move": move}),
+					},
+					ExecutedAt: time.Now().UTC(),
+				}, nil
+			},
 		},
 		{
 			Name:                ActionRequestHumanApproval,
@@ -105,6 +134,17 @@ func Contracts() []action.ActionContract {
 			RequiredPermissions: []permission.Permission{PermissionRequestHumanApproval},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
+			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+				return action.ActionResult{
+					ActionName:     ActionRequestHumanApproval,
+					EntityID:       ctx.EntityID,
+					Status:         action.ExecutionSucceeded,
+					Executed:       true,
+					Message:        "human approval requested",
+					EffectsSummary: "approval request recorded",
+					ExecutedAt:     time.Now().UTC(),
+				}, nil
+			},
 		},
 		{
 			Name:                ActionExecuteMove,
@@ -185,7 +225,7 @@ func NewRuntime() (*runtime.Runtime, error) {
 	})
 }
 
-// DemoResult captures the observable outcome of the mission happy path.
+// DemoResult captures the observable outcome of a mission demo path.
 type DemoResult struct {
 	Lines      []string
 	Audit      []audit.Record
@@ -193,8 +233,9 @@ type DemoResult struct {
 	FinalState state.State
 }
 
-// RunHappyPath runs a compact mission attempt through the KIFF loop.
+// RunHappyPath runs a compact mission attempt through the KIFF loop with granted approval.
 func RunHappyPath() (DemoResult, error) {
+	ctx := context.Background()
 	attemptID := "mission-attempt-001"
 	rt, err := NewRuntime()
 	if err != nil {
@@ -202,14 +243,15 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines := []string{}
 	contract := func(name string) (action.ActionContract, error) {
-		contract, ok := rt.Actions.Get(name)
+		c, ok := rt.Actions.Get(name)
 		if !ok {
 			return action.ActionContract{}, fmt.Errorf("missing mission action contract %q", name)
 		}
-		return contract, nil
+		return c, nil
 	}
 
-	_, err = rt.IngestRaw(adapter.RawInput{
+	// 1. Ingest raw event: MISSION_SUBMITTED
+	_, err = rt.IngestRaw(ctx, adapter.RawInput{
 		ID:         "evt-001",
 		Adapter:    AdapterMission,
 		Type:       EventMissionSubmitted,
@@ -227,6 +269,7 @@ func RunHappyPath() (DemoResult, error) {
 	lines = append(lines, "event ingested: MISSION_SUBMITTED")
 	lines = append(lines, "state changed: SUBMITTED")
 
+	// 2. Execute CREATE_ATTEMPT (has executor, emits ATTEMPT_CREATED follow-up)
 	createCtx := action.ActionContext{
 		ActionName:   ActionCreateAttempt,
 		EntityID:     attemptID,
@@ -238,22 +281,21 @@ func RunHappyPath() (DemoResult, error) {
 	if err != nil {
 		return DemoResult{}, err
 	}
-	if _, err := rt.ExecuteAction(createCtx, createContract); err != nil {
+	if _, err := rt.ExecuteAction(ctx, createCtx, createContract); err != nil {
 		return DemoResult{}, err
 	}
-	lines = append(lines, "action validated: CREATE_ATTEMPT")
-
-	if err := rt.IngestEvent(newEvent("evt-002", EventAttemptCreated, attemptID, AgentActor.ID, nil)); err != nil {
-		return DemoResult{}, err
-	}
+	lines = append(lines, "action executed: CREATE_ATTEMPT")
+	lines = append(lines, "follow-up event ingested: ATTEMPT_CREATED")
 	lines = append(lines, "state changed: ACTIVE")
 
-	allowed, err := rt.AllowedActions(attemptID)
+	// 3. Allowed actions
+	allowed, err := rt.AllowedActions(ctx, attemptID)
 	if err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, fmt.Sprintf("allowed actions: %s", actionNames(allowed)))
 
+	// 4. Agent proposes a move (decision + validation)
 	moveProposal := proposal.ActionProposal{
 		ID:         "dec-001",
 		EntityID:   attemptID,
@@ -268,26 +310,37 @@ func RunHappyPath() (DemoResult, error) {
 		CreatedAt:        time.Now().UTC(),
 		Parameters:       map[string]any{"move": "draft the first bounded move"},
 	}
-	if err := rt.RecordActionProposal(moveProposal); err != nil {
+	if err := rt.RecordActionProposal(ctx, moveProposal); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "decision proposed: PROPOSE_MOVE")
-	lines = append(lines, "action proposal recorded: PROPOSE_MOVE")
 
 	proposeContract, err := contract(ActionProposeMove)
 	if err != nil {
 		return DemoResult{}, err
 	}
-	if err := rt.ValidateActionProposal(moveProposal, StateActive, AgentActor, proposeContract); err != nil {
+	if err := rt.ValidateActionProposal(ctx, moveProposal, StateActive, AgentActor, proposeContract); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "action validated: PROPOSE_MOVE")
 
-	if err := rt.IngestEvent(newEvent("evt-003", EventMoveProposed, attemptID, AgentActor.ID, map[string]any{"move": "draft the first bounded move"})); err != nil {
+	// 5. Execute PROPOSE_MOVE (emits MOVE_PROPOSED follow-up)
+	proposeMoveCtx := action.ActionContext{
+		ActionName:   ActionProposeMove,
+		EntityID:     attemptID,
+		EntityType:   EntityTypeMissionAttempt,
+		CurrentState: StateActive,
+		Actor:        AgentActor,
+		Parameters:   map[string]any{"move": "draft the first bounded move"},
+	}
+	if _, err := rt.ExecuteAction(ctx, proposeMoveCtx, proposeContract); err != nil {
 		return DemoResult{}, err
 	}
+	lines = append(lines, "action executed: PROPOSE_MOVE")
+	lines = append(lines, "follow-up event ingested: MOVE_PROPOSED")
 	lines = append(lines, "state changed: WAITING_APPROVAL")
 
+	// 6. Attempt to execute high-risk action without approval
 	executeCtx := action.ActionContext{
 		ActionName:   ActionExecuteMove,
 		EntityID:     attemptID,
@@ -301,22 +354,24 @@ func RunHappyPath() (DemoResult, error) {
 	if err != nil {
 		return DemoResult{}, err
 	}
-	if err := rt.ValidateAction(executeCtx, executeContract); !errors.Is(err, action.ErrApprovalRequired) {
+	if err := rt.ValidateAction(ctx, executeCtx, executeContract); !errors.Is(err, action.ErrApprovalRequired) {
 		return DemoResult{}, fmt.Errorf("expected approval requirement, got %v", err)
 	}
 	lines = append(lines, "approval required: EXECUTE_MOVE")
 
-	if _, err := rt.RequestApproval(executeCtx.ApprovalID, executeCtx, executeContract, "high-risk move execution requires human authority"); err != nil {
+	// 7. Request approval
+	if _, err := rt.RequestApproval(ctx, executeCtx.ApprovalID, executeCtx, executeContract, "high-risk move execution requires human authority"); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "approval requested: EXECUTE_MOVE")
 
-	if err := rt.IngestEvent(newEvent("evt-004", EventHumanApprovalGranted, attemptID, HumanActor.ID, map[string]any{"approved_action": ActionExecuteMove})); err != nil {
+	// 8. Human grants approval
+	if err := rt.IngestEvent(ctx, newEvent("evt-004", EventHumanApprovalGranted, attemptID, HumanActor.ID, map[string]any{"approved_action": ActionExecuteMove})); err != nil {
 		return DemoResult{}, err
 	}
 	lines = append(lines, "event ingested: HUMAN_APPROVAL_GRANTED")
 
-	if err := rt.RecordApproval(approval.Approval{
+	if err := rt.RecordApproval(ctx, approval.Approval{
 		ID:          executeCtx.ApprovalID,
 		EntityID:    attemptID,
 		EntityType:  EntityTypeMissionAttempt,
@@ -332,7 +387,8 @@ func RunHappyPath() (DemoResult, error) {
 	}
 	lines = append(lines, "approval granted: EXECUTE_MOVE")
 
-	executeResult, err := rt.ExecuteAction(executeCtx, executeContract)
+	// 9. Execute with granted approval
+	executeResult, err := rt.ExecuteAction(ctx, executeCtx, executeContract)
 	if err != nil {
 		return DemoResult{}, err
 	}
@@ -345,7 +401,7 @@ func RunHappyPath() (DemoResult, error) {
 	if err != nil {
 		return DemoResult{}, err
 	}
-	timeline, err := rt.Timeline(attemptID)
+	timeline, err := rt.Timeline(ctx, attemptID)
 	if err != nil {
 		return DemoResult{}, err
 	}
@@ -357,6 +413,139 @@ func RunHappyPath() (DemoResult, error) {
 	lines = append(lines, fmt.Sprintf("timeline records reconstructed: %d", len(timeline)))
 
 	return DemoResult{Lines: lines, Audit: records, Timeline: timeline, FinalState: finalState}, nil
+}
+
+// RunDeniedPath demonstrates that KIFF blocks execution when approval is denied.
+func RunDeniedPath() (DemoResult, error) {
+	ctx := context.Background()
+	attemptID := "mission-attempt-denied"
+	rt, err := NewRuntime()
+	if err != nil {
+		return DemoResult{}, err
+	}
+	lines := []string{}
+	contract := func(name string) (action.ActionContract, error) {
+		c, ok := rt.Actions.Get(name)
+		if !ok {
+			return action.ActionContract{}, fmt.Errorf("missing mission action contract %q", name)
+		}
+		return c, nil
+	}
+
+	// Setup: get to WAITING_APPROVAL state
+	_, err = rt.IngestRaw(ctx, adapter.RawInput{
+		ID:         "evt-d01",
+		Adapter:    AdapterMission,
+		Type:       EventMissionSubmitted,
+		Source:     "examples/mission/raw",
+		EntityID:   attemptID,
+		EntityType: EntityTypeMissionAttempt,
+		ActorID:    HumanActor.ID,
+		ReceivedAt: time.Now().UTC(),
+		Payload:    map[string]any{"mission": "risky mission"},
+	})
+	if err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "state changed: SUBMITTED")
+
+	createContract, err := contract(ActionCreateAttempt)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	createCtx := action.ActionContext{
+		ActionName:   ActionCreateAttempt,
+		EntityID:     attemptID,
+		EntityType:   EntityTypeMissionAttempt,
+		CurrentState: StateSubmitted,
+		Actor:        AgentActor,
+	}
+	if _, err := rt.ExecuteAction(ctx, createCtx, createContract); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "state changed: ACTIVE")
+
+	proposeContract, err := contract(ActionProposeMove)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	proposeMoveCtx := action.ActionContext{
+		ActionName:   ActionProposeMove,
+		EntityID:     attemptID,
+		EntityType:   EntityTypeMissionAttempt,
+		CurrentState: StateActive,
+		Actor:        AgentActor,
+		Parameters:   map[string]any{"move": "risky move"},
+	}
+	if _, err := rt.ExecuteAction(ctx, proposeMoveCtx, proposeContract); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "state changed: WAITING_APPROVAL")
+
+	// Agent tries to execute high-risk action
+	executeContract, err := contract(ActionExecuteMove)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	executeCtx := action.ActionContext{
+		ActionName:   ActionExecuteMove,
+		EntityID:     attemptID,
+		EntityType:   EntityTypeMissionAttempt,
+		CurrentState: StateWaitingApproval,
+		Actor:        AgentActor,
+		Parameters:   map[string]any{"move": "risky move"},
+		ApprovalID:   "approval-denied-001",
+	}
+
+	// Request approval
+	if _, err := rt.RequestApproval(ctx, executeCtx.ApprovalID, executeCtx, executeContract, "high-risk move needs human authority"); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "approval requested: EXECUTE_MOVE")
+
+	// Human denies approval
+	if _, err := rt.ReviewApproval(ctx, executeCtx.ApprovalID, HumanActor.ID, approval.StatusDenied, "move is too risky without more evidence"); err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, "approval denied: EXECUTE_MOVE")
+
+	// Agent tries to execute — should be blocked
+	_, execErr := rt.ExecuteAction(ctx, executeCtx, executeContract)
+	if !errors.Is(execErr, action.ErrApprovalRequired) {
+		return DemoResult{}, fmt.Errorf("expected ErrApprovalRequired after denial, got %v", execErr)
+	}
+	lines = append(lines, "execution blocked: EXECUTE_MOVE (approval not granted)")
+
+	// Verify audit trail shows the denial
+	timeline, err := rt.Timeline(ctx, attemptID)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	var sawDenied, sawBlocked bool
+	for _, record := range timeline {
+		if record.Kind == audit.KindApprovalDenied {
+			sawDenied = true
+		}
+		if record.Kind == audit.KindApprovalRequired {
+			sawBlocked = true
+		}
+	}
+	if !sawDenied {
+		return DemoResult{}, fmt.Errorf("expected approval denied audit record")
+	}
+	if !sawBlocked {
+		return DemoResult{}, fmt.Errorf("expected approval required audit record after denied execution attempt")
+	}
+	lines = append(lines, "audit confirms: approval_denied recorded")
+	lines = append(lines, "audit confirms: execution blocked after denial")
+
+	finalState, _, err := rt.States.Current(context.Background(), attemptID)
+	if err != nil {
+		return DemoResult{}, err
+	}
+	lines = append(lines, fmt.Sprintf("final state: %s (unchanged, execution was prevented)", finalState.Value))
+
+	return DemoResult{Lines: lines, Timeline: timeline, FinalState: finalState}, nil
 }
 
 func newEvent(id, eventType, attemptID, actorID string, payload map[string]any) event.Event {

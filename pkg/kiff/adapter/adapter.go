@@ -16,16 +16,16 @@ var (
 
 // RawInput is transport-neutral input waiting to become a KIFF event.
 type RawInput struct {
-	ID         string
-	Adapter    string
-	Type       string
-	Source     string
-	EntityID   string
-	EntityType string
-	ActorID    string
-	ReceivedAt time.Time
-	Metadata   event.Metadata
-	Payload    map[string]any
+	ID         string         `json:"id"`
+	Adapter    string         `json:"adapter"`
+	Type       string         `json:"type"`
+	Source     string         `json:"source"`
+	EntityID   string         `json:"entity_id,omitempty"`
+	EntityType string         `json:"entity_type,omitempty"`
+	ActorID    string         `json:"actor_id,omitempty"`
+	ReceivedAt time.Time      `json:"received_at"`
+	Metadata   event.Metadata `json:"metadata,omitempty"`
+	Payload    map[string]any `json:"payload,omitempty"`
 }
 
 // Validate checks the fields every adapter registration flow needs.

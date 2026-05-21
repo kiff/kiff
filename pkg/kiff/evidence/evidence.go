@@ -20,12 +20,12 @@ const (
 
 // Ref points to supporting material without forcing KIFF to own that material.
 type Ref struct {
-	ID        string
-	Kind      Kind
-	Source    string
-	URI       string
-	Summary   string
-	CreatedAt time.Time
+	ID        string    `json:"id"`
+	Kind      Kind      `json:"kind"`
+	Source    string    `json:"source,omitempty"`
+	URI       string    `json:"uri,omitempty"`
+	Summary   string    `json:"summary,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // EvidenceRef is kept as an explicit alias for readability in domain code.

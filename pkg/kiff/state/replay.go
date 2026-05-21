@@ -12,19 +12,19 @@ var ErrInvalidReplay = errors.New("invalid state replay")
 
 // ReplayStep records one event-to-state transition during state rebuild.
 type ReplayStep struct {
-	EventID   string
-	EventType string
-	From      string
-	To        string
-	Version   int
+	EventID   string `json:"event_id"`
+	EventType string `json:"event_type"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Version   int    `json:"version"`
 }
 
 // ReplayResult captures the rebuilt state and transition path for an entity.
 type ReplayResult struct {
-	EntityID   string
-	EntityType string
-	State      State
-	Steps      []ReplayStep
+	EntityID   string       `json:"entity_id"`
+	EntityType string       `json:"entity_type"`
+	State      State        `json:"state"`
+	Steps      []ReplayStep `json:"steps"`
 }
 
 // Rebuild applies stored events in order to reconstruct state.
