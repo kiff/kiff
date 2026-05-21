@@ -18,6 +18,7 @@ import (
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/proposal"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
 	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
+	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
 )
 
 const (
@@ -215,8 +216,15 @@ func NewInputAdapter() (adapter.Adapter, error) {
 	return adapter.NewPassthroughAdapter(AdapterMission)
 }
 
-// NewRuntime creates a runtime wired for the mission example.
+// NewRuntime creates a runtime wired for the mission example using the default
+// in-memory stores.
 func NewRuntime() (*runtime.Runtime, error) {
+	return NewRuntimeWithStores(nil)
+}
+
+// NewRuntimeWithStores creates a runtime wired for the mission example using
+// the provided store bundle. A nil bundle falls back to in-memory stores.
+func NewRuntimeWithStores(stores *store.Bundle) (*runtime.Runtime, error) {
 	definition, err := NewDomainDefinition()
 	if err != nil {
 		return nil, err
@@ -228,6 +236,7 @@ func NewRuntime() (*runtime.Runtime, error) {
 	return runtime.NewForDomain(definition, runtime.Config{
 		PermissionPolicy: NewPermissionPolicy(),
 		Adapters:         []adapter.Adapter{inputAdapter},
+		Stores:           stores,
 	})
 }
 

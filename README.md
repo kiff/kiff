@@ -228,3 +228,13 @@ Audit records carry `trace_id`, `correlation_id`, and `causation_id`. The runtim
 ## Brick 18: Domain Builder and Authoring Guide
 
 `pkg/kiff/domain.Builder` provides a chainable helper for declaring a domain's events, transitions, allowed actions, and contracts. `docs/build-a-domain.md` walks a developer through modeling a small domain end to end.
+
+## Brick 19: File-Backed JSONL Stores
+
+`pkg/kiff/store/file` provides append-only JSONL implementations of the event, decision, approval, and audit store interfaces. The HTTP demo accepts `-data-dir <path>` to persist state across restarts:
+
+```bash
+go run ./cmd/kiff-http-demo -data-dir ./data
+```
+
+This is for demos and local testing, not a production database. Production deployments should implement the store interfaces against a real backend.
