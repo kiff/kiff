@@ -30,6 +30,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "kiff new: %v\n", err)
 			os.Exit(1)
 		}
+	case "timeline":
+		if err := runTimeline(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff timeline: %v\n", err)
+			os.Exit(1)
+		}
 	case "version":
 		fmt.Println(versionString())
 	case "help", "-h", "--help":
@@ -46,8 +51,10 @@ func usage(w *os.File) {
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "USAGE:")
 	fmt.Fprintln(w, "  kiff new <module-path> [flags]   Scaffold a new KIFF project")
+	fmt.Fprintln(w, "  kiff timeline -entity <id>       Render the audit timeline")
+	fmt.Fprintln(w, "                                   from a running httpapi server")
 	fmt.Fprintln(w, "  kiff version                     Print CLI version")
 	fmt.Fprintln(w, "  kiff help                        Show this message")
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "RUN 'kiff new -h' FOR FLAGS.")
+	fmt.Fprintln(w, "RUN 'kiff <subcommand> -h' FOR FLAGS.")
 }

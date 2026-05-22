@@ -21,9 +21,18 @@ import (
 //go:embed all:templates/starter
 var starterFS embed.FS
 
+// agenticOpsFS embeds the agentic-ops template tree.
+//
+//go:embed all:templates/agentic-ops
+var agenticOpsFS embed.FS
+
 const (
+	templateStarter     = "starter"
+	templateAgenticOps  = "agentic-ops"
 	starterRoot         = "templates/starter"
+	agenticOpsRoot      = "templates/agentic-ops"
 	starterImportPrefix = "github.com/kiff-framework/kiff-framework/cmd/kiff/templates/starter"
+	agenticOpsImport    = "github.com/kiff-framework/kiff-framework/cmd/kiff/templates/agentic-ops"
 	goModTemplateName   = "go.mod.tmpl"
 )
 
@@ -46,18 +55,26 @@ func runNew(args []string) error {
 		fmt.Fprintln(os.Stderr, "FLAGS:")
 		fs.PrintDefaults()
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "EXAMPLE:")
+		fmt.Fprintln(os.Stderr, "EXAMPLES:")
 		fmt.Fprintln(os.Stderr, "  kiff new github.com/acme/orders")
+		fmt.Fprintln(os.Stderr, "  kiff new -template=agentic-ops github.com/acme/ops")
 	}
 	dir := fs.String("dir", "", "directory to scaffold into (default: last segment of module path)")
 	force := fs.Bool("force", false, "scaffold into a non-empty directory")
 	replaceLocal := fs.String("replace-local", "", "emit a `replace github.com/kiff-framework/kiff-framework => <path>` directive in go.mod (use while the framework is unpublished)")
+	templateName := fs.String("template", templateStarter, "scaffold template: starter (default) | agentic-ops")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		fs.Usage()
 		return errors.New("expected exactly one argument: the module path")
+	}
+
+	tmpl, err := resolveTemplate(*templateName)
+	if err != nil {
+		fs.Usage()
+		return err
 	}
 
 	modulePath := strings.TrimSpace(fs.Arg(0))
@@ -70,7 +87,7 @@ func runNew(args []string) error {
 	if target == "" {
 		target = moduleName
 	}
-	target, err := filepath.Abs(target)
+	target, err = filepath.Abs(target)
 	if err != nil {
 		return fmt.Errorf("resolve target: %w", err)
 	}
@@ -86,13 +103,14 @@ func runNew(args []string) error {
 		ReplaceLocal: strings.TrimSpace(*replaceLocal),
 	}
 
-	if err := scaffold(target, data); err != nil {
+	if err := scaffold(target, tmpl, data); err != nil {
 		return err
 	}
 
 	fmt.Println("created KIFF project")
-	fmt.Printf("  module : %s\n", modulePath)
-	fmt.Printf("  path   : %s\n", target)
+	fmt.Printf("  module   : %s\n", modulePath)
+	fmt.Printf("  template : %s\n", tmpl.Name)
+	fmt.Printf("  path     : %s\n", target)
 	fmt.Println("")
 	fmt.Println("next steps:")
 	rel, _ := filepath.Rel(mustGetwd(), target)
@@ -101,46 +119,79 @@ func runNew(args []string) error {
 	}
 	fmt.Printf("  cd %s\n", rel)
 	fmt.Println("  go mod tidy")
-	fmt.Println("  go run ./cmd/server")
+	switch tmpl.Name {
+	case templateAgenticOps:
+		fmt.Println("  make demo")
+	default:
+		fmt.Println("  go run ./cmd/server")
+	}
 	return nil
 }
 
-// scaffold walks the embedded starter, transforms each file, and writes it to
-// target. Files ending in .tmpl are rendered as text/template; all other files
-// have their KIFF starter import paths rewritten to the user's module path.
-func scaffold(target string, data templateData) error {
-	return fs.WalkDir(starterFS, starterRoot, func(p string, d fs.DirEntry, walkErr error) error {
+// templateSpec captures the per-template knobs: the embedded fs, root
+// path within that fs, and the import prefix to rewrite into the user's
+// module path.
+type templateSpec struct {
+	Name         string
+	FS           embed.FS
+	Root         string
+	ImportPrefix string
+}
+
+func resolveTemplate(name string) (templateSpec, error) {
+	switch name {
+	case templateStarter, "":
+		return templateSpec{Name: templateStarter, FS: starterFS, Root: starterRoot, ImportPrefix: starterImportPrefix}, nil
+	case templateAgenticOps:
+		return templateSpec{Name: templateAgenticOps, FS: agenticOpsFS, Root: agenticOpsRoot, ImportPrefix: agenticOpsImport}, nil
+	default:
+		return templateSpec{}, fmt.Errorf("unknown template: %q (known: starter, agentic-ops)", name)
+	}
+}
+
+// scaffold walks the embedded template, transforms each file, and writes
+// it to target. Files ending in .tmpl are rendered as text/template;
+// the trailing .tmpl is stripped from the output. All other files have
+// their template-specific import prefix rewritten to the user's module
+// path.
+func scaffold(target string, tmpl templateSpec, data templateData) error {
+	return fs.WalkDir(tmpl.FS, tmpl.Root, func(p string, d fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if d.IsDir() {
 			return nil
 		}
-		rel, err := filepath.Rel(starterRoot, p)
+		rel, err := filepath.Rel(tmpl.Root, p)
 		if err != nil {
 			return err
 		}
-		// Normalize go.mod.tmpl to go.mod in the output.
+		// Normalize *.tmpl to its non-tmpl name in the output. This covers
+		// go.mod.tmpl and any future .tmpl files (Makefile.tmpl,
+		// .gitignore.tmpl, etc).
 		outRel := rel
-		if filepath.Base(outRel) == goModTemplateName {
-			outRel = filepath.Join(filepath.Dir(outRel), "go.mod")
+		if strings.HasSuffix(outRel, ".tmpl") {
+			outRel = strings.TrimSuffix(outRel, ".tmpl")
 		}
 		outPath := filepath.Join(target, outRel)
 		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
 			return err
 		}
 
-		raw, err := starterFS.ReadFile(p)
+		raw, err := tmpl.FS.ReadFile(p)
 		if err != nil {
 			return err
 		}
 
-		rendered, err := renderFile(rel, raw, data)
+		rendered, err := renderFile(rel, raw, tmpl, data)
 		if err != nil {
 			return fmt.Errorf("render %s: %w", rel, err)
 		}
 
 		mode := os.FileMode(0o644)
+		if strings.HasSuffix(rel, ".sh") || strings.HasSuffix(outRel, ".sh") {
+			mode = 0o755
+		}
 		if err := os.WriteFile(outPath, rendered, mode); err != nil {
 			return err
 		}
@@ -149,30 +200,34 @@ func scaffold(target string, data templateData) error {
 }
 
 // renderFile applies the right transform for a given file:
-//   - go.mod.tmpl and README.md run through text/template
-//   - all other files are byte-rewritten to swap the embedded starter's
-//     import path for the user's module path
-func renderFile(rel string, raw []byte, data templateData) ([]byte, error) {
-	switch filepath.Base(rel) {
-	case goModTemplateName, "README.md":
-		tmpl, err := template.New(rel).Parse(string(raw))
+//   - any .tmpl file runs through text/template
+//   - README.md runs through text/template
+//   - everything else has its template's in-tree import prefix rewritten
+//     to the user's module path
+func renderFile(rel string, raw []byte, tmpl templateSpec, data templateData) ([]byte, error) {
+	if strings.HasSuffix(rel, ".tmpl") || filepath.Base(rel) == "README.md" {
+		t, err := template.New(rel).Parse(string(raw))
 		if err != nil {
 			return nil, err
 		}
 		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
+		if err := t.Execute(&buf, data); err != nil {
 			return nil, err
 		}
 		return buf.Bytes(), nil
 	}
-	return rewriteImports(raw, data.ModulePath), nil
+	return rewriteImports(raw, tmpl.ImportPrefix, data.ModulePath), nil
 }
 
-// rewriteImports swaps the starter's in-tree import prefix for the user's
-// module path. We rewrite verbatim bytes rather than parsing AST because we
-// want to preserve formatting exactly and the prefix is unambiguous.
-func rewriteImports(raw []byte, modulePath string) []byte {
-	return bytes.ReplaceAll(raw, []byte(starterImportPrefix), []byte(modulePath))
+// rewriteImports swaps the template's in-tree import prefix for the
+// user's module path. We rewrite verbatim bytes rather than parsing AST
+// because we want to preserve formatting exactly and the prefix is
+// unambiguous within KIFF templates.
+func rewriteImports(raw []byte, fromPrefix, modulePath string) []byte {
+	if fromPrefix == "" {
+		return raw
+	}
+	return bytes.ReplaceAll(raw, []byte(fromPrefix), []byte(modulePath))
 }
 
 func validateModulePath(p string) error {
