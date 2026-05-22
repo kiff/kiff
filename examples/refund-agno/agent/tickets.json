@@ -1,0 +1,23 @@
+[
+  {
+    "id": "ticket-1",
+    "order_id": "order-1",
+    "customer_message": "Got the wrong size, please refund the small fee.",
+    "expected_amount_cents": 4200,
+    "notes": "small refund, customer mailed photo proof"
+  },
+  {
+    "id": "ticket-2",
+    "order_id": "order-2",
+    "customer_message": "I want my money back. The product is broken.",
+    "expected_amount_cents": 99900,
+    "notes": "high-value refund, ambiguous evidence"
+  },
+  {
+    "id": "ticket-3",
+    "order_id": "order-3",
+    "customer_message": "Order arrived late, can I get a partial refund?",
+    "expected_amount_cents": 25000,
+    "notes": "partial refund, late delivery"
+  }
+]
