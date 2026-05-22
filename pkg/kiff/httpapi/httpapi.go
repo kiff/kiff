@@ -73,6 +73,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleReviewApproval(w, r, approval.StatusGranted, "/grant")
 	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/approvals/") && strings.HasSuffix(r.URL.Path, "/deny"):
 		h.handleReviewApproval(w, r, approval.StatusDenied, "/deny")
+	case r.Method == http.MethodGet && r.URL.Path == "/admin":
+		h.handleAdminIndex(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/admin/":
+		h.handleAdminIndex(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/admin/entities/"):
+		h.handleAdminEntity(w, r)
 	default:
 		writeError(w, http.StatusNotFound, "route not found")
 	}
