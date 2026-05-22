@@ -1,0 +1,28 @@
+# macOS
+.DS_Store
+
+# Go build artifacts
+*.test
+*.out
+/bin/
+
+# Local Go scratch files
+/tmp/
+/.local/
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files (secrets, local DB urls)
+.env
+.env.local
+
+# Local Kiro / agent metadata that should not pollute the framework repo
+.kiro/
+
+# Test artifacts
+coverage.out
+coverage.html
