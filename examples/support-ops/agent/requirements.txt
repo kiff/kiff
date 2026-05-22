@@ -1,0 +1,6 @@
+agno>=2.6.6
+boto3>=1.43.0
+pydantic>=2.13.4
+python-dotenv>=1.2.1
+
+pytest>=9.0.2

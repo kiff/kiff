@@ -1,0 +1,54 @@
+[
+  {
+    "id": "ticket-1",
+    "category": "billing",
+    "customer_message": "Charged twice for one order, please refund the smaller amount.",
+    "expected_tool": "issue_refund",
+    "parameters": {
+      "amount_cents": 1500,
+      "reason": "duplicate charge, small amount"
+    },
+    "notes": "small auto-eligible refund"
+  },
+  {
+    "id": "ticket-2",
+    "category": "billing",
+    "customer_message": "Order arrived broken. Need a full refund of $99.",
+    "expected_tool": "issue_refund",
+    "parameters": {
+      "amount_cents": 9900,
+      "reason": "broken product, customer requested full refund"
+    },
+    "notes": "above per-call ceiling, must require approval"
+  },
+  {
+    "id": "ticket-3",
+    "category": "outreach",
+    "customer_message": "I think there is a billing issue, please call me.",
+    "expected_tool": "send_outreach",
+    "parameters": {
+      "channel": "phone",
+      "message": "Calling to resolve billing concern.",
+      "consent_verified": false
+    },
+    "notes": "outreach without verified consent — must be blocked"
+  },
+  {
+    "id": "ticket-4",
+    "category": "abuse",
+    "customer_message": "I will sue your company. Stop responding.",
+    "expected_tool": "escalate_to_human",
+    "parameters": {
+      "reason": "legal threat, escalate to ops"
+    },
+    "notes": "escalation"
+  },
+  {
+    "id": "ticket-5",
+    "category": "billing",
+    "customer_message": "Issue resolved, thanks!",
+    "expected_tool": "close_ticket",
+    "parameters": {},
+    "notes": "ticket already resolved by support; close it"
+  }
+]
