@@ -26,3 +26,9 @@
 # Test artifacts
 coverage.out
 coverage.html
+
+# Launch preparation work — kept private until shipped.
+# Drafts for HN posts, screencast scripts, X threads, deployment notes,
+# day-of runbooks, etc. live here. Nothing in /launch/ is part of the
+# framework's public surface.
+/launch/
