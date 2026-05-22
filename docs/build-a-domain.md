@@ -198,4 +198,4 @@ Your domain owns vocabulary and intent. KIFF owns coordination.
 
 - `examples/mission/mission.go` for a fuller worked example using the same builder.
 - `docs/architecture.md` for the package boundaries.
-- `docs/brick-17.md` for trace correlation behavior.
+- `docs/changelog/brick-17.md` for trace correlation behavior.

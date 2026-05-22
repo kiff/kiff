@@ -51,7 +51,7 @@ func main() {
 	fmt.Println("  POST /approvals/{approvalID}/grant")
 	fmt.Println("  POST /approvals/{approvalID}/deny")
 	fmt.Println("  GET  /entities/{entityID}/timeline")
-	fmt.Println("- see docs/brick-14.md for curl examples")
+	fmt.Println("- see docs/changelog/brick-14.md for curl examples")
 
 	server := &http.Server{
 		Handler: httpapi.NewHandler(rt),
