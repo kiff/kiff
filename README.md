@@ -83,6 +83,19 @@ While the framework is unpublished, scaffold against a local checkout:
 kiff new -replace-local /path/to/kiff-framework github.com/acme/orders
 ```
 
+### Try the agentic-ops template
+
+When you want to evaluate KIFF *as governance for an AI agent*, scaffold the `agentic-ops` template instead. It includes a Go domain, an HTTP server, an Agno agent (offline + Bedrock providers), and a `make demo` target that runs the full governed-agent loop end to end:
+
+```bash
+kiff new -template=agentic-ops github.com/acme/ops
+cd ops && go mod tidy && make demo
+```
+
+`make demo` spawns the server, runs the agent against deterministic tickets, prints the audit timeline (block, approve, execute, replay), and shuts down. Under five minutes from a clean directory.
+
+The same shape is also available as a worked example in [`examples/refund-agno`](./examples/refund-agno/) (depth: one tool, two runs) and [`examples/support-ops`](./examples/support-ops/) (breadth: one agent, five distinct outcomes).
+
 ## Who KIFF is for
 
 You are building a backend where:
