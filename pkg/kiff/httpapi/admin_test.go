@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/examples/refund"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
+	"github.com/kiffhq/kiff/examples/refund"
+	"github.com/kiffhq/kiff/pkg/kiff/action"
+	"github.com/kiffhq/kiff/pkg/kiff/adapter"
 )
 
 // TestAdmin_IndexShowsEntitiesAndPendingApprovals exercises the admin index

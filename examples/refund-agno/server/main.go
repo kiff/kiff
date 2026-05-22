@@ -38,14 +38,14 @@ import (
 	"syscall"
 	"time"
 
-	refundagno "github.com/kiff-framework/kiff-framework/examples/refund-agno"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/httpapi"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/store/file"
+	refundagno "github.com/kiffhq/kiff/examples/refund-agno"
+	"github.com/kiffhq/kiff/pkg/kiff/action"
+	"github.com/kiffhq/kiff/pkg/kiff/adapter"
+	"github.com/kiffhq/kiff/pkg/kiff/approval"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/httpapi"
+	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	"github.com/kiffhq/kiff/pkg/kiff/store/file"
 )
 
 func main() {

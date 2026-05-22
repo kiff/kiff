@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	supportops "github.com/kiff-framework/kiff-framework/examples/support-ops"
+	supportops "github.com/kiffhq/kiff/examples/support-ops"
 )
 
 // TestServer_AutoRefundExecutes covers a small refund flowing straight

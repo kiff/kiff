@@ -13,8 +13,8 @@ Postgres-compatible service.
 import (
     "context"
 
-    "github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
-    "github.com/kiff-framework/kiff-framework/pkg/kiff/store/postgres"
+    "github.com/kiffhq/kiff/pkg/kiff/runtime"
+    "github.com/kiffhq/kiff/pkg/kiff/store/postgres"
 )
 
 ctx := context.Background()

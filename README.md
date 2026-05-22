@@ -42,7 +42,7 @@ You keep your domain. KIFF carries the governance.
 ## Try it in 60 seconds
 
 ```bash
-git clone https://github.com/kiff-framework/kiff-framework
+git clone https://github.com/kiffhq/kiff
 cd kiff-framework
 go run ./cmd/kiff-tour
 ```
@@ -68,7 +68,7 @@ Then try the curl examples in [docs/changelog/brick-14.md](./docs/changelog/bric
 ## Start your own project
 
 ```bash
-go install github.com/kiff-framework/kiff-framework/cmd/kiff@latest
+go install github.com/kiffhq/kiff/cmd/kiff@latest
 kiff new github.com/acme/orders
 cd orders
 go mod tidy

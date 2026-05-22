@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/kiff-framework/kiff-framework/examples/mission"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/httpapi"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/store/file"
+	"github.com/kiffhq/kiff/examples/mission"
+	"github.com/kiffhq/kiff/pkg/kiff/httpapi"
+	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	"github.com/kiffhq/kiff/pkg/kiff/store/file"
 )
 
 func main() {

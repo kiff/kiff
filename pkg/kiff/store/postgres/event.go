@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
 )
 
 // EventStore persists event.Event rows in the kiff_events table.

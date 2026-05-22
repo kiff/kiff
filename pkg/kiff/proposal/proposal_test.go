@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
+	"github.com/kiffhq/kiff/pkg/kiff/actor"
+	"github.com/kiffhq/kiff/pkg/kiff/decision"
 )
 
 func TestActionProposalValidationFailsWhenRequiredFieldsMissing(t *testing.T) {

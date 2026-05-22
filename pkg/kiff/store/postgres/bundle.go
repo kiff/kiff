@@ -3,7 +3,7 @@ package postgres
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
+	"github.com/kiffhq/kiff/pkg/kiff/store"
 )
 
 // Bundle owns the four Postgres-backed stores around a shared connection

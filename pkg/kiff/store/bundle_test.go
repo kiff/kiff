@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
 )
 
 func TestBundleValidationRequiresAllStores(t *testing.T) {

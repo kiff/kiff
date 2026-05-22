@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiffhq/kiff/pkg/kiff/actor"
 )
 
 func TestSimplePolicyAllowsActorAndRolePermissions(t *testing.T) {

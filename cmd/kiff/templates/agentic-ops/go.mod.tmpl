@@ -2,7 +2,7 @@ module {{.ModulePath}}
 
 go {{.GoVersion}}
 
-require github.com/kiff-framework/kiff-framework {{.KiffVersion}}
+require github.com/kiffhq/kiff {{.KiffVersion}}
 {{if .ReplaceLocal}}
-replace github.com/kiff-framework/kiff-framework => {{.ReplaceLocal}}
+replace github.com/kiffhq/kiff => {{.ReplaceLocal}}
 {{end}}

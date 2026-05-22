@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/adapter"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
+	"github.com/kiffhq/kiff/pkg/kiff/action"
+	"github.com/kiffhq/kiff/pkg/kiff/adapter"
+	"github.com/kiffhq/kiff/pkg/kiff/approval"
 )
 
 // TestRefundLoop_GrantedApproval walks an order from CREATED through to

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/state"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/store/file"
+	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	"github.com/kiffhq/kiff/pkg/kiff/state"
+	"github.com/kiffhq/kiff/pkg/kiff/store/file"
 )
 
 // TestFileBundleSurvivesProcessRestart drives a runtime backed by file stores,

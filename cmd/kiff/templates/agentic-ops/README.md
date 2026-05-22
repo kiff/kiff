@@ -59,7 +59,7 @@ Pass `-data-dir ./data` to `cmd/server` (or set it in the Makefile's build step)
 While the server is running:
 
 ```bash
-go install github.com/kiff-framework/kiff-framework/cmd/kiff
+go install github.com/kiffhq/kiff/cmd/kiff
 kiff timeline -base http://localhost:<port> -entity order-2
 ```
 
@@ -75,4 +75,4 @@ If your application has at least one stateful entity that an AI agent will mutat
 
 This template ships a working version of all three. Replace the domain. Keep the loop.
 
-For the long argument see [`docs/why.md`](https://github.com/kiff-framework/kiff-framework/blob/main/docs/why.md).
+For the long argument see [`docs/why.md`](https://github.com/kiffhq/kiff/blob/main/docs/why.md).

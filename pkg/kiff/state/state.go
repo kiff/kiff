@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
 )
 
 var ErrInvalidTransition = errors.New("invalid state transition")

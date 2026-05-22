@@ -7,8 +7,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
+	"github.com/kiffhq/kiff/pkg/kiff/decision"
+	"github.com/kiffhq/kiff/pkg/kiff/evidence"
 )
 
 // DecisionStore persists decision.Decision rows in the kiff_decisions table.

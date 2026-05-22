@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
 )
 
 // EventStore is an append-only JSONL implementation of event.Store.

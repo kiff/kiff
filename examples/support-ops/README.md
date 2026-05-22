@@ -134,7 +134,7 @@ when present) and renders a compact table. Useful during demos and
 when smoke-testing your own domains.
 
 ```bash
-go install github.com/kiff-framework/kiff-framework/cmd/kiff
+go install github.com/kiffhq/kiff/cmd/kiff
 make demo-offline           # leave the server running, or use make demo-bedrock
 kiff timeline -base http://localhost:<port> -entity ticket-2
 ```

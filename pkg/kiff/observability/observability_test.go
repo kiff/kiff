@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
+	"github.com/kiffhq/kiff/pkg/kiff/audit"
 )
 
 func TestAuditWrapper_LogsAndCounts(t *testing.T) {

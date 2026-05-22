@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
+	"github.com/kiffhq/kiff/pkg/kiff/actor"
 )
 
 // Permission names an authority required by an action contract.

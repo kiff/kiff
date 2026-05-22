@@ -4,10 +4,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
+	"github.com/kiffhq/kiff/pkg/kiff/action"
+	"github.com/kiffhq/kiff/pkg/kiff/actor"
+	"github.com/kiffhq/kiff/pkg/kiff/decision"
+	"github.com/kiffhq/kiff/pkg/kiff/evidence"
 )
 
 var ErrInvalidProposal = errors.New("invalid proposal")

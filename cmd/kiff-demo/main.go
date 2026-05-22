@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kiff-framework/kiff-framework/examples/mission"
+	"github.com/kiffhq/kiff/examples/mission"
 )
 
 func main() {

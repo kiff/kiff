@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/audit"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/decision"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
+	"github.com/kiffhq/kiff/pkg/kiff/approval"
+	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiffhq/kiff/pkg/kiff/decision"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/evidence"
 )
 
 // baseTime is the anchor every test uses. Using a fixed instant keeps test

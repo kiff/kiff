@@ -31,8 +31,8 @@ const (
 	templateAgenticOps  = "agentic-ops"
 	starterRoot         = "templates/starter"
 	agenticOpsRoot      = "templates/agentic-ops"
-	starterImportPrefix = "github.com/kiff-framework/kiff-framework/cmd/kiff/templates/starter"
-	agenticOpsImport    = "github.com/kiff-framework/kiff-framework/cmd/kiff/templates/agentic-ops"
+	starterImportPrefix = "github.com/kiffhq/kiff/cmd/kiff/templates/starter"
+	agenticOpsImport    = "github.com/kiffhq/kiff/cmd/kiff/templates/agentic-ops"
 	goModTemplateName   = "go.mod.tmpl"
 )
 
@@ -61,7 +61,7 @@ func runNew(args []string) error {
 	}
 	dir := fs.String("dir", "", "directory to scaffold into (default: last segment of module path)")
 	force := fs.Bool("force", false, "scaffold into a non-empty directory")
-	replaceLocal := fs.String("replace-local", "", "emit a `replace github.com/kiff-framework/kiff-framework => <path>` directive in go.mod (use while the framework is unpublished)")
+	replaceLocal := fs.String("replace-local", "", "emit a `replace github.com/kiffhq/kiff => <path>` directive in go.mod (use while the framework is unpublished)")
 	templateName := fs.String("template", templateStarter, "scaffold template: starter (default) | agentic-ops")
 	if err := fs.Parse(args); err != nil {
 		return err

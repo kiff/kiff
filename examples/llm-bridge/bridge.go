@@ -29,11 +29,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/action"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/actor"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/evidence"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/proposal"
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/runtime"
+	"github.com/kiffhq/kiff/pkg/kiff/action"
+	"github.com/kiffhq/kiff/pkg/kiff/actor"
+	"github.com/kiffhq/kiff/pkg/kiff/evidence"
+	"github.com/kiffhq/kiff/pkg/kiff/proposal"
+	"github.com/kiffhq/kiff/pkg/kiff/runtime"
 )
 
 // ErrUnknownTool is returned when a tool call has no registered translator.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/store"
+	"github.com/kiffhq/kiff/pkg/kiff/store"
 )
 
 // Bundle owns the four file-backed stores and lets a runtime use them through

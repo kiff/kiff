@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/approval"
+	"github.com/kiffhq/kiff/pkg/kiff/approval"
 )
 
 // ApprovalStore is a JSONL-backed implementation of approval.Store. Approvals

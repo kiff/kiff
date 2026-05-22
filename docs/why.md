@@ -76,7 +76,7 @@ You will watch the protocol stop a $999 refund, accept a human approval, and rep
 If you want to build something on top, scaffold a project:
 
 ```bash
-go install github.com/kiff-framework/kiff-framework/cmd/kiff@latest
+go install github.com/kiffhq/kiff/cmd/kiff@latest
 kiff new github.com/acme/orders
 ```
 

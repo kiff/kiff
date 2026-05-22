@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/kiff-framework/kiff-framework/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/event"
 )
 
 var (
