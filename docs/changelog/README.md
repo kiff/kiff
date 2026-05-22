@@ -24,3 +24,6 @@ If you are adopting KIFF for the first time, you do not need to read these. Star
 - [Brick 17](./brick-17.md) — Trace correlation
 - [Brick 18](./brick-18.md) — Domain builder and authoring guide
 - [Brick 19](./brick-19.md) — File-backed JSONL stores
+- [Brick 20](./brick-20.md) — Depth demo: refund-agno (Agno + Bedrock + KIFF)
+- [Brick 21](./brick-21.md) — Breadth demo: support-ops + kiff timeline
+- [Brick 22](./brick-22.md) — Agentic-ops template
