@@ -40,6 +40,11 @@ type Config struct {
 	ActionValidator  action.Validator
 	ActionCatalog    *action.Catalog
 	Adapters         []adapter.Adapter
+
+	// Metrics, if non-nil, receives counter increments on the
+	// successful operational path. The runtime defaults to
+	// NoopMetrics when this is nil; existing wiring is unaffected.
+	Metrics MetricsRecorder
 }
 
 // Runtime coordinates event ingestion, decisions, action validation, execution, and audit.
@@ -54,6 +59,11 @@ type Runtime struct {
 	Validator   action.Validator
 	Actions     *action.Catalog
 	Adapters    map[string]adapter.Adapter
+
+	// metrics receives counter increments on the successful path.
+	// Set from Config.Metrics; defaults to NoopMetrics so existing
+	// wiring continues to work unchanged.
+	metrics MetricsRecorder
 
 	// trace tracks the last known trace metadata and event id per entity.
 	// It lets action and approval audit records inherit the trace context
@@ -95,7 +105,11 @@ func New(config Config) (*Runtime, error) {
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
 		Adapters:    map[string]adapter.Adapter{},
+		metrics:     config.Metrics,
 		trace:       map[string]traceContext{},
+	}
+	if rt.metrics == nil {
+		rt.metrics = NoopMetrics
 	}
 	if config.Stores != nil {
 		if rt.Events == nil {
@@ -191,6 +205,8 @@ func (r *Runtime) IngestEvent(ctx context.Context, ev event.Event) error {
 		return err
 	}
 
+	r.metrics.Inc(CounterEventsIngested, 1, EntityType(ev.EntityType))
+
 	if r.States == nil {
 		return nil
 	}
@@ -238,12 +254,16 @@ func (r *Runtime) ProposeDecision(ctx context.Context, d decision.Decision) erro
 	if err := r.Decisions.Append(ctx, d); err != nil {
 		return err
 	}
-	return r.appendAudit(ctx, audit.KindDecisionProposed, d.EntityID, d.EntityType, d.ActorID, "decision proposed", map[string]any{
+	if err := r.appendAudit(ctx, audit.KindDecisionProposed, d.EntityID, d.EntityType, d.ActorID, "decision proposed", map[string]any{
 		"decision_id":     d.ID,
 		"decision_kind":   d.Kind,
 		"proposed_action": d.ProposedAction,
 		"confidence":      d.Confidence,
-	})
+	}); err != nil {
+		return err
+	}
+	r.metrics.Inc(CounterDecisionsRecorded, 1, EntityType(d.EntityType))
+	return nil
 }
 
 // RecordActionProposal records an action proposal as a decision.
@@ -363,6 +383,7 @@ func (r *Runtime) RequestApproval(ctx context.Context, approvalID string, action
 	if err := r.RecordApproval(ctx, request); err != nil {
 		return approval.Approval{}, err
 	}
+	r.metrics.Inc(CounterApprovalsRequested, 1, EntityType(actionCtx.EntityType))
 	return request, nil
 }
 
@@ -398,6 +419,7 @@ func (r *Runtime) ReviewApproval(ctx context.Context, approvalID string, reviewe
 	if err := r.RecordApproval(ctx, existing); err != nil {
 		return approval.Approval{}, err
 	}
+	r.metrics.Inc(CounterApprovalsReviewed, 1, EntityType(existing.EntityType))
 	return existing, nil
 }
 
@@ -459,11 +481,15 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 		}
 		return validationErr
 	}
-	return r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
+	if err := r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
 		"action":            contract.Name,
 		"approval_id":       actionCtx.ApprovalID,
 		"requires_approval": result.RequiresApproval,
-	})
+	}); err != nil {
+		return err
+	}
+	r.metrics.Inc(CounterActionsValidated, 1, EntityType(actionCtx.EntityType))
+	return nil
 }
 
 // ExecuteAction validates, executes, and audits an action.
@@ -533,6 +559,7 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 		return action.ActionResult{}, err
 	}
 	if result.Status == action.ExecutionSucceeded {
+		r.metrics.Inc(CounterActionsExecuted, 1, EntityType(actionCtx.EntityType))
 		parentTrace := r.entityTrace(actionCtx.EntityID)
 		parentEventID := r.lastEventID(actionCtx.EntityID)
 		for _, followUpEvent := range result.FollowUpEvents {
