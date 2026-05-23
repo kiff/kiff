@@ -94,7 +94,7 @@ cd ops && go mod tidy && make demo
 
 `make demo` spawns the server, runs the agent against deterministic tickets, prints the audit timeline (block, approve, execute, replay), and shuts down. Under five minutes from a clean directory.
 
-The same shape is also available as a worked example in [`examples/refund-agno`](./examples/refund-agno/) (depth: one tool, two runs) and [`examples/support-ops`](./examples/support-ops/) (breadth: one agent, five distinct outcomes).
+The same shape is also available as a worked example in [`examples/refund-agno`](./examples/refund-agno/) (depth: one tool, two runs), [`examples/support-ops`](./examples/support-ops/) (breadth: one agent, five distinct outcomes), and [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/) (operational authority: one AI shift manager, four tools, five distinct outcomes).
 
 ## Who KIFF is for
 

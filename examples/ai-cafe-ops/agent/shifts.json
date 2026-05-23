@@ -1,0 +1,60 @@
+[
+  {
+    "id": "shift-1",
+    "storefront": "kiosk-central",
+    "customer_brief": "Morning prep, low napkin stock noticed by barista on duty.",
+    "expected_tool": "order_inventory",
+    "parameters": {
+      "item_id": "napkins",
+      "quantity": 200,
+      "amount_cents": 1500
+    },
+    "notes": "small in-catalog order, well under cap"
+  },
+  {
+    "id": "shift-2",
+    "storefront": "kiosk-central",
+    "customer_brief": "Festival tomorrow; manager wants to bulk-order napkins for the surge.",
+    "expected_tool": "order_inventory",
+    "parameters": {
+      "item_id": "napkins",
+      "quantity": 6000,
+      "amount_cents": 9900
+    },
+    "notes": "large order, per-call ceiling exceeded -> approval required"
+  },
+  {
+    "id": "shift-3",
+    "storefront": "kiosk-park",
+    "customer_brief": "Customer asked for a yuzu lemonade; manager wants to add it to the menu.",
+    "expected_tool": "request_specialty",
+    "parameters": {
+      "item_id": "yuzu_concentrate",
+      "rationale": "trying a limited summer special the customer asked for"
+    },
+    "notes": "off-catalog item -> blocked before approval"
+  },
+  {
+    "id": "shift-4",
+    "storefront": "kiosk-station",
+    "customer_brief": "Handoff note for the barista team about an early rush.",
+    "expected_tool": "send_staff_message",
+    "parameters": {
+      "recipient": "barista-team",
+      "message": "Heads-up: festival rush expected at opening; double-prep cold brew.",
+      "sent_at_local": "02:14"
+    },
+    "notes": "outside working hours -> blocked before approval"
+  },
+  {
+    "id": "shift-5",
+    "storefront": "kiosk-park",
+    "customer_brief": "Mercato Supplies missed the morning oat-milk delivery for the third time this week.",
+    "expected_tool": "escalate_supplier",
+    "parameters": {
+      "supplier_id": "mercato-supplies",
+      "reason": "missed third delivery this week; need ops review"
+    },
+    "notes": "always allowed; parks the shift awaiting human ops review"
+  }
+]
