@@ -1,0 +1,13 @@
+# Build output from `make build`
+/bin/
+
+# Server log emitted by scripts/demo.sh
+/.demo-server.log
+
+# Local agent virtualenv and bytecode
+/agent/__pycache__/
+/agent/.venv/
+
+# Local environment overrides
+/agent/.env
+/.env
