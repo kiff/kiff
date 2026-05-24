@@ -120,6 +120,42 @@ reasoning text and confidence values, because the gating rules are
 deterministic and depend only on amount, state, catalog membership,
 and working-hours window — not on the model's words.
 
+## Kiff Cloud demo
+
+The same agent can run against a hosted Kiff Cloud instance instead of a local example server. The cloud's `/v1/*` surface speaks the framework's protocol; the agent's tool-routing logic (auto-vs-approval for inventory, catalog and working-hours pre-checks) lives in `kiff_cloud_client.KiffCloudClient`. The cloud's `DefaultRegistry` binds executors that mirror the contracts here, and a YAML domain in the cloud repo (`apps/api/scripts/cafe.kiff.yaml`) captures the same six events / three states / six actions / three roles.
+
+Prerequisites:
+
+1. A running `kiff-cloud` API binary (`go run ./cmd/api` from `kiff-cloud/apps/api/`).
+2. A bootstrapped tenant with the cafe YAML uploaded:
+   ```bash
+   cd kiff-cloud
+   bash apps/api/scripts/bootstrap-tenant.sh \
+     --slug=cafe \
+     --domain=apps/api/scripts/cafe.kiff.yaml
+   ```
+   The script prints `tenant_id`, `key_id`, `api_key`. Save the API key.
+
+Run:
+
+```bash
+export KIFF_CLOUD_URL=http://localhost:8080/v1
+export KIFF_CLOUD_API_KEY=kiff_live_...   # the value bootstrap-tenant.sh printed
+make demo-cloud
+```
+
+The agent skips the local example-server boot, seeds five shifts on the cloud tenant via `POST /v1/events/raw` + `START_SHIFT`, then runs the same five-shift batch and prints the audit timeline read back from the cloud. Approvals are minted client-side and submitted via `POST /v1/entities/{id}/{action}/approvals` + `POST /v1/approvals/{id}/grant`.
+
+Optional env vars:
+
+- `KIFF_CLOUD_ACTOR_ID` (default `shift-manager`) — actor id on every action.
+- `KIFF_CLOUD_SEED=0` — skip the seed phase if you've already opened shifts on the tenant.
+
+What the cloud does NOT host:
+
+- The demo server's `/demo/*` convenience routes (`/demo/agent/decide`, `/demo/rebuild`). The cloud client reproduces the routing logic in Python and reads the rebuild summary from the timeline.
+- The running daily-total tracker. The agent keeps it client-side, picks the auto vs approval-required contract per call, and the cloud's runtime gates on the chosen contract.
+
 ## Bedrock demo
 
 ```bash

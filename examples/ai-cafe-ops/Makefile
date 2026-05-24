@@ -10,6 +10,10 @@
 #   make demo-bedrock  : same script with real Agno + AwsBedrock
 #                        inference. Provide creds in kiff-framework/.env
 #                        or examples/ai-cafe-ops/agent/.env.
+#   make demo-cloud    : run the agent against a hosted Kiff Cloud
+#                        instance. Requires KIFF_CLOUD_URL and
+#                        KIFF_CLOUD_API_KEY in the environment;
+#                        skips the local example-server boot.
 #   make test          : `go test ./examples/ai-cafe-ops/...`
 #   make build         : build the demo server binary into ./bin
 #   make clean         : remove ./bin and any stale port files
@@ -32,10 +36,10 @@ include $(EXAMPLE_DIR)/agent/.env
 export
 endif
 
-.PHONY: demo demo-offline demo-bedrock test build clean help
+.PHONY: demo demo-offline demo-bedrock demo-cloud test build clean help
 
 help:
-	@echo "Targets: demo demo-offline demo-bedrock test build clean"
+	@echo "Targets: demo demo-offline demo-bedrock demo-cloud test build clean"
 
 build: $(SERVER_BIN)
 
@@ -68,3 +72,25 @@ demo-bedrock: build
 
 clean:
 	rm -rf $(BIN_DIR) $(PORT_FILE) $(SERVER_LOG)
+
+# demo-cloud runs the agent against a Kiff Cloud instance. The
+# tenant must already be bootstrapped (see kiff-cloud/apps/api/
+# scripts/bootstrap-tenant.sh) and KIFF_CLOUD_URL +
+# KIFF_CLOUD_API_KEY must be in the environment.
+#
+# Unlike demo-offline / demo-bedrock, this target does NOT boot the
+# local example server; the agent talks to the cloud's /v1 surface
+# directly via kiff_cloud_client.KiffCloudClient.
+demo-cloud:
+	@if [ -z "$$KIFF_CLOUD_URL" ] || [ -z "$$KIFF_CLOUD_API_KEY" ]; then \
+		echo "demo-cloud: KIFF_CLOUD_URL and KIFF_CLOUD_API_KEY must be set"; \
+		echo ""; \
+		echo "  bootstrap a tenant on a running kiff-cloud:"; \
+		echo "    bash apps/api/scripts/bootstrap-tenant.sh \\\\"; \
+		echo "      --slug=cafe \\\\"; \
+		echo "      --domain=apps/api/scripts/cafe.kiff.yaml"; \
+		echo ""; \
+		echo "  then export the values it printed and re-run demo-cloud."; \
+		exit 2; \
+	fi
+	@cd $(EXAMPLE_DIR)/agent && AGNO_MODEL_PROVIDER=$${AGNO_MODEL_PROVIDER:-offline} $(PYTHON) -m run_with_kiff
