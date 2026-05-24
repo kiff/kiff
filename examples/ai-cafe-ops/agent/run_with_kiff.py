@@ -33,6 +33,25 @@ from agent import (
     make_provider,
     provider_banner,
 )
+from kiff_cloud_client import CloudConfig, KiffCloudClient
+
+
+# Cloud client. When KIFF_CLOUD_URL + KIFF_CLOUD_API_KEY are set,
+# every server-bound call is routed through this client instead of
+# the local demo server's /demo/* surface. None means local mode.
+_cloud: Optional[KiffCloudClient] = None
+
+
+def _ensure_cloud() -> Optional[KiffCloudClient]:
+    """Read env once and cache the client. Idempotent."""
+    global _cloud
+    if _cloud is not None:
+        return _cloud
+    config = CloudConfig.from_env()
+    if config is None:
+        return None
+    _cloud = KiffCloudClient(config)
+    return _cloud
 
 
 # ---------------------------------------------------------------------------
@@ -86,6 +105,20 @@ class KiffOutcome:
 
 
 def call_kiff(call: ToolCall, shift: Shift, approval_id: Optional[str] = None) -> KiffOutcome:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        outcome = cloud.decide(
+            tool=call.tool,
+            shift_id=shift.id,
+            parameters=call.parameters,
+            approval_id=approval_id or "",
+        )
+        return KiffOutcome(
+            outcome=outcome.outcome, tool=outcome.tool, action=outcome.action,
+            shift_id=outcome.shift_id, approval_id=outcome.approval_id,
+            state=outcome.state, reason=outcome.reason, error=outcome.error,
+            raw=outcome.raw or {},
+        )
     body: Dict[str, Any] = {
         "shift_id": shift.id,
         "tool": call.tool,
@@ -110,6 +143,9 @@ def call_kiff(call: ToolCall, shift: Shift, approval_id: Optional[str] = None) -
 
 
 def grant_approval(approval_id: str, reason: str = "approved") -> Dict[str, Any]:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        return cloud.grant_approval(approval_id, reason)
     _, payload = http_json(
         "POST",
         f"/approvals/{approval_id}/grant",
@@ -123,6 +159,9 @@ def grant_approval(approval_id: str, reason: str = "approved") -> Dict[str, Any]
 
 
 def deny_approval(approval_id: str, reason: str = "denied") -> Dict[str, Any]:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        return cloud.deny_approval(approval_id, reason)
     _, payload = http_json(
         "POST",
         f"/approvals/{approval_id}/deny",
@@ -136,16 +175,25 @@ def deny_approval(approval_id: str, reason: str = "denied") -> Dict[str, Any]:
 
 
 def fetch_shifts() -> List[Dict[str, Any]]:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        return cloud.fetch_shifts()
     _, payload = http_json("GET", "/demo/shifts", expect_status=(200,))
     return payload.get("shifts", []) or []
 
 
 def fetch_timeline(shift_id: str) -> List[Dict[str, Any]]:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        return cloud.fetch_timeline(shift_id)
     _, payload = http_json("GET", f"/entities/{shift_id}/timeline", expect_status=(200,))
     return payload.get("timeline", []) or []
 
 
 def fetch_rebuild(shift_id: str) -> Dict[str, Any]:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        return cloud.fetch_rebuild(shift_id)
     _, payload = http_json("GET", f"/demo/rebuild?entity={shift_id}", expect_status=(200,))
     return payload
 
@@ -182,6 +230,14 @@ def print_shift(shift: Shift, call: ToolCall, outcome: KiffOutcome) -> None:
 # ---------------------------------------------------------------------------
 
 def wait_for_server(timeout_seconds: float = 10.0) -> None:
+    cloud = _ensure_cloud()
+    if cloud is not None:
+        # No local server in cloud mode; the binary is already up
+        # at KIFF_CLOUD_URL. Run the seed phase here so the agent
+        # picks up shifts in OPEN, matching local-mode.
+        if cloud.config.seed_demo_shifts:
+            cloud.seed_shifts()
+        return
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
         try:
@@ -195,7 +251,10 @@ def wait_for_server(timeout_seconds: float = 10.0) -> None:
 def run_shifts() -> List[Tuple[Shift, ToolCall, KiffOutcome]]:
     config = AgentConfig()
     provider = make_provider(config)
-    print(f"[run-with-kiff] {provider_banner(provider)} url={base_url()}")
+    cloud = _ensure_cloud()
+    target_url = cloud.config.url if cloud is not None else base_url()
+    mode = "cloud" if cloud is not None else "local"
+    print(f"[run-with-kiff] {provider_banner(provider)} mode={mode} url={target_url}")
     shifts = load_shifts()
     results: List[Tuple[Shift, ToolCall, KiffOutcome]] = []
     for shift in shifts:
