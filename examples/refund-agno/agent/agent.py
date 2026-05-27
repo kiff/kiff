@@ -165,11 +165,10 @@ class OfflineProvider:
 # ---------------------------------------------------------------------------
 # Bedrock provider
 #
-# Uses the same Agno pattern The Line's ChallengeEvaluationAgent uses:
-# ``Agent(output_schema=PydanticModel)``. The model returns structured JSON
-# that maps cleanly to a refund tool call. This keeps the demo's contract
-# stable across providers: in both modes the runner gets a ToolCall with
-# arguments, reasoning, confidence.
+# Uses Agno's structured-output pattern: ``Agent(output_schema=PydanticModel)``.
+# The model returns structured JSON that maps cleanly to a refund tool call.
+# This keeps the demo's contract stable across providers: in both modes the
+# runner gets a ToolCall with arguments, reasoning, confidence.
 # ---------------------------------------------------------------------------
 
 

@@ -128,7 +128,7 @@ Brick 5 adds a store bundle that groups the core event, decision, approval, and 
 
 KIFF does not define business meaning. Domains do.
 
-The framework should never hardcode domain-specific workflows such as Fidel, The Line, OP3, or the mission example into `pkg/kiff`. Domain implementations should live under `examples/`, applications, or product-specific packages.
+The framework should never hardcode domain-specific workflows into `pkg/kiff`. Domain implementations belong under `examples/` (for reference shapes), under applications, or under product-specific packages — never inside the framework's coordination primitives. This is what keeps KIFF small, testable, and reusable across domains that look nothing like one another.
 
 ## Mission Example
 

@@ -1,6 +1,5 @@
-# Same versions The Line pins so a buyer who checks both stacks sees parity.
-# The offline path uses none of these; they are imported lazily by the
-# Bedrock provider only.
+# Pinned versions for reproducible builds. The offline path uses none of
+# these; they are imported lazily by the Bedrock provider only.
 agno>=2.6.6
 boto3>=1.43.0
 pydantic>=2.13.4
