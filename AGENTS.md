@@ -124,8 +124,6 @@ Build the open-source MIT framework core first.
 
 Do not build KIFF Cloud.
 Do not build KIFF Studio.
-Do not build Fidel.
-Do not build The Line.
 Do not integrate LLMs yet.
 
 Those are future layers. The immediate job is a clean local Go framework scaffold with tests and a runnable demo.

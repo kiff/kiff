@@ -4,7 +4,7 @@
 // support tickets land, an agent decides what to do, KIFF gates the actions
 // that should not be left to the agent alone.
 //
-// The domain is intentionally neutral. There is no The Line vocabulary here.
+// The domain is intentionally neutral and self-contained.
 // Entity is "Order"; states are CREATED, PAID, REFUNDED. The agent is given
 // one tool surface ("refund_order") that the server routes to one of two
 // KIFF action contracts based on amount:

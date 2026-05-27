@@ -13,7 +13,7 @@ The core position is simple:
 - high-risk actions require human authority;
 - every important event, decision, action, approval, execution result, and failure must be auditable.
 
-Brick 1 focuses on the open-source framework core. It does not build KIFF Cloud, KIFF Studio, Fidel, The Line, OP3, a UI, or an LLM integration.
+Brick 1 focuses on the open-source framework core. It does not build KIFF Cloud, KIFF Studio, a UI, or an LLM integration.
 
 ## A Go framework for governed agentic backends
 
@@ -314,31 +314,16 @@ Early users may include:
 
 ## Reference implementations
 
-KIFF should be validated through real domain implementations.
+KIFF should be validated through real domain implementations under `examples/`. The framework ships several worked examples that exercise different shapes of the coordination loop:
 
-### Fidel
+- [`examples/refund`](../examples/refund/) — the shortest worked domain. One entity, three states, two actions (one low-risk, one approval-required). Run this first.
+- [`examples/mission`](../examples/mission/) — a fuller mission/challenge domain with attempts, moves, approvals, and replay. Used by the `kiff-tour` and `kiff-demo` commands.
+- [`examples/refund-agno`](../examples/refund-agno/) — depth: one tool, two runs (without KIFF and through KIFF), real Agno agent, real LLM. Demonstrates KIFF as governance for an AI agent.
+- [`examples/support-ops`](../examples/support-ops/) — breadth: one agent, five tools, five distinct outcomes including consent-blocked validation.
+- [`examples/ai-cafe-ops`](../examples/ai-cafe-ops/) — operational authority: AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
+- [`examples/llm-bridge`](../examples/llm-bridge/) — the canonical pattern for bridging an LLM tool-call surface into governed KIFF actions.
 
-Fidel is a KIFF-style implementation for financial-provider and merchant coordination.
-
-It involves cases, merchants, providers, consent, readiness, matching, warm introductions, and financial decision support.
-
-Fidel demonstrates that KIFF can structure domains where trust, eligibility, provider knowledge, and human relationships matter.
-
-### The Line
-
-The Line is a KIFF-style implementation for open-ended challenges, attempts, moves, resources, boundaries, approvals, and value creation.
-
-It demonstrates that KIFF can structure non-linear agentic systems where the next move is not fully known in advance, but still needs to be recorded, validated, bounded, and audited.
-
-### OP3
-
-OP3 is a KIFF-style implementation for post-purchase operations.
-
-It involves orders, payments, fulfillment, returns, disputes, support actions, and operational exceptions.
-
-It demonstrates that KIFF can structure commercial coordination across multiple actors and systems.
-
-These implementations are not the framework itself. They are examples of the same coordination mechanics applied to different domains.
+These examples are not the framework itself. They are the same coordination mechanics applied to different domains, kept readable enough to teach the framework end to end.
 
 ---
 
@@ -428,8 +413,6 @@ The first demo should show a minimal mission or challenge attempt system because
 The first milestone is not KIFF Cloud.
 
 The first milestone is not KIFF Studio.
-
-The first milestone is not Fidel or The Line.
 
 The first milestone is a clean open-source Go framework scaffold that can demonstrate the KIFF loop locally:
 
