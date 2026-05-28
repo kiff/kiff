@@ -1,5 +1,11 @@
 # KIFF
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/kiffhq/kiff.svg)](https://pkg.go.dev/github.com/kiffhq/kiff)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kiffhq/kiff)](https://goreportcard.com/report/github.com/kiffhq/kiff)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kiffhq/kiff)](./go.mod)
+[![Release](https://img.shields.io/github/v/release/kiffhq/kiff?include_prereleases&sort=semver)](https://github.com/kiffhq/kiff/releases)
+
 **Trust infrastructure for AI-operated systems. Written in Go.**
 
 Most AI applications start at the prompt. They wrap a model in a chat UI, expose a few tools, and trust the model's judgment to call them correctly. That works for demos. It collapses in production because the prompt cannot enforce a state machine, cannot check permissions, cannot require a human signature, and cannot reconstruct what happened later.
