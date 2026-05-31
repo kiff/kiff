@@ -24,7 +24,7 @@ The agent gets confused, refuses to act, and the human in the loop has no way to
 
 The agent does the right thing nine times out of ten, and the tenth time costs you a chargeback, a regulatory letter, or a customer.
 
-This is not a model problem. It is an architecture problem. The prompt is the wrong layer to enforce operational rules. The prompt does not know your state machine. The prompt cannot enforce permissions. The prompt cannot require a human signature. The prompt cannot reconstruct what happened.
+This is an architecture problem, not a model problem. The prompt is the wrong layer to enforce operational rules. The prompt does not know your state machine. The prompt cannot enforce permissions. The prompt cannot require a human signature. The prompt cannot reconstruct what happened.
 
 The result is software that *describes* governance in instructions and *enforces* nothing.
 
@@ -42,7 +42,7 @@ Banks have it. Marketplaces have it. Hospitals have it. The protocol is not new.
 
 The right place to govern an agent is not in the prompt. It is in this protocol. The agent's job ends at *"I propose to refund $999."* The system's job is to validate that proposal against the current state, the actor's permissions, the action's parameters, and the approval requirements before anything moves. If the agent is right, execution proceeds. If the agent is wrong, the system says no, in a way that is auditable, replayable, and explainable.
 
-KIFF is an implementation of that protocol in Go. Not better prompts. Not smarter tool calls. The layer underneath, where governance is enforced by code rather than described by words.
+KIFF is an implementation of that protocol in Go. It works at the layer underneath, where governance is enforced by code rather than described by words.
 
 ## What you get when you adopt this
 
@@ -52,15 +52,15 @@ Once the protocol exists, four things become possible:
 
 **Humans, agents, services, and integrations share one loop.** All of them submit proposals to the same validator. All of them are governed by the same rules. The question of "what happens if a human and an agent both try to refund this order" has a deterministic answer instead of a discussion.
 
-**Any incident is replayable.** Every event, decision, validation, approval, execution, and failure is in the audit trail. Six months from now, when someone asks why a refund was issued, the entity can be rebuilt from events alone and the chain reconstructed. Trust is not a story you tell. It is a function you can run.
+**Any incident is replayable.** Every event, decision, validation, approval, execution, and failure is in the audit trail. Six months from now, when someone asks why a refund was issued, the entity can be rebuilt from events alone and the chain reconstructed. Trust becomes a function you can run rather than a story you tell.
 
-**You can ship faster, not slower.** This is the counterintuitive part. People assume governance slows you down. In practice, the time you save not debugging mysterious state, not unwinding bad agent actions, and not rewriting "just enough" governance for the third time, dwarfs the time you spend declaring an action contract.
+**Governance can speed you up.** This is the counterintuitive part. People assume governance slows you down. In practice, the time you save not debugging mysterious state, not unwinding bad agent actions, and not rewriting "just enough" governance for the third time, dwarfs the time you spend declaring an action contract.
 
 ## Who KIFF is for
 
 You are building a backend where:
 
-- multiple actors — humans, services, integrations, AI agents — touch the same state;
+- multiple actors (humans, services, integrations, AI agents) touch the same state;
 - entities have a lifecycle, and what is allowed depends on where they are in it;
 - some actions are risky enough that a human should sign off;
 - somebody, eventually, will ask "why did this happen?" and need a real answer;
@@ -68,15 +68,11 @@ You are building a backend where:
 
 Common fits: post-purchase operations, marketplace coordination, compliance workflows, internal operational tools, financial operations, mission-style systems where the next move is not fully known but still has to be recorded and bounded.
 
-## Who KIFF is not for
+## Where KIFF stops
 
-KIFF is not a chatbot framework. The conversation layer is your problem. KIFF starts the moment a human, agent, or service wants to *do something* to your state.
+A few areas sit outside KIFF on purpose. The conversation layer is yours; KIFF starts the moment a human, agent, or service wants to *do something* to your state. There is no model SDK, prompt builder, or embeddings store, so you can run KIFF with no AI at all and it still earns its keep. The framework is agent-ready, not agent-coupled.
 
-KIFF is not an LLM wrapper. There is no model SDK, no prompt builder, no embeddings store. The framework is agent-ready, not agent-coupled. You can run KIFF with no AI at all and it still earns its keep.
-
-KIFF is not a workflow engine. It does not manage long-running tasks, retries, or scheduled jobs. If you need Temporal, use Temporal. KIFF lives next to it, not instead of it.
-
-KIFF is not a generic web framework. There is an optional `httpapi` package because most teams want HTTP, but the runtime is a coordinator you can drive from anything: a queue consumer, a CLI, a cron job, a custom RPC.
+Long-running tasks, retries, and scheduled jobs belong to a workflow engine. If you need Temporal, use Temporal, and let KIFF live next to it. HTTP is optional as well: the `httpapi` package is there because most teams want it, but the runtime is a coordinator you can drive from a queue consumer, a CLI, a cron job, or a custom RPC.
 
 If your application is simple CRUD, a router with handlers, or direct LLM tool calls with no governed state, KIFF is too much structure. Use something smaller and ship.
 
@@ -141,13 +137,13 @@ cd ops && go mod tidy && make demo
 
 The same shape ships as a worked example in three flavors:
 
-- [`examples/refund-agno`](./examples/refund-agno/) — depth: one tool, two runs (without KIFF and through KIFF), Agno agent, real LLM.
-- [`examples/support-ops`](./examples/support-ops/) — breadth: one agent, five tools, five distinct outcomes including consent-blocked validation.
-- [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/) — operational authority: AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
+- [`examples/refund-agno`](./examples/refund-agno/): depth. One tool, two runs (without KIFF and through KIFF), Agno agent, real LLM.
+- [`examples/support-ops`](./examples/support-ops/): breadth. One agent, five tools, five distinct outcomes including consent-blocked validation.
+- [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/): operational authority. AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
 
 ## What a domain looks like
 
-Your domain owns vocabulary. KIFF owns coordination. A complete domain definition is small — here is the gist of [examples/refund](./examples/refund/):
+Your domain owns vocabulary. KIFF owns coordination. A complete domain definition is small. Here is the gist of [examples/refund](./examples/refund/):
 
 ```go
 def, _ := domain.New("refund").
@@ -177,21 +173,21 @@ For a complete walkthrough, read [docs/build-a-domain.md](./docs/build-a-domain.
 
 Start here:
 
-- [Why KIFF](./docs/why.md) — the long-form argument: why agents need a governance layer, not better prompts.
-- [Philosophy](./docs/philosophy.md) — what KIFF chooses to be, and what it chooses not to be.
-- [Comparisons](./docs/comparisons.md) — honest positioning next to LangChain, Temporal, FSMs, and rolling your own.
+- [Why KIFF](./docs/why.md): the long-form argument for why agents need a governance layer, not better prompts.
+- [Philosophy](./docs/philosophy.md): what KIFF chooses to be, and what it chooses not to be.
+- [Comparisons](./docs/comparisons.md): honest positioning next to LangChain, Temporal, FSMs, and rolling your own.
 
 Build with it:
 
-- [Conventions](./docs/conventions.md) — the normal way to lay out a KIFF project.
-- [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end.
-- [Principles in practice](./docs/principles/) — five short pages, one principle each, with code.
+- [Conventions](./docs/conventions.md): the normal way to lay out a KIFF project.
+- [Build a domain](./docs/build-a-domain.md): the authoring guide, end to end.
+- [Principles in practice](./docs/principles/): five short pages, one principle each, with code.
 
 Reference:
 
-- [Architecture](./docs/architecture.md) — package boundaries and responsibilities.
-- [Vision](./docs/vision.md) — long-form rationale.
-- [Changelog](./docs/changelog/) — how the framework evolved, brick by brick.
+- [Architecture](./docs/architecture.md): package boundaries and responsibilities.
+- [Vision](./docs/vision.md): long-form rationale.
+- [Changelog](./docs/changelog/): how the framework evolved, brick by brick.
 
 ## Core packages
 

@@ -20,7 +20,7 @@ You can turn messy human or agent requests into controlled, traceable action wit
 
 **Fast.** Fast in performance because Go. Fast in time-to-first-result because the demo runs in seconds and the loop is visible from the first line of output.
 
-**Complete.** Not a single tool. A whole way to build a runtime control plane: events in, state forward, decisions explainable, actions validated, approvals enforced, executions audited, replay possible.
+**Complete.** More than a single tool: a whole way to build a runtime control plane, with events in, state forward, decisions explainable, actions validated, approvals enforced, executions audited, and replay possible.
 
 **Coherent.** Every package is shaped by the same philosophy. The same trust boundary that protects approvals also protects executors and audit. You will not find one corner of the framework that contradicts another.
 
@@ -30,7 +30,7 @@ You can turn messy human or agent requests into controlled, traceable action wit
 
 **Elegant.** Plumbing is invisible. The interesting code is the domain. KIFF carries the boring parts so the developer feels creative, not buried.
 
-**Default-driven.** The starter, the conventions, the file-backed stores, the HTTP API — KIFF gives you "the normal way" so you do not have to invent one before writing your first action.
+**Default-driven.** The starter, the conventions, the file-backed stores, the HTTP API: KIFF gives you "the normal way" so you do not have to invent one before writing your first action.
 
 **Demoable.** KIFF is valuable when it can stop an action as clearly as it can execute one. The demos are designed to make that visible in under two minutes.
 
@@ -42,12 +42,7 @@ You can turn messy human or agent requests into controlled, traceable action wit
 
 ## What KIFF chooses not to be
 
-- Not a chatbot framework.
-- Not a generic web framework.
-- Not an LLM wrapper.
-- Not a workflow engine replacement.
-- Not a universal business ontology.
-- Not a vendor lock-in. The MIT license is the contract.
+KIFF stays out of several roles by design. It holds no chatbot layer, no generic web framework, no LLM wrapper, and no ambition to replace a workflow engine. It avoids becoming a universal business ontology, and the MIT license keeps it from becoming a vendor lock-in.
 
 If your application only needs CRUD, a router, or direct LLM tool calls with no governed state, KIFF is too much structure. Use something smaller and ship.
 
@@ -57,7 +52,7 @@ The feeling we want a developer to have on first read:
 
 > Finally, someone organized the chaos for me.
 
-Not "now I have to learn another framework." Not "here are 200 abstractions to memorize." Just relief that the obvious-in-hindsight skeleton already exists, written in idiomatic Go, with tests, a runnable demo, and a clear path from "first event" to "first audited execution."
+Not dread at learning another framework or memorizing 200 abstractions, but relief that the obvious-in-hindsight skeleton already exists, written in idiomatic Go, with tests, a runnable demo, and a clear path from "first event" to "first audited execution."
 
 ## The principles, distilled
 
