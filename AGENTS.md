@@ -18,9 +18,7 @@ KIFF helps developers model:
 
 before connecting AI agents or automation.
 
-KIFF is not a chatbot framework.
-KIFF is not a generic web framework.
-KIFF is not an LLM wrapper.
+KIFF is not a chatbot framework, a generic web framework, or an LLM wrapper.
 
 KIFF exists for systems where AI agents, humans, and software need to coordinate safely around shared operational state.
 

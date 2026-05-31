@@ -35,11 +35,7 @@ Before asking what an agent should do, KIFF asks:
 - What evidence supports the decision?
 - How will the system explain what happened later?
 
-KIFF is not a chatbot framework.  
-KIFF is not a generic web framework.  
-KIFF is not an LLM wrapper.  
-KIFF is not a no-code automation tool.  
-KIFF is not a universal business ontology.
+KIFF is not a chatbot framework, a generic web framework, an LLM wrapper, a no-code automation tool, or a universal business ontology.
 
 KIFF is a protocol-first backend framework for building governed, auditable, stateful, agent-ready systems.
 
@@ -53,7 +49,7 @@ Every serious operational system eventually needs the same coordination mechanic
 Raw inputs → Normalized events → Shared state → Decisions → Validated actions → Execution → Audit
 ```
 
-The domain can change completely. A financial case is not an order. An order is not a mission. A mission is not a sensor anomaly. KIFF does not try to make those things the same.
+The domain can change completely. A financial case, an order, a mission, and a sensor anomaly are genuinely different things, and KIFF does not try to make them the same.
 
 Instead, KIFF normalizes the mechanics of coordination.
 
@@ -266,15 +262,7 @@ This makes KIFF different from frameworks that focus only on tool use or autonom
 
 ## What KIFF is not
 
-KIFF is not trying to replace Go web frameworks. It can sit beside them.
-
-KIFF is not trying to replace workflow engines. Some systems may still need Temporal, queues, schedulers, or orchestration engines.
-
-KIFF is not trying to replace agent frameworks. KIFF can integrate with Agno, LangGraph, OpenAI tools, or other agent runtimes later.
-
-KIFF is not trying to create a universal business language.
-
-KIFF is not trying to own a client’s domain logic.
+KIFF does not try to replace your Go web framework; it can sit beside one. It does not try to replace workflow engines either, so systems that need Temporal, queues, schedulers, or orchestration can keep them. Agent frameworks are no different: KIFF can integrate with Agno, LangGraph, OpenAI tools, or other agent runtimes later. It has no ambition to create a universal business language or to own a client's domain logic.
 
 KIFF provides the coordination structure that lets domain logic become explicit and governable.
 
@@ -316,12 +304,12 @@ Early users may include:
 
 KIFF should be validated through real domain implementations under `examples/`. The framework ships several worked examples that exercise different shapes of the coordination loop:
 
-- [`examples/refund`](../examples/refund/) — the shortest worked domain. One entity, three states, two actions (one low-risk, one approval-required). Run this first.
-- [`examples/mission`](../examples/mission/) — a fuller mission/challenge domain with attempts, moves, approvals, and replay. Used by the `kiff-tour` and `kiff-demo` commands.
-- [`examples/refund-agno`](../examples/refund-agno/) — depth: one tool, two runs (without KIFF and through KIFF), real Agno agent, real LLM. Demonstrates KIFF as governance for an AI agent.
-- [`examples/support-ops`](../examples/support-ops/) — breadth: one agent, five tools, five distinct outcomes including consent-blocked validation.
-- [`examples/ai-cafe-ops`](../examples/ai-cafe-ops/) — operational authority: AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
-- [`examples/llm-bridge`](../examples/llm-bridge/) — the canonical pattern for bridging an LLM tool-call surface into governed KIFF actions.
+- [`examples/refund`](../examples/refund/): the shortest worked domain. One entity, three states, two actions (one low-risk, one approval-required). Run this first.
+- [`examples/mission`](../examples/mission/): a fuller mission/challenge domain with attempts, moves, approvals, and replay. Used by the `kiff-tour` and `kiff-demo` commands.
+- [`examples/refund-agno`](../examples/refund-agno/): depth. One tool, two runs (without KIFF and through KIFF), real Agno agent, real LLM. Demonstrates KIFF as governance for an AI agent.
+- [`examples/support-ops`](../examples/support-ops/): breadth. One agent, five tools, five distinct outcomes including consent-blocked validation.
+- [`examples/ai-cafe-ops`](../examples/ai-cafe-ops/): operational authority. AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
+- [`examples/llm-bridge`](../examples/llm-bridge/): the canonical pattern for bridging an LLM tool-call surface into governed KIFF actions.
 
 These examples are not the framework itself. They are the same coordination mechanics applied to different domains, kept readable enough to teach the framework end to end.
 
