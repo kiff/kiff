@@ -141,6 +141,8 @@ The same shape ships as a worked example in three flavors:
 - [`examples/support-ops`](./examples/support-ops/): breadth. One agent, five tools, five distinct outcomes including consent-blocked validation.
 - [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/): operational authority. AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
 
+To put this governance in front of an existing agent without wiring the runtime yourself, see [`kiffhq/kiff-guard`](https://github.com/kiffhq/kiff-guard): a framework-agnostic client SDK with adapters for Agno, LangGraph, Hermes, and the OpenAI Agents SDK. It hooks an agent's tool calls in observe mode (audit-only, zero config) or enforce mode (decide before each tool runs).
+
 ## What a domain looks like
 
 Your domain owns vocabulary. KIFF owns coordination. A complete domain definition is small. Here is the gist of [examples/refund](./examples/refund/):
