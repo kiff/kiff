@@ -266,7 +266,7 @@ evidence the design is real, not aspirational.
 
 ### 5.1 The framework
 
-About 6,000 lines of Go under `pkg/kiff/`. Sixteen packages, each with
+About 6,000 lines of Go under `pkg/kiff/`. Seventeen packages, each with
 one job, each with tests. The entire core protocol — events, state,
 decisions, actions, approvals, audit, runtime, store interfaces, HTTP
 API, observability wrapper, test helpers — runs against `go 1.23` with
@@ -373,7 +373,7 @@ having the answer to "why is this entity in this state?".
 
 ### 5.7 What this evidence does and does not prove
 
-It proves the protocol can be implemented small (six primitives, sixteen
+It proves the protocol can be implemented small (six primitives, seventeen
 packages, one external dependency). It proves the trust boundary is
 testable (the unexported field plus the conformance suite). It proves
 the persistence interface is real (three backends pass the same suite).
