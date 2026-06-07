@@ -73,6 +73,11 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 	policy.GrantRole("ops_operator", PermApprove)
 	policy.GrantRole("ops_operator", PermRefundOrder)
 	policy.GrantRole("system", PermMarkPaid)
+	// Role membership is policy-owned (#19): assign each demo actor its
+	// role here rather than relying on actor.Roles at the call site.
+	policy.AssignRole(AgentActor.ID, "ops_agent")
+	policy.AssignRole(OperatorActor.ID, "ops_operator")
+	policy.AssignRole(SystemActor.ID, "system")
 	return policy
 }
 

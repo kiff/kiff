@@ -94,12 +94,19 @@ func TestNewPermissionPolicy(t *testing.T) {
 		t.Fatal("expected non-nil policy")
 	}
 
-	agent := actor.Actor{ID: "a1", Roles: []string{"agent"}}
+	agent := actor.Actor{ID: "a1"}
+	policy.AssignRole(agent.ID, "agent")
 	if !policy.Can(testCtx(t), agent, permission.Permission("orders.refund")) {
 		t.Fatal("agent should have orders.refund")
 	}
 	if policy.Can(testCtx(t), agent, permission.Permission("orders.approve")) {
 		t.Fatal("agent should not have orders.approve")
+	}
+	// A role placed on the actor by the caller carries no authority:
+	// membership comes from the policy, not actor.Roles (#19).
+	forged := actor.Actor{ID: "a2", Roles: []string{"operator"}}
+	if policy.Can(testCtx(t), forged, permission.Permission("orders.approve")) {
+		t.Fatal("caller-supplied actor.Roles must not grant authority")
 	}
 
 	if NewPermissionPolicy("unbalanced") != nil {

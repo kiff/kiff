@@ -224,25 +224,35 @@ approval ID returns `action.ErrApprovalRequired` rather than running the
 executor. The test exists because the boundary is the framework's most
 important property.
 
+### Authority is enforced the same way
+
+Authority — does this actor hold the permission the action requires —
+is enforced by the framework with the same structural discipline as
+approval. The permission check resolves the actor's roles from the
+`permission.Policy`, keyed by `Actor.ID`, from membership the policy
+owns (`AssignRole`). It does **not** read `Actor.Roles` off the
+caller-built context. A caller cannot self-grant a permission by putting
+a role on the actor it submits, exactly as it cannot set the `approved`
+bit. The conformance suite asserts it: an actor carrying
+`Roles: ["admin"]` it assigned itself receives no admin permission
+unless the policy assigned that actor the role.
+
+`Actor.Roles` remains as descriptive metadata for audit and display; it
+carries no authorization power.
+
 ### Host responsibilities
 
-The self-approval boundary is enforced by the framework. **Authority is
-not.** `DefaultValidator` checks an action's `RequiredPermissions`
-against the roles on `ActionContext.Actor`, and that context is built by
-the caller. The framework has no way to know whether those roles were
-resolved from an authenticated identity or copied from untrusted request
-input.
-
-So the integrating host carries one load-bearing requirement:
-`Actor.Roles` MUST come from a trusted, server-resolved source — an
-authenticated session or identity lookup — and never from a request body
-or any input the actor controls. A host that threads caller-supplied
-roles into the actor lets a caller self-grant the permission that
-authorizes its own action. This is an integration contract, not a
-footnote: the framework guarantees deterministic gate ordering (state →
-parameters → permissions → approval), an unforgeable `approved` bit, and
-audit on every step; the host guarantees that the identity feeding those
-gates is real.
+With authority resolved inside the framework, the host's job narrows to
+the one thing only it can do: **authentication.** The host establishes
+*who* the actor is — an authenticated session, an API-key record, an
+identity-provider claim — and assigns that identity's roles into the
+`permission.Policy`. The framework then decides what that identity may
+do. Authentication is irreducibly the host's (it varies per deployment);
+authorization is the framework's. The framework guarantees deterministic
+gate ordering (state → parameters → permissions → approval), an
+unforgeable `approved` bit, policy-resolved authority, and audit on
+every step; the host guarantees that the identity feeding the policy is
+real.
 
 The same shape applies to other guarantees: actions require explicit
 executor functions (a missing executor returns `ErrExecutorMissing`

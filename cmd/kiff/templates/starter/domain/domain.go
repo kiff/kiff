@@ -73,6 +73,11 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 	policy.GrantRole("task_operator", PermApprove)
 	policy.GrantRole("task_operator", PermCompleteTask)
 	policy.GrantRole("system", PermStartTask)
+	// Role membership is policy-owned: assign each actor its role here
+	// rather than trusting actor.Roles at the call site.
+	policy.AssignRole(AgentActor.ID, "task_agent")
+	policy.AssignRole(HumanActor.ID, "task_operator")
+	policy.AssignRole(SystemActor.ID, "system")
 	return policy
 }
 

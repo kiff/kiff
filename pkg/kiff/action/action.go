@@ -54,11 +54,12 @@ type ActionContract struct {
 	Name               string
 	AllowedStates      []string
 	RequiredParameters []string
-	// RequiredPermissions are checked against the roles on
-	// ActionContext.Actor via the permission.Policy. Those roles MUST come
-	// from a trusted, server-resolved source — see the trusted-roles note
-	// on ActionContext. The framework verifies the actor holds the
-	// permission; it does not verify that the actor's roles are authentic.
+	// RequiredPermissions are checked against the actor's policy-assigned
+	// roles via the permission.Policy, resolved by Actor.ID — not from
+	// Actor.Roles on the caller-built context (#19). The host assigns
+	// roles to the policy from an authenticated identity; the framework
+	// verifies the actor holds the permission under that trusted
+	// membership.
 	RequiredPermissions []permission.Permission
 	Risk                RiskLevel
 	ApprovalRequirement ApprovalRequirement
@@ -67,17 +68,14 @@ type ActionContract struct {
 
 // ActionContext carries the operational facts used to validate an action.
 //
-// Trusted-roles requirement: Actor.Roles is the basis for the permission
-// check in DefaultValidator (against RequiredPermissions below), and an
-// ActionContext is built by the caller. The framework cannot tell whether
-// those roles were resolved from an authenticated identity or copied from
-// untrusted input. The integrating host MUST populate Actor.Roles from a
-// trusted, server-resolved source (an authenticated session or identity
-// lookup) and never from a request body or any value the actor controls.
-// A host that threads caller-supplied roles into the actor lets a caller
-// self-grant the permission that authorizes its own action. The
-// self-approval boundary (the unexported approved bit) is enforced by the
-// framework; authority is the host's responsibility.
+// Authority note: the permission check in DefaultValidator resolves the
+// actor's roles from the permission.Policy keyed by Actor.ID — it does
+// NOT read Actor.Roles. Roles are assigned to the policy from an
+// authenticated identity (the host's job); Actor.Roles is descriptive
+// metadata for audit/display and carries no authorization power (#19).
+// This is the authority counterpart to the self-approval boundary: a
+// caller cannot self-grant a permission by putting a role on the actor
+// it submits, just as it cannot set the approved bit.
 type ActionContext struct {
 	ActionName   string
 	EntityID     string

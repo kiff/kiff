@@ -96,6 +96,10 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 	policy.GrantRole("ops_operator", PermRefundOrder)
 	policy.GrantRole("ops_operator", PermWaiveFee)
 	policy.GrantRole("system", PermMarkPaid)
+	// Role membership is policy-owned (#19).
+	policy.AssignRole(AgentActor.ID, "support_agent")
+	policy.AssignRole(OperatorActor.ID, "ops_operator")
+	policy.AssignRole(SystemActor.ID, "system")
 	return policy
 }
 

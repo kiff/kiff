@@ -79,6 +79,10 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 	policy.GrantRole("mission_agent", PermissionExecuteMove)
 	policy.GrantRole("mission_approver", PermissionRequestHumanApproval)
 	policy.GrantRole("system", PermissionCreateAttempt)
+	// Role membership is policy-owned (#19).
+	policy.AssignRole(AgentActor.ID, "mission_agent")
+	policy.AssignRole(HumanActor.ID, "mission_approver")
+	policy.AssignRole(SystemActor.ID, "system")
 	return policy
 }
 
