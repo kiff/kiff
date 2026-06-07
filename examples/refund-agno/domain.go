@@ -19,7 +19,7 @@
 //
 // The split is the standard production pattern: the contract declares risk
 // and authority; runtime policy decides which contract a particular request
-// reaches. KIFF v0.1's ApprovalRequirement is binary, and we keep it that
+// reaches. KIFF v0.2's ApprovalRequirement is binary, and we keep it that
 // way. The amount threshold lives in routing, not in the framework.
 package refundagno
 

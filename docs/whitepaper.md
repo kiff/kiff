@@ -25,7 +25,7 @@ validation, approval, execution, failure — is appended to an immutable
 audit trail with trace correlation. State can be replayed from events.
 
 This document describes the protocol, the trust boundary it enforces,
-and the artifacts that prove the design is real: a working v0.1 framework,
+and the artifacts that prove the design is real: a working v0.2 framework,
 two end-to-end demos with real LLM proposals, a Postgres backend, a shared
 conformance test suite, and a CLI that inspects any KIFF server.
 
@@ -105,6 +105,19 @@ were stored, but no software can actually reconstruct the entity.
 KIFF is the same components, written once, in idiomatic Go, with the
 contracts visible to every actor.
 
+One scoping note belongs up front, because it shapes everything below.
+KIFF is an **advisory contract gate, not a whole-system enforcer.** It
+evaluates a proposed action against state, parameters, permissions, and
+approvals, and returns a verdict; honoring that verdict is the caller's
+responsibility. Enforcement is real where the caller routes through the
+gate — for AI agents, the guard SDK sits in the agent's pre-tool hook and
+withholds the tool call on any non-`allowed` verdict, so the gate governs
+the agent's tool-call surface. KIFF does not, and cannot, prevent a
+side effect reached by a code path that never asks. It governs what your
+agents do through the gate; it does not make a bad action physically
+impossible through a path you didn't route. That boundary is a design
+choice, not a gap, and the rest of this document stays inside it.
+
 ---
 
 ## 2. The coordination loop
@@ -173,10 +186,10 @@ action they want to run. KIFF refuses to expose that field.
 
 Inside the runtime, an `ActionContext` has an unexported `approved`
 boolean. The Go compiler enforces that fields with lower-case names are
-not visible outside the package. Code in any other package — including
-the agent, including the HTTP handler, including a malicious caller —
-cannot construct an `ActionContext` with `approved: true`. They can ask
-for approval. They cannot grant it to themselves.
+not visible outside the package, so no other package can construct an
+`ActionContext` with `approved: true` directly. The bit is also the only
+thing `DefaultValidator` accepts as proof of approval — a caller cannot
+substitute anything else.
 
 ```go
 // pkg/kiff/action/action.go (excerpt)
@@ -192,19 +205,44 @@ type ActionContext struct {
 }
 ```
 
-The runtime sets the field through a single method, `applyApproval`,
-which runs only after looking up an approval record by ID, verifying the
-record matches the entity and action, and confirming its status is
-`granted`. If any check fails, the bit stays false. If the approval
-store returns an error, the runtime propagates it; it does not silently
-treat a missing approval as not-required.
+The unexported field closes the front door (a struct literal). The side
+door — a setter — is closed by a capability: `GrantApproval` requires a
+value of a type that lives in an `internal/` package, so only code inside
+the framework's own module can mint it. A caller that merely imports the
+`action` package cannot name the type, let alone construct it. The
+runtime mints the capability in a single method, `applyApproval`, which
+runs only after looking up an approval record by ID, verifying the record
+matches the entity and action, and confirming its status is `granted`. If
+any check fails, the bit stays false. If the approval store returns an
+error, the runtime propagates it; it does not silently treat a missing
+approval as not-required.
 
-This is testable. The conformance suite confirms that constructing an
-action context with an `approved: true` literal is a compile-time error.
-A separate test confirms that calling `ExecuteAction` with an invented
+This is testable. The conformance suite confirms that neither a struct
+literal (`ActionContext{approved: true}`) nor a setter call from outside
+the framework compiles, and that calling `ExecuteAction` with an invented
 approval ID returns `action.ErrApprovalRequired` rather than running the
 executor. The test exists because the boundary is the framework's most
 important property.
+
+### Host responsibilities
+
+The self-approval boundary is enforced by the framework. **Authority is
+not.** `DefaultValidator` checks an action's `RequiredPermissions`
+against the roles on `ActionContext.Actor`, and that context is built by
+the caller. The framework has no way to know whether those roles were
+resolved from an authenticated identity or copied from untrusted request
+input.
+
+So the integrating host carries one load-bearing requirement:
+`Actor.Roles` MUST come from a trusted, server-resolved source — an
+authenticated session or identity lookup — and never from a request body
+or any input the actor controls. A host that threads caller-supplied
+roles into the actor lets a caller self-grant the permission that
+authorizes its own action. This is an integration contract, not a
+footnote: the framework guarantees deterministic gate ordering (state →
+parameters → permissions → approval), an unforgeable `approved` bit, and
+audit on every step; the host guarantees that the identity feeding those
+gates is real.
 
 The same shape applies to other guarantees: actions require explicit
 executor functions (a missing executor returns `ErrExecutorMissing`
@@ -261,7 +299,7 @@ The mechanics generalize. The vocabulary does not.
 
 ## 5. Evidence: what we built
 
-The framework is at v0.1. The artifacts in the repository are the
+The framework is at v0.2. The artifacts in the repository are the
 evidence the design is real, not aspirational.
 
 ### 5.1 The framework
@@ -381,19 +419,19 @@ It proves the agent integration story works in two demos with real LLM
 proposals.
 
 It does not yet prove the protocol generalizes to all five sectors in
-§1. Three of those sectors — insurance, healthcare, fintech — are
-hypothetical for KIFF today. The evidence in §5 is concrete for
-e-commerce shapes; the rest is reasoned from the structural argument in
-§4. The cross-sector examples in §1 are structural analogies, not proof
-of sector readiness or compliance with sector-specific regulations. The
-next twelve months will close this gap or surface where the protocol
-breaks down. We expect both.
+§1. Four of those sectors — insurance, healthcare, fintech, and internal
+DevOps — are hypothetical for KIFF today. The evidence in §5 is concrete
+for e-commerce shapes; the rest is reasoned from the structural argument
+in §4. The cross-sector examples in §1 are structural analogies, not
+proof of sector readiness or compliance with sector-specific
+regulations. The next twelve months will close this gap or surface where
+the protocol breaks down. We expect both.
 
 ---
 
 ## 6. Honest limits
 
-The framework v0.1 does not handle the following. These are design
+The framework v0.2 does not handle the following. These are design
 boundaries, not missing features — each one has a composition story
 with a tool that already solves it.
 
@@ -412,7 +450,7 @@ adopters.
 
 **Distributed state.** State today is centralized. The runtime assumes
 a single source of truth per entity. Distributed state (replicated,
-eventually consistent, or sharded across regions) is not part of v0.1.
+eventually consistent, or sharded across regions) is not part of v0.2.
 Most adopters do not need it; the ones who do should compose KIFF with
 a state backend that handles the replication.
 
@@ -432,7 +470,7 @@ instrument from.
 as a future commercial layer. It does not exist yet. Adopting KIFF
 today means embedding it as a library and running it yourself.
 
-These are not bugs. They are explicit non-goals for v0.1. Each has a
+These are not bugs. They are explicit non-goals for v0.2. Each has a
 real design reason; each has a composition story with the tools that
 already solve it. The protocol's value depends on staying small.
 
@@ -461,12 +499,12 @@ launch period.
 
 **A managed runtime.** "KIFF Cloud" — hosted runtime, multi-tenant
 admin UI, audit retention, compliance exports — is the eventual
-commercial product. It is not a v0.1 deliverable. It exists in this
+commercial product. It is not a v0.2 deliverable. It exists in this
 document only as a footnote so the reader knows it is planned.
 
 **Specification work.** The current type signatures are the spec. A
 proper protocol document, language-independent, that other
-implementations can read against, is on the roadmap once the v0.1 API
+implementations can read against, is on the roadmap once the v0.2 API
 is stable. The Markdown for that document already exists in fragmented
 form across `docs/architecture.md`, `docs/conventions.md`, and this
 whitepaper.

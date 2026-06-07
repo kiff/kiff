@@ -36,6 +36,8 @@ result, err := rt.ExecuteAction(ctx, actionCtx, contract)
 
 The runtime checks state, parameters, permissions, and approvals. If anything fails, the executor never runs and the failure is audited with a typed error. If everything passes, the executor runs and the result is audited with what changed.
 
+The stop is real for any path that calls `ExecuteAction` — the executor is wrapped by the gate, so a validated action and its side effect happen together or not at all. What KIFF cannot do is stop a side effect reached by code that never calls the runtime. KIFF is an advisory contract gate: it governs the actions routed through it (for agents, the guard SDK enforces this at the tool-call seam), not every possible path to the same effect. Routing the action through the runtime is how the guarantee is obtained; a parallel back channel to the side effect is outside the boundary by design.
+
 ## What this prevents
 
 A confident wrong agent. The single most common failure mode in AI features is an agent that is *certain* about the wrong action. With a free-form tool layer, that certainty becomes side effects. With KIFF, that certainty is a proposal that gets rejected, with the rejection itself becoming part of the audit trail.

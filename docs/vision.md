@@ -169,7 +169,12 @@ This is one of KIFF’s most important ideas:
 
 > Agents may propose actions, but KIFF validates actions before execution.
 
-The framework must make it hard for agents, humans, or integrations to bypass the operational rules.
+KIFF is an advisory contract gate: it returns a verdict on a proposed
+action, and the caller honors it. For AI agents the verdict is enforced
+at the tool-call seam — the guard withholds the call unless the action is
+`allowed` — so KIFF governs what agents do through the gate. It does not
+police a side effect reached by a path that never asks the gate; that is
+out of scope by design.
 
 ### Permissions
 
@@ -335,7 +340,9 @@ The core must be boring enough to trust and opinionated enough to matter.
    An action must declare when it is allowed, what it requires, who can perform it, and whether approval is needed.
 
 4. **Agents propose; KIFF validates.**  
-   AI output is not execution. Agent proposals must pass through validation.
+   AI output is not execution. Agent proposals pass through validation,
+   and the caller honors the verdict — enforced at the agent's tool-call
+   seam. KIFF is an advisory gate, not a whole-system enforcer.
 
 5. **Human authority for high-risk actions.**  
    The framework must make approval requirements explicit.

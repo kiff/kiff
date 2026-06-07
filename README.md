@@ -233,7 +233,7 @@ For the layered concept of how Studio and Cloud sit on top of the framework, see
 
 ## Status
 
-KIFF is at v0.1. The core coordination loop is complete and tested. The trust
+KIFF is at v0.2. The core coordination loop is complete and tested. The trust
 boundary is enforced at the framework level: approvals cannot be self-granted,
 executors must be explicit, every validation and execution is audited.
 

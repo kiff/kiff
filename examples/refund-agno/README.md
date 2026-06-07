@@ -294,7 +294,7 @@ Proof points to look for in your own Bedrock run:
 | 3      | 25 000 cents | `REFUND_ORDER`    | high-risk action; approval required           | `PAID` (denied)      |
 
 The threshold lives in routing (`RouteRefund` in `domain.go`), not in
-KIFF. KIFF v0.1's `ApprovalRequirement` is binary; the contract declares
+KIFF. KIFF v0.2's `ApprovalRequirement` is binary; the contract declares
 authority shape, the routing layer decides which contract a particular
 agent intent lands on. This separation is the right production pattern
 even if you eventually push policy into the framework.

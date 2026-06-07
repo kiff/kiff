@@ -51,9 +51,14 @@ const (
 
 // ActionContract describes when and how an action is allowed to run.
 type ActionContract struct {
-	Name                string
-	AllowedStates       []string
-	RequiredParameters  []string
+	Name               string
+	AllowedStates      []string
+	RequiredParameters []string
+	// RequiredPermissions are checked against the roles on
+	// ActionContext.Actor via the permission.Policy. Those roles MUST come
+	// from a trusted, server-resolved source — see the trusted-roles note
+	// on ActionContext. The framework verifies the actor holds the
+	// permission; it does not verify that the actor's roles are authentic.
 	RequiredPermissions []permission.Permission
 	Risk                RiskLevel
 	ApprovalRequirement ApprovalRequirement
@@ -61,6 +66,18 @@ type ActionContract struct {
 }
 
 // ActionContext carries the operational facts used to validate an action.
+//
+// Trusted-roles requirement: Actor.Roles is the basis for the permission
+// check in DefaultValidator (against RequiredPermissions below), and an
+// ActionContext is built by the caller. The framework cannot tell whether
+// those roles were resolved from an authenticated identity or copied from
+// untrusted input. The integrating host MUST populate Actor.Roles from a
+// trusted, server-resolved source (an authenticated session or identity
+// lookup) and never from a request body or any value the actor controls.
+// A host that threads caller-supplied roles into the actor lets a caller
+// self-grant the permission that authorizes its own action. The
+// self-approval boundary (the unexported approved bit) is enforced by the
+// framework; authority is the host's responsibility.
 type ActionContext struct {
 	ActionName   string
 	EntityID     string
