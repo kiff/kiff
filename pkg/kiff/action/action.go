@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiffhq/kiff/pkg/kiff/actor"
 	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/internal/trust"
 	"github.com/kiffhq/kiff/pkg/kiff/permission"
 )
 
@@ -76,9 +77,14 @@ func (c ActionContext) IsApproved() bool {
 	return c.approved
 }
 
-// GrantApproval marks the action context as approved. Only the runtime should call this.
-// It is exported so the runtime package can set it, but callers should not use it directly.
-func (c *ActionContext) GrantApproval() {
+// GrantApproval marks the action context as approved. It requires a
+// trust.Grant, which can be minted only from inside the framework's
+// trust boundary (the internal/trust package). A caller that merely
+// imports the action package cannot construct a Grant — the parameter
+// type is un-nameable outside the module — so it cannot self-approve.
+// The runtime calls this only after the approval store confirms a real,
+// granted approval for the action.
+func (c *ActionContext) GrantApproval(trust.Grant) {
 	c.approved = true
 }
 

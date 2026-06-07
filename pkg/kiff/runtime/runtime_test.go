@@ -646,6 +646,57 @@ func (f *failingApprovalStore) List(ctx context.Context, entityID string) ([]app
 	return nil, nil
 }
 
+// spyApprovalStore records whether IsGranted was consulted and answers
+// with a fixed verdict. It proves applyApproval always reaches the store
+// for an ApprovalRequired contract — there is no caller-set bit that can
+// short-circuit it.
+type spyApprovalStore struct {
+	approval.Store
+	consulted bool
+	grant     bool
+}
+
+func (s *spyApprovalStore) IsGranted(context.Context, string, string, string) (bool, error) {
+	s.consulted = true
+	return s.grant, nil
+}
+func (s *spyApprovalStore) Save(ctx context.Context, a approval.Approval) error { return nil }
+func (s *spyApprovalStore) Get(ctx context.Context, id string) (approval.Approval, bool, error) {
+	return approval.Approval{}, false, nil
+}
+func (s *spyApprovalStore) List(ctx context.Context, entityID string) ([]approval.Approval, error) {
+	return nil, nil
+}
+
+// TestApprovalStoreAlwaysConsultedForApprovalRequired asserts the
+// approval-store lookup is reached on every ApprovalRequired execution
+// (#12): the only way to flip approved is a real, store-confirmed grant,
+// so a caller cannot pre-set the bit to skip the check.
+func TestApprovalStoreAlwaysConsultedForApprovalRequired(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	spy := &spyApprovalStore{grant: false}
+	rt := mustNew(t, Config{PermissionPolicy: policy, ApprovalStore: spy})
+
+	actionCtx := action.ActionContext{
+		ActionName: "EXECUTE_MOVE", EntityID: "attempt-1", EntityType: "MissionAttempt",
+		CurrentState: "WAITING_APPROVAL", Actor: actor.Actor{ID: "agent"}, ApprovalID: "approval-1",
+	}
+	contract := action.ActionContract{
+		Name: "EXECUTE_MOVE", AllowedStates: []string{"WAITING_APPROVAL"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		ApprovalRequirement: action.ApprovalRequired, Executor: noopExecutor,
+	}
+
+	_, err := rt.ExecuteAction(context.Background(), actionCtx, contract)
+	if !errors.Is(err, action.ErrApprovalRequired) {
+		t.Fatalf("expected ErrApprovalRequired when store withholds the grant, got %v", err)
+	}
+	if !spy.consulted {
+		t.Fatal("approval store was not consulted; applyApproval was short-circuited")
+	}
+}
+
 func TestApprovalStoreErrorsArePropagated(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")

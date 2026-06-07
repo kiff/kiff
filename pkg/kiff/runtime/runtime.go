@@ -18,6 +18,7 @@ import (
 	"github.com/kiffhq/kiff/pkg/kiff/decision"
 	"github.com/kiffhq/kiff/pkg/kiff/domain"
 	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiffhq/kiff/pkg/kiff/internal/trust"
 	"github.com/kiffhq/kiff/pkg/kiff/permission"
 	"github.com/kiffhq/kiff/pkg/kiff/proposal"
 	"github.com/kiffhq/kiff/pkg/kiff/state"
@@ -593,7 +594,7 @@ func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionCont
 		return actionCtx, fmt.Errorf("approval store error: %w", err)
 	}
 	if granted {
-		actionCtx.GrantApproval()
+		actionCtx.GrantApproval(trust.NewGrant())
 	}
 	return actionCtx, nil
 }
