@@ -25,7 +25,7 @@ validation, approval, execution, failure — is appended to an immutable
 audit trail with trace correlation. State can be replayed from events.
 
 This document describes the protocol, the trust boundary it enforces,
-and the artifacts that prove the design is real: a working v0.2 framework,
+and the artifacts that prove the design is real: a working v0.3 framework,
 two end-to-end demos with real LLM proposals, a Postgres backend, a shared
 conformance test suite, and a CLI that inspects any KIFF server.
 
@@ -309,7 +309,7 @@ The mechanics generalize. The vocabulary does not.
 
 ## 5. Evidence: what we built
 
-The framework is at v0.2. The artifacts in the repository are the
+The framework is at v0.3. The artifacts in the repository are the
 evidence the design is real, not aspirational.
 
 ### 5.1 The framework
@@ -441,7 +441,7 @@ the protocol breaks down. We expect both.
 
 ## 6. Honest limits
 
-The framework v0.2 does not handle the following. These are design
+The framework v0.3 does not handle the following. These are design
 boundaries, not missing features — each one has a composition story
 with a tool that already solves it.
 
@@ -460,7 +460,7 @@ adopters.
 
 **Distributed state.** State today is centralized. The runtime assumes
 a single source of truth per entity. Distributed state (replicated,
-eventually consistent, or sharded across regions) is not part of v0.2.
+eventually consistent, or sharded across regions) is not part of v0.3.
 Most adopters do not need it; the ones who do should compose KIFF with
 a state backend that handles the replication.
 
@@ -480,7 +480,7 @@ instrument from.
 as a future commercial layer. It does not exist yet. Adopting KIFF
 today means embedding it as a library and running it yourself.
 
-These are not bugs. They are explicit non-goals for v0.2. Each has a
+These are not bugs. They are explicit non-goals for v0.3. Each has a
 real design reason; each has a composition story with the tools that
 already solve it. The protocol's value depends on staying small.
 
@@ -509,12 +509,12 @@ launch period.
 
 **A managed runtime.** "KIFF Cloud" — hosted runtime, multi-tenant
 admin UI, audit retention, compliance exports — is the eventual
-commercial product. It is not a v0.2 deliverable. It exists in this
+commercial product. It is not a v0.3 deliverable. It exists in this
 document only as a footnote so the reader knows it is planned.
 
 **Specification work.** The current type signatures are the spec. A
 proper protocol document, language-independent, that other
-implementations can read against, is on the roadmap once the v0.2 API
+implementations can read against, is on the roadmap once the v0.3 API
 is stable. The Markdown for that document already exists in fragmented
 form across `docs/architecture.md`, `docs/conventions.md`, and this
 whitepaper.

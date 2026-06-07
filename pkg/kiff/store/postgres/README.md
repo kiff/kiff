@@ -3,7 +3,7 @@
 A Postgres-backed implementation of the four KIFF store interfaces:
 `event.Store`, `decision.Store`, `approval.Store`, and `audit.Store`.
 
-This package is the recommended production backend for KIFF v0.2. It also
+This package is the recommended production backend for KIFF v0.3. It also
 covers Supabase, Neon, RDS, CloudSQL, Crunchy Bridge, and any other
 Postgres-compatible service.
 

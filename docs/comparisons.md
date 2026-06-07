@@ -97,6 +97,6 @@ To be useful, this section has to be real:
 
 ## Where KIFF wants to go
 
-The framework is at v0.2. The core protocol is settled and tested. The next direction is making KIFF *adoptable*: a clearer onboarding path, better defaults for observability, an LLM bridge example, and richer test helpers. None of those will change the core comparison map above. KIFF will continue to be the governance protocol that lives between the agent layer and the data layer, regardless of what you choose at the layers around it.
+The framework is at v0.3. The core protocol is settled and tested. The next direction is making KIFF *adoptable*: a clearer onboarding path, better defaults for observability, an LLM bridge example, and richer test helpers. None of those will change the core comparison map above. KIFF will continue to be the governance protocol that lives between the agent layer and the data layer, regardless of what you choose at the layers around it.
 
 If you are building in a space where the comparison map looks wrong, file an issue. Drawing the boundaries clearly is part of the design.

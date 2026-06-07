@@ -142,7 +142,7 @@ It defines:
 
 The example exposes a mission domain definition, uses an action catalog and an approval record, and shows how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.
 
-## Trust Boundary (v0.2)
+## Trust Boundary (v0.3)
 
 The runtime enforces governance constraints that callers cannot bypass:
 
