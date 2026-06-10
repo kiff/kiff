@@ -147,6 +147,13 @@ framework-agnostic client SDK with adapters for Agno, LangGraph, Hermes, and the
 OpenAI Agents SDK. It hooks an agent's tool calls in observe mode (audit-only,
 zero config) or enforce mode (decide before each tool runs).
 
+Not on a supported framework? You do not need one. A proposal is a single
+HTTP POST, so an agent, webhook, or backend in any language — TypeScript,
+Python, Ruby — drives the same governed runtime without importing Go. The
+domain is defined in Go and runs as a service; the application that calls it
+stays in its own stack. See [docs/governing-over-http.md](./docs/governing-over-http.md)
+for copy-paste TypeScript and Python.
+
 ## What a domain looks like
 
 Your domain owns vocabulary. KIFF owns coordination. A complete domain definition
