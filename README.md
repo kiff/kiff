@@ -1,10 +1,10 @@
 # KIFF
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/kiffhq/kiff.svg)](https://pkg.go.dev/github.com/kiffhq/kiff)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kiffhq/kiff)](https://goreportcard.com/report/github.com/kiffhq/kiff)
+[![Go Reference](https://pkg.go.dev/badge/github.com/kiff/kiff.svg)](https://pkg.go.dev/github.com/kiff/kiff)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kiff/kiff)](https://goreportcard.com/report/github.com/kiff/kiff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/kiffhq/kiff)](./go.mod)
-[![Release](https://img.shields.io/github/v/release/kiffhq/kiff?include_prereleases&sort=semver)](https://github.com/kiffhq/kiff/releases)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
+[![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
 **Govern the action, not the actor. Written in Go.**
 
@@ -50,7 +50,7 @@ tests that bypassing it fails to build.
 ## See it refuse a real action
 
 ```bash
-git clone https://github.com/kiffhq/kiff
+git clone https://github.com/kiff/kiff
 cd kiff
 go run ./cmd/kiff-tour
 ```
@@ -100,7 +100,7 @@ see [docs/comparisons.md](./docs/comparisons.md).
 ## Start your own project
 
 ```bash
-go install github.com/kiffhq/kiff/cmd/kiff@latest
+go install github.com/kiff/kiff/cmd/kiff@latest
 kiff new github.com/acme/orders
 cd orders
 go mod tidy
@@ -142,7 +142,7 @@ The same shape ships as a worked example in three flavors:
 - [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/): operational authority. AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
 
 To put this governance in front of an existing agent without wiring the runtime
-yourself, see [`kiffhq/kiff-guard`](https://github.com/kiffhq/kiff-guard): a
+yourself, see [`kiff/kiff-guard`](https://github.com/kiff/kiff-guard): a
 framework-agnostic client SDK with adapters for Agno, LangGraph, Hermes, and the
 OpenAI Agents SDK. It hooks an agent's tool calls in observe mode (audit-only,
 zero config) or enforce mode (decide before each tool runs).
