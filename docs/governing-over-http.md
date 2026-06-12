@@ -6,7 +6,7 @@ not have to be. The runtime exposes a small JSON/HTTP surface
 TypeScript, Python, Ruby, anything that can make an HTTP request — can ask
 KIFF "may I do this?" before it touches a real system.
 
-This is the same shape `kiffhq/kiff-guard` automates for named agent
+This is the same shape `kiff/kiff-guard` automates for named agent
 frameworks. If you are on a custom agent or a plain backend, you do not need
 an adapter: you make one HTTP call and branch on the answer.
 

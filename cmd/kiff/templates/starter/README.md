@@ -110,4 +110,4 @@ This produces `events.jsonl`, `decisions.jsonl`, `approvals.jsonl`, and `audit.j
 4. Write your own executor functions inside the action contracts.
 5. Restart `go run ./cmd/server` and watch your domain run.
 
-For a deeper guide see [`docs/build-a-domain.md`](https://github.com/kiffhq/kiff/blob/main/docs/build-a-domain.md) and [`docs/conventions.md`](https://github.com/kiffhq/kiff/blob/main/docs/conventions.md) in the framework repository.
+For a deeper guide see [`docs/build-a-domain.md`](https://github.com/kiff/kiff/blob/main/docs/build-a-domain.md) and [`docs/conventions.md`](https://github.com/kiff/kiff/blob/main/docs/conventions.md) in the framework repository.

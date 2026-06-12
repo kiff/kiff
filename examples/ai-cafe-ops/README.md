@@ -233,7 +233,7 @@ the running server's `/entities/{id}/timeline` (and `/demo/rebuild`,
 when present) and renders a compact table.
 
 ```bash
-go install github.com/kiffhq/kiff/cmd/kiff
+go install github.com/kiff/kiff/cmd/kiff
 make demo-offline           # leave the server running, or use make demo-bedrock
 kiff timeline -base http://localhost:<port> -entity shift-2
 ```

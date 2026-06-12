@@ -6,7 +6,7 @@
 **Gabriel Sarmiento**
 Released under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 Code referenced is part of the open-source MIT framework at
-[github.com/kiffhq/kiff](https://github.com/kiffhq/kiff).
+[github.com/kiff/kiff](https://github.com/kiff/kiff).
 
 ---
 
@@ -618,7 +618,7 @@ KIFF composes. It is not a platform.
 ---
 
 *This document is part of the KIFF Framework, MIT-licensed, at
-[github.com/kiffhq/kiff](https://github.com/kiffhq/kiff).
+[github.com/kiff/kiff](https://github.com/kiff/kiff).
 The whitepaper itself is released under
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).*
 

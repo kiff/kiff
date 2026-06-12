@@ -25,10 +25,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/domain"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/permission"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/domain"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/permission"
 )
 
 const (
@@ -102,7 +102,7 @@ That is the entire domain definition. About 70 lines.
 
 ```go
 import (
-	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
 def, err := orders.Definition()
