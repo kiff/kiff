@@ -6,7 +6,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 )
 
 // AuditStore is an append-only JSONL implementation of audit.Store.

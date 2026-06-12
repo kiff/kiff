@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/adapter"
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/adapter"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
 // TestStartShift_HappyPath confirms START_SHIFT runs without approval

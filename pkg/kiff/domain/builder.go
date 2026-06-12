@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/state"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/state"
 )
 
 // Builder is a small chainable helper for assembling a Definition without

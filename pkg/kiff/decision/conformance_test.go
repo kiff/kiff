@@ -3,8 +3,8 @@ package decision_test
 import (
 	"testing"
 
-	"github.com/kiffhq/kiff/pkg/kiff/decision"
-	"github.com/kiffhq/kiff/pkg/kiff/store/storetest"
+	"github.com/kiff/kiff/pkg/kiff/decision"
+	"github.com/kiff/kiff/pkg/kiff/store/storetest"
 )
 
 func TestInMemoryStore_Conformance(t *testing.T) {

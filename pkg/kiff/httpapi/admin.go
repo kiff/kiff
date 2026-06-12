@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 )
 
 // Admin routes are read-only HTML views over the runtime. They exist so a

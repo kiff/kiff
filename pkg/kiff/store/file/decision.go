@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/kiffhq/kiff/pkg/kiff/decision"
+	"github.com/kiff/kiff/pkg/kiff/decision"
 )
 
 // DecisionStore is an append-only JSONL implementation of decision.Store.

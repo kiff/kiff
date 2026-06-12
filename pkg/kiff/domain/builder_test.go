@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/state"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/state"
 )
 
 func TestBuilderProducesValidDefinition(t *testing.T) {

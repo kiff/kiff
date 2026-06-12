@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/state"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/state"
 )
 
 func TestDefinitionValidationRequiresCoreWiring(t *testing.T) {

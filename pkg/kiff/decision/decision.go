@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/evidence"
+	"github.com/kiff/kiff/pkg/kiff/evidence"
 )
 
 var ErrInvalidDecision = errors.New("invalid decision")

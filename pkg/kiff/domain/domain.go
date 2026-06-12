@@ -4,8 +4,8 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/state"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/state"
 )
 
 var ErrInvalidDefinition = errors.New("invalid domain definition")

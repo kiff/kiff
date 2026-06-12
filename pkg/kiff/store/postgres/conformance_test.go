@@ -11,12 +11,12 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
-	"github.com/kiffhq/kiff/pkg/kiff/decision"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/store/postgres"
-	"github.com/kiffhq/kiff/pkg/kiff/store/storetest"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/decision"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/store/postgres"
+	"github.com/kiff/kiff/pkg/kiff/store/storetest"
 )
 
 // envURL is the env var that gates the Postgres conformance suite. When

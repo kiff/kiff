@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiffhq/kiff/examples/mission"
-	"github.com/kiffhq/kiff/pkg/kiff/adapter"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/examples/mission"
+	"github.com/kiff/kiff/pkg/kiff/adapter"
+	"github.com/kiff/kiff/pkg/kiff/event"
 )
 
 func TestHandlerIngestsRawEvent(t *testing.T) {

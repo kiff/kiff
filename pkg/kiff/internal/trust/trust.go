@@ -8,7 +8,7 @@
 // package.
 //
 // Because this is an internal package, only code rooted at
-// github.com/kiffhq/kiff can import it; an external embedder cannot. And
+// github.com/kiff/kiff can import it; an external embedder cannot. And
 // because Grant carries an unexported field, no external package can
 // construct an equivalent value via an anonymous struct (struct identity
 // requires unexported field names to originate in the same package). The

@@ -18,12 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kiffhq/kiff/examples/refund"
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/adapter"
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/examples/refund"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/adapter"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/event"
 )
 
 // pacer controls the rhythm of the narration. It exists so the tour feels

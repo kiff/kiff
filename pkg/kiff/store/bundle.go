@@ -3,10 +3,10 @@ package store
 import (
 	"errors"
 
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
-	"github.com/kiffhq/kiff/pkg/kiff/decision"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/decision"
+	"github.com/kiff/kiff/pkg/kiff/event"
 )
 
 // Bundle groups the core stores needed by a KIFF runtime.

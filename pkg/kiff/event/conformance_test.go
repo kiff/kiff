@@ -3,8 +3,8 @@ package event_test
 import (
 	"testing"
 
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/store/storetest"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/store/storetest"
 )
 
 // TestInMemoryStore_Conformance runs the shared store conformance suite
