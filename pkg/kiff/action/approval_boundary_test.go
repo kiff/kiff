@@ -11,9 +11,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/actor"
-	"github.com/kiffhq/kiff/pkg/kiff/permission"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/permission"
 )
 
 // A caller can build an ActionContext but cannot set the approved bit:

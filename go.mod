@@ -1,4 +1,4 @@
-module github.com/kiffhq/kiff
+module github.com/kiff/kiff
 
 go 1.23.0
 

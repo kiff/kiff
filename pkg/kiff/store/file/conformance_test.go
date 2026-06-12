@@ -4,12 +4,12 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
-	"github.com/kiffhq/kiff/pkg/kiff/decision"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/store/file"
-	"github.com/kiffhq/kiff/pkg/kiff/store/storetest"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/decision"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/store/file"
+	"github.com/kiff/kiff/pkg/kiff/store/storetest"
 )
 
 // Each conformance run gets its own bundle in a fresh temp directory so the

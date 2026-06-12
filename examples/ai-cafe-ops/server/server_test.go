@@ -10,7 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	aicafeops "github.com/kiffhq/kiff/examples/ai-cafe-ops"
+	aicafeops "github.com/kiff/kiff/examples/ai-cafe-ops"
 )
 
 // TestServer_AutoOrderExecutes covers a small in-catalog order flowing

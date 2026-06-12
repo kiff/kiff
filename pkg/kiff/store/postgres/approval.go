@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/approval"
 )
 
 // ApprovalStore persists approval.Approval rows in the kiff_approvals table.

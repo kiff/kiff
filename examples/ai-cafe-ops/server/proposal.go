@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
-	aicafeops "github.com/kiffhq/kiff/examples/ai-cafe-ops"
-	"github.com/kiffhq/kiff/pkg/kiff/proposal"
+	aicafeops "github.com/kiff/kiff/examples/ai-cafe-ops"
+	"github.com/kiff/kiff/pkg/kiff/proposal"
 )
 
 // proposalFromRequest builds a KIFF action proposal from the agent's

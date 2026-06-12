@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/actor"
-	"github.com/kiffhq/kiff/pkg/kiff/permission"
+	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/permission"
 )
 
 func TestEventBuilder_Defaults(t *testing.T) {

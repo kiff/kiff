@@ -26,7 +26,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 )
 
 // AuditWrapper wraps an audit.Store with structured logging and counters. It

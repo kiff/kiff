@@ -118,7 +118,7 @@ func TestScaffold_ReplaceLocal(t *testing.T) {
 		t.Fatalf("scaffold: %v", err)
 	}
 	goMod := readFile(t, filepath.Join(tmp, "go.mod"))
-	if !strings.Contains(goMod, "replace github.com/kiffhq/kiff => ../kiff-framework") {
+	if !strings.Contains(goMod, "replace github.com/kiff/kiff => ../kiff-framework") {
 		t.Fatalf("go.mod missing replace directive:\n%s", goMod)
 	}
 }
@@ -220,7 +220,7 @@ func TestScaffold_AgenticOps_LayoutAndImports(t *testing.T) {
 	if !strings.Contains(goMod, "module github.com/acme/ops") {
 		t.Fatalf("go.mod missing module:\n%s", goMod)
 	}
-	if !strings.Contains(goMod, "replace github.com/kiffhq/kiff => ../kiff-framework") {
+	if !strings.Contains(goMod, "replace github.com/kiff/kiff => ../kiff-framework") {
 		t.Fatalf("go.mod missing replace directive:\n%s", goMod)
 	}
 

@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 )
 
 // AuditStore persists audit.Record rows in the kiff_audit table.

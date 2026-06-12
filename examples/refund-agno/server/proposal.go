@@ -3,8 +3,8 @@ package main
 import (
 	"time"
 
-	refundagno "github.com/kiffhq/kiff/examples/refund-agno"
-	"github.com/kiffhq/kiff/pkg/kiff/proposal"
+	refundagno "github.com/kiff/kiff/examples/refund-agno"
+	"github.com/kiff/kiff/pkg/kiff/proposal"
 )
 
 // proposalFromRequest builds a KIFF action proposal from the agent's tool

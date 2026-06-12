@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/kiffhq/kiff/pkg/kiff/actor"
-	"github.com/kiffhq/kiff/pkg/kiff/event"
-	"github.com/kiffhq/kiff/pkg/kiff/internal/trust"
-	"github.com/kiffhq/kiff/pkg/kiff/permission"
+	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/internal/trust"
+	"github.com/kiff/kiff/pkg/kiff/permission"
 )
 
 var (

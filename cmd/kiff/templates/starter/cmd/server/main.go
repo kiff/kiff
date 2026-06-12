@@ -13,11 +13,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/kiffhq/kiff/cmd/kiff/templates/starter/domain"
+	"github.com/kiff/kiff/cmd/kiff/templates/starter/domain"
 
-	"github.com/kiffhq/kiff/pkg/kiff/httpapi"
-	"github.com/kiffhq/kiff/pkg/kiff/runtime"
-	"github.com/kiffhq/kiff/pkg/kiff/store/file"
+	"github.com/kiff/kiff/pkg/kiff/httpapi"
+	"github.com/kiff/kiff/pkg/kiff/runtime"
+	"github.com/kiff/kiff/pkg/kiff/store/file"
 )
 
 func main() {

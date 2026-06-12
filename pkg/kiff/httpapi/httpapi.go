@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/kiffhq/kiff/pkg/kiff/action"
-	"github.com/kiffhq/kiff/pkg/kiff/actor"
-	"github.com/kiffhq/kiff/pkg/kiff/adapter"
-	"github.com/kiffhq/kiff/pkg/kiff/approval"
-	"github.com/kiffhq/kiff/pkg/kiff/permission"
-	"github.com/kiffhq/kiff/pkg/kiff/runtime"
-	"github.com/kiffhq/kiff/pkg/kiff/store"
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/adapter"
+	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/permission"
+	"github.com/kiff/kiff/pkg/kiff/runtime"
+	"github.com/kiff/kiff/pkg/kiff/store"
 )
 
 // Handler exposes a small HTTP surface over a KIFF runtime.

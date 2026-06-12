@@ -11,9 +11,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	refundagno "github.com/kiffhq/kiff/examples/refund-agno"
-	"github.com/kiffhq/kiff/pkg/kiff/audit"
-	"github.com/kiffhq/kiff/pkg/kiff/runtime"
+	refundagno "github.com/kiff/kiff/examples/refund-agno"
+	"github.com/kiff/kiff/pkg/kiff/audit"
+	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
 // TestServer_AgentRefund_AutoExecutes covers the small-amount happy path:
