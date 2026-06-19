@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
+  <title id="title">KIFF terminal tour</title>
+  <desc id="desc">An animated terminal recording showing a safe action, a refused refund, human approval, execution, and event replay.</desc>
+  <style>
+    .term { font: 16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #e6edf3 }
+    .dim { fill: #8b949e }
+    .green { fill: #3fb950 }
+    .red { fill: #ff7b72 }
+    .blue { fill: #58a6ff }
+    .bold { font-weight: 700 }
+  </style>
+  <rect width="960" height="540" rx="12" fill="#0d1117"/>
+  <rect width="960" height="42" rx="12" fill="#161b22"/>
+  <rect y="30" width="960" height="12" fill="#161b22"/>
+  <circle cx="24" cy="21" r="6" fill="#ff5f56"/><circle cx="44" cy="21" r="6" fill="#ffbd2e"/><circle cx="64" cy="21" r="6" fill="#27c93f"/>
+  <text x="480" y="27" text-anchor="middle" class="term dim">kiff-tour</text>
+  <text x="22" y="72" class="term"><tspan class="green">$</tspan> go run ./cmd/kiff-tour</text>
+
+  <g opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;.02;.23;.25;1"/>
+    <text x="22" y="112" class="term bold">KIFF — a 90-second tour</text>
+    <text x="22" y="152" class="term blue">Scene 1 — An order is placed and paid</text>
+    <text x="22" y="190" class="term">The order starts in CREATED. KIFF validates the proposed action.</text>
+    <text x="22" y="228" class="term green">✔ event ingested  → ORDER_PLACED</text>
+    <text x="22" y="264" class="term green">✔ action executed → MARK_PAID</text>
+    <text x="22" y="300" class="term green">✔ state           → PAID</text>
+    <text x="22" y="354" class="term dim">The current state came from the entity's recorded events.</text>
+  </g>
+
+  <g opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;.25;.27;.48;.5;1"/>
+    <text x="22" y="112" class="term blue">Scene 2 — An agent tries to issue a $999 refund</text>
+    <text x="22" y="160" class="term">The agent confidently calls REFUND_ORDER.</text>
+    <text x="22" y="210" class="term red bold">✖ execution BLOCKED → approval required, none granted</text>
+    <text x="22" y="258" class="term">KIFF refused. The state did not change.</text>
+    <text x="22" y="298" class="term">The audit trail has the attempt.</text>
+    <rect x="18" y="338" width="900" height="58" rx="6" fill="#2d1418" stroke="#ff7b72"/>
+    <text x="36" y="374" class="term red">The consequential executor never ran.</text>
+  </g>
+
+  <g opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;.5;.52;.73;.75;1"/>
+    <text x="22" y="112" class="term blue">Scene 3 — A human grants approval</text>
+    <text x="22" y="162" class="term">The agent records a formal approval request.</text>
+    <text x="22" y="208" class="term blue">• approval requested → REFUND_ORDER</text>
+    <text x="22" y="254" class="term green">✔ approval granted   → by ops-human</text>
+    <text x="22" y="300" class="term green">✔ action executed    → REFUND_ORDER</text>
+    <text x="22" y="346" class="term green">✔ state              → REFUNDED</text>
+  </g>
+
+  <g opacity="0">
+    <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="0;0;1;1" keyTimes="0;.75;.77;1"/>
+    <text x="22" y="112" class="term blue">Scene 4 — Replay reconstructs the story</text>
+    <text x="22" y="160" class="term">Rebuilding state from the event log alone:</text>
+    <text x="46" y="206" class="term dim">ORDER_PLACED   → CREATED</text>
+    <text x="46" y="246" class="term dim">ORDER_PAID     → PAID</text>
+    <text x="46" y="286" class="term dim">ORDER_REFUNDED → REFUNDED</text>
+    <text x="22" y="340" class="term green bold">✔ state rebuilt → REFUNDED</text>
+    <text x="22" y="404" class="term">Safe path executed. Unsafe path blocked. Both explained.</text>
+    <text x="22" y="458" class="term dim">event → state → decision → action → approval → audit</text>
+  </g>
+</svg>

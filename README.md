@@ -8,16 +8,45 @@
 
 **Govern the action, not the actor. Written in Go.**
 
-An AP agent pays a $10K invoice. A flaky connection drops the success response.
-The transport retries ten times. Each retry is a legitimate call — same invoice,
-same amount. Without a state-aware gate, that is $100K across ten debits.
+KIFF is a Go framework for governed backends. It makes two guarantees load-bearing:
+decisions use an entity's event-derived current state, and external callers cannot
+compile a path that grants their own runtime approval.
 
-Only the second call needs to be stopped. But nothing between the agent and the
-payment processor knew the invoice was already `PAID` when the retry arrived.
-A better prompt will not fix this. The prompt does not know your state machine.
+## State-aware decisions prevent duplicate effects
 
-KIFF moves that check one layer down — into a runtime that reads the entity's
-current state and decides *before* the action runs.
+An invoice is `PENDING`. A payment action succeeds, emits `PAYMENT_CAPTURED`, and
+the event moves the invoice to `PAID`. Then a flaky connection retries the exact
+same request.
+
+KIFF derives the entity's current state by applying its events. The retry is
+therefore decided against `PAID`, not the stale `PENDING` snapshot that motivated
+the first call. Because the payment action is only valid from `PENDING`, KIFF
+refuses the retry before its executor runs.
+
+```text
+PAYMENT_REQUESTED → PENDING → payment executes → PAYMENT_CAPTURED → PAID
+                                                               ↳ retry refused
+```
+
+That is the first guarantee: state comes before action. Stored events can rebuild
+the same current state later, so the decision and its evidence remain explainable.
+
+## Compile-time self-approval boundary
+
+External Go code using KIFF's public API cannot grant itself runtime approval,
+and cannot compile a path that does. `ActionContext.approved` is unexported, while
+`GrantApproval` requires a capability from an `internal` package that external
+modules cannot import.
+
+The conformance suite proves exactly those two boundaries by running `go build`
+against external-module fixtures. It asserts that both
+`action.ActionContext{approved: true}` and
+`ctx.GrantApproval(trust.Grant{})` fail to compile for the expected
+access-control reason.
+
+This guarantee applies when consequential calls route through the KIFF runtime.
+KIFF does not claim to govern a side effect reached through a path that bypasses
+the runtime entirely.
 
 ## Deciding beats watching
 
@@ -37,17 +66,16 @@ Agents propose. The runtime validates state, permissions, parameters, and
 approval rules. Right proposals execute with a trail. Wrong ones are refused
 with a reason. Six primitives. That is the whole protocol.
 
-## The one guarantee
-
-Callers cannot approve their own actions.
-
-The `approved` flag on an `ActionContext` is unexported — the Go compiler makes
-it unreachable from the agent, the HTTP handler, or any caller outside the
-runtime package. An agent can *request* approval. It cannot grant it to itself.
-This is a compile-time boundary, not a convention, and the conformance suite
-tests that bypassing it fails to build.
-
 ## See it refuse a real action
+
+No installation needed: watch the committed 24-second terminal recording.
+
+![KIFF terminal tour showing a blocked action, approval, execution, and replay](./docs/demo/kiff-tour.svg)
+
+The recording follows the runnable tour. A reproducible terminal-recording recipe
+is committed at [`docs/demo/kiff-tour.tape`](./docs/demo/kiff-tour.tape).
+
+To run the same tour yourself:
 
 ```bash
 git clone https://github.com/kiff/kiff
@@ -58,7 +86,7 @@ go run ./cmd/kiff-tour
 Three minutes of terminal output:
 
 1. An order is placed and paid. Smooth flow.
-2. An agent tries to issue a $999 refund from the wrong state. **KIFF refuses it.**
+2. An agent tries to issue a $999 refund without approval. **KIFF refuses it.**
 3. A human grants approval. The same call now executes.
 4. Replay rebuilds the entity from events alone. Every fact reconstructs.
 
@@ -90,12 +118,12 @@ state, KIFF is too much structure. Use something smaller and ship.
 KIFF starts the moment someone wants to *do something* to your state. The
 conversation layer is yours — no model SDK, no prompt builder — so KIFF runs
 with no AI at all and still earns its keep. Long-running tasks, retries, and
-scheduled jobs belong to a workflow engine: run Temporal next to KIFF, not under
-it. HTTP is optional: the `httpapi` package is there because most teams want it,
-but the runtime drives equally from a queue consumer, a CLI, or a cron job.
+scheduled jobs belong to a workflow engine beside KIFF. HTTP is optional: the
+`httpapi` package is there because most teams want it, but the runtime drives
+equally from a queue consumer, a CLI, or a cron job.
 
-For the honest comparison to LangChain, Temporal, FSMs, and rolling your own,
-see [docs/comparisons.md](./docs/comparisons.md).
+For an honest comparison with adjacent architectural categories, see
+[docs/comparisons.md](./docs/comparisons.md).
 
 ## Start your own project
 
@@ -119,35 +147,7 @@ While the framework is unpublished, scaffold against a local checkout:
 kiff new -replace-local /path/to/kiff github.com/acme/orders
 ```
 
-### Try the agentic-ops template
-
-When you want to evaluate KIFF *as governance for an AI agent*, scaffold the
-`agentic-ops` template instead. It includes a Go domain, an HTTP server, an Agno
-agent (offline + Bedrock providers), and a `make demo` target that runs the full
-governed-agent loop end to end:
-
-```bash
-kiff new -template=agentic-ops github.com/acme/ops
-cd ops && go mod tidy && make demo
-```
-
-`make demo` spawns the server, runs the agent against deterministic tickets,
-prints the audit timeline (block, approve, execute, replay), and shuts down.
-Under five minutes from a clean directory.
-
-The same shape ships as a worked example in three flavors:
-
-- [`examples/refund-agno`](./examples/refund-agno/): depth. One tool, two runs (without KIFF and through KIFF), Agno agent, real LLM.
-- [`examples/support-ops`](./examples/support-ops/): breadth. One agent, five tools, five distinct outcomes including consent-blocked validation.
-- [`examples/ai-cafe-ops`](./examples/ai-cafe-ops/): operational authority. AI shift manager, four tools, both local-mode and cloud-mode (talks to a hosted KIFF Cloud tenant over HTTP).
-
-To put this governance in front of an existing agent without wiring the runtime
-yourself, see [`kiff/kiff-guard`](https://github.com/kiff/kiff-guard): a
-framework-agnostic client SDK with adapters for Agno, LangGraph, Hermes, and the
-OpenAI Agents SDK. It hooks an agent's tool calls in observe mode (audit-only,
-zero config) or enforce mode (decide before each tool runs).
-
-Not on a supported framework? You do not need one. A proposal is a single
+An external caller does not need to import Go. A proposal is a single
 HTTP POST, so an agent, webhook, or backend in any language — TypeScript,
 Python, Ruby — drives the same governed runtime without importing Go. The
 domain is defined in Go and runs as a service; the application that calls it
@@ -194,7 +194,7 @@ Start here:
 
 - [Why KIFF](./docs/why.md): the long-form argument for why agents need a governance layer, not better prompts.
 - [Philosophy](./docs/philosophy.md): what KIFF chooses to be, and what it chooses not to be.
-- [Comparisons](./docs/comparisons.md): honest positioning next to LangChain, Temporal, FSMs, and rolling your own.
+- [Comparisons](./docs/comparisons.md): honest positioning beside adjacent architectural categories.
 
 Build with it:
 
@@ -234,9 +234,7 @@ Reference:
 | `observability` | Default-on structured logging and counters via an audit-store wrapper |
 | `kifftest` | Test helpers: event builders, fixed clock, predefined actors, policy seeds |
 
-For the LLM-bridge pattern, see [`examples/llm-bridge/`](./examples/llm-bridge/).
-For the layered concept of how Studio and Cloud sit on top of the framework, see
-[docs/vision.md §"Future layers"](./docs/vision.md).
+For the tool-call bridge pattern, see [`examples/llm-bridge/`](./examples/llm-bridge/).
 
 ## Status
 
