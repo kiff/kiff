@@ -16,18 +16,11 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/permission"
 )
 
-// A caller can build an ActionContext but cannot set the approved bit:
-// the field is unexported, and GrantApproval now requires a trust.Grant
-// whose type is un-nameable outside the module. So a freshly built
-// context for an ApprovalRequired contract always fails validation.
-//
-// Compile-time guarantee (cannot be expressed as a passing assertion,
-// stated here as the contract): from this external package, neither of
-//
-//	action.ActionContext{approved: true}      // unexported field
-//	ctx.GrantApproval(trust.Grant{})           // trust un-importable
-//
-// compiles. That is the boundary; the runtime is the only minter.
+// A caller can build an ActionContext but cannot set the approved bit. The
+// separate negative-compilation test proves that the unexported field and the
+// internal trust capability cannot be used from an external module. This test
+// covers the corresponding runtime behavior: a caller-built context for an
+// ApprovalRequired contract fails validation.
 func TestCallerCannotSelfApproveViaPublicAPI(t *testing.T) {
 	policy := permission.NewSimplePolicy()
 	policy.GrantActor("agent", "mission.execute_move")
