@@ -118,3 +118,27 @@ Conventions and rules:
 - Per action: an allowed-state case and a blocked-from-wrong-state case. For
   approval-required actions, the allowed-state case asserts the approval gate
   holds (`ErrApprovalRequired`) until a grant exists.
+
+## Verify the domain
+
+`kiff scaffold` leaves executor bodies as TODO stubs. `kiff verify` is how you
+know they are finished — a structural check you can run while completing the
+domain and in CI:
+
+```bash
+kiff verify            # checks ./domain (or the current package)
+kiff verify ./orders   # checks ./orders/domain
+kiff verify -json .    # machine-readable output for tooling/CI
+```
+
+It reports, with a non-zero exit on any error:
+
+- **Executor backing** — any action still bound to a scaffold stub (TODO) or
+  missing an executor.
+- **State-machine consistency** — actions allowed only from states no
+  transition reaches, and transitions referencing undeclared events.
+- **Contract completeness** — each action declares a valid `Risk` and
+  `ApprovalRequirement` and at least one allowed state.
+
+A freshly scaffolded domain fails `kiff verify` until you implement the
+executors — that is the signal that it is not yet ready to govern anything.

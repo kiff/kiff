@@ -19,6 +19,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -37,6 +38,14 @@ func main() {
 	case "scaffold":
 		if err := runScaffold(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "kiff scaffold: %v\n", err)
+			os.Exit(1)
+		}
+	case "verify":
+		if err := runVerify(os.Args[2:]); err != nil {
+			if errors.Is(err, errVerifyFailed) {
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "kiff verify: %v\n", err)
 			os.Exit(1)
 		}
 	case "timeline":
@@ -62,6 +71,7 @@ func usage(w *os.File) {
 	fmt.Fprintln(w, "  kiff new <module-path> [flags]   Scaffold a new KIFF project")
 	fmt.Fprintln(w, "  kiff scaffold <module-path>      Scaffold a project (or domain/ package)")
 	fmt.Fprintln(w, "    -descriptor <file|->           from a JSON domain descriptor")
+	fmt.Fprintln(w, "  kiff verify [path]               Structurally verify a domain package")
 	fmt.Fprintln(w, "  kiff timeline -entity <id>       Render the audit timeline")
 	fmt.Fprintln(w, "                                   from a running httpapi server")
 	fmt.Fprintln(w, "  kiff version                     Print CLI version")
