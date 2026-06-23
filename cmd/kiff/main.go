@@ -1,17 +1,21 @@
 // Command kiff is the KIFF framework's developer CLI.
 //
-// Today it has one subcommand:
+// Subcommands:
 //
-//	kiff new <module-path>     Scaffold a new KIFF project at <module-path>
-//	                            into a local directory derived from the path.
+//	kiff new <module-path>      Scaffold a new KIFF project around the fixed
+//	                            starter (tasks) domain.
+//	kiff scaffold <module-path> Scaffold a project (or just a domain/ package)
+//	    -descriptor <file|->    from a JSON domain descriptor — a code-generation
+//	                            seed that emits a framework-faithful domain with
+//	                            TODO executor stubs and passing tests.
 //
 // Example:
 //
 //	kiff new github.com/acme/orders
+//	kiff scaffold -descriptor order.json github.com/acme/orders
 //
-// This produces ./orders/ with a runnable HTTP server, a tasks-style starter
-// domain you can rename to fit your own vocabulary, and a go.mod that depends
-// on the published KIFF framework module.
+// This produces ./orders/ with a runnable HTTP server, a domain package, and a
+// go.mod that depends on the published KIFF framework module.
 package main
 
 import (
@@ -28,6 +32,11 @@ func main() {
 	case "new":
 		if err := runNew(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "kiff new: %v\n", err)
+			os.Exit(1)
+		}
+	case "scaffold":
+		if err := runScaffold(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff scaffold: %v\n", err)
 			os.Exit(1)
 		}
 	case "timeline":
@@ -51,6 +60,8 @@ func usage(w *os.File) {
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "USAGE:")
 	fmt.Fprintln(w, "  kiff new <module-path> [flags]   Scaffold a new KIFF project")
+	fmt.Fprintln(w, "  kiff scaffold <module-path>      Scaffold a project (or domain/ package)")
+	fmt.Fprintln(w, "    -descriptor <file|->           from a JSON domain descriptor")
 	fmt.Fprintln(w, "  kiff timeline -entity <id>       Render the audit timeline")
 	fmt.Fprintln(w, "                                   from a running httpapi server")
 	fmt.Fprintln(w, "  kiff version                     Print CLI version")

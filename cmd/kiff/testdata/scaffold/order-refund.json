@@ -1,0 +1,36 @@
+{
+  "domain": "refund",
+  "entity": "Order",
+  "adapter": "refund",
+  "events": ["ORDER_PLACED", "ORDER_PAID", "ORDER_REFUNDED"],
+  "states": ["CREATED", "PAID", "REFUNDED"],
+  "transitions": [
+    {"on": "ORDER_PLACED", "from": "", "to": "CREATED"},
+    {"on": "ORDER_PAID", "from": "CREATED", "to": "PAID"},
+    {"on": "ORDER_REFUNDED", "from": "PAID", "to": "REFUNDED"}
+  ],
+  "actions": [
+    {
+      "name": "MARK_PAID",
+      "allowed_states": ["CREATED"],
+      "required_parameters": ["payment_id"],
+      "required_permissions": ["refund.mark_paid"],
+      "risk": "low",
+      "approval": "never",
+      "follow_up_events": ["ORDER_PAID"]
+    },
+    {
+      "name": "REFUND_ORDER",
+      "allowed_states": ["PAID"],
+      "required_parameters": ["amount", "reason"],
+      "required_permissions": ["refund.execute"],
+      "risk": "high",
+      "approval": "required",
+      "follow_up_events": ["ORDER_REFUNDED"]
+    }
+  ],
+  "roles": {
+    "agent": ["refund.mark_paid", "refund.execute"],
+    "operator": ["refund.approve"]
+  }
+}
