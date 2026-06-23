@@ -70,6 +70,18 @@ func verifyFacts(facts domainFacts) verifyReport {
 		contracts[a.Name] = a
 	}
 
+	// Distinguish "this isn't a KIFF domain" from "this domain is broken": a
+	// path with no domain marker at all gets one clear finding, not a pile.
+	if facts.Domain == "" && len(facts.Actions) == 0 && len(facts.Transitions) == 0 {
+		report.Findings = []finding{{
+			Severity: sevError,
+			Code:     "not_a_domain",
+			Message:  "no KIFF domain found here (no domain.New(...) or action contracts); check the path",
+		}}
+		report.OK = false
+		return report
+	}
+
 	// Reachability: initial states are the targets of bootstrap transitions
 	// (empty From). Walk transitions forward from there.
 	reachable := map[string]bool{}
@@ -102,9 +114,9 @@ func verifyFacts(facts domainFacts) verifyReport {
 	}
 
 	// 1. Executor backing + contract completeness, per action (stable order).
-	actionNames := make([]string, 0, len(facts.Actions))
-	for _, a := range facts.Actions {
-		actionNames = append(actionNames, a.Name)
+	actionNames := make([]string, 0, len(contracts))
+	for name := range contracts {
+		actionNames = append(actionNames, name)
 	}
 	sort.Strings(actionNames)
 	for _, name := range actionNames {
@@ -256,9 +268,11 @@ func runVerify(args []string) error {
 	return nil
 }
 
-// resolveDomainDir picks the directory to analyze. If <path>/domain contains Go
-// files, it is preferred (so `kiff verify` works from a project root); otherwise
-// path itself is used.
+// resolveDomainDir picks the directory to analyze. If path itself is not the
+// domain package, it probes common layouts (<path>/domain, <path>/internal/
+// domain) and prefers the one that actually declares action contracts, so
+// `kiff verify <project-root>` works for both the starter and agentic-ops
+// layouts. Pointing directly at a package always works.
 func resolveDomainDir(path string) (string, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -267,15 +281,26 @@ func resolveDomainDir(path string) (string, error) {
 	if !info.IsDir() {
 		return "", fmt.Errorf("not a directory: %s", path)
 	}
-	sub := filepath.Join(path, "domain")
-	if hasGoFiles(sub) && !hasGoFiles(path) {
-		return sub, nil
+
+	candidates := []string{
+		path,
+		filepath.Join(path, "domain"),
+		filepath.Join(path, "internal", "domain"),
 	}
-	if hasGoFiles(sub) && hasGoFiles(path) {
-		// Prefer the sub-package only when the root has no domain contracts.
-		if facts, err := parseDomainPackage(path); err == nil && len(facts.Actions) == 0 {
-			return sub, nil
+	firstWithGo := ""
+	for _, c := range candidates {
+		if !hasGoFiles(c) {
+			continue
 		}
+		if firstWithGo == "" {
+			firstWithGo = c
+		}
+		if facts, err := parseDomainPackage(c); err == nil && len(facts.Actions) > 0 {
+			return c, nil
+		}
+	}
+	if firstWithGo != "" {
+		return firstWithGo, nil
 	}
 	return path, nil
 }

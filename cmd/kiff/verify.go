@@ -143,12 +143,24 @@ type extractor struct {
 func (e *extractor) visit(n ast.Node) bool {
 	switch node := n.(type) {
 	case *ast.CompositeLit:
-		if sel, ok := node.Type.(*ast.SelectorExpr); ok {
-			switch sel.Sel.Name {
+		switch t := node.Type.(type) {
+		case *ast.SelectorExpr:
+			switch t.Sel.Name {
 			case "ActionContract":
-				e.facts.Actions = append(e.facts.Actions, e.actionFromLiteral(node))
+				e.addAction(node)
 			case "Transition":
 				e.addTransition(e.transitionFromLiteral(node))
+			}
+		case *ast.ArrayType:
+			// Inline catalogs like []action.ActionContract{ {Name: ...}, ... }
+			// declare each element with an elided type (CompositeLit.Type == nil),
+			// so the elements are not caught by the SelectorExpr case above.
+			if sel, ok := t.Elt.(*ast.SelectorExpr); ok && sel.Sel.Name == "ActionContract" {
+				for _, el := range node.Elts {
+					if cl, ok := el.(*ast.CompositeLit); ok {
+						e.addAction(cl)
+					}
+				}
 			}
 		}
 	case *ast.CallExpr:
@@ -161,6 +173,22 @@ func (e *extractor) visit(n ast.Node) bool {
 		}
 	}
 	return true
+}
+
+// addAction records a contract from an ActionContract literal, skipping
+// zero-value literals (no Name) such as the `return action.ActionContract{}`
+// found in lookup helpers, and de-duplicating by name.
+func (e *extractor) addAction(lit *ast.CompositeLit) {
+	a := e.actionFromLiteral(lit)
+	if a.Name == "" {
+		return
+	}
+	for _, existing := range e.facts.Actions {
+		if existing.Name == a.Name {
+			return
+		}
+	}
+	e.facts.Actions = append(e.facts.Actions, a)
 }
 
 func (e *extractor) handleCall(xName, name string, args []ast.Expr) {

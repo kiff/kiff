@@ -312,3 +312,107 @@ func TestVerifyFacts_InvalidContractFields(t *testing.T) {
 		t.Fatalf("expected missing_risk and missing_approval, got: %+v", r.Findings)
 	}
 }
+
+// inlineSliceCatalogDomain declares its contracts inline in a
+// []action.ActionContract{ {...}, {...} } literal (elided element types), and
+// uses a zero-value action.ActionContract{} return in a lookup helper — the
+// exact shape examples/mission uses, which must not produce false positives.
+const inlineSliceCatalogDomain = `package domain
+
+import (
+	"context"
+
+	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/domain"
+)
+
+const (
+	EventSubmitted = "SUBMITTED_EVT"
+	EventActivated = "ACTIVATED_EVT"
+
+	StateSubmitted = "SUBMITTED"
+	StateActive    = "ACTIVE"
+
+	ActionActivate = "ACTIVATE"
+)
+
+func Contracts() []action.ActionContract {
+	return []action.ActionContract{
+		{
+			Name:                ActionActivate,
+			AllowedStates:       []string{StateSubmitted},
+			Risk:                action.RiskLow,
+			ApprovalRequirement: action.ApprovalNever,
+			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+				return action.ActionResult{ActionName: ActionActivate, EntityID: ctx.EntityID, Executed: true}, nil
+			},
+		},
+	}
+}
+
+func lookup(name string) action.ActionContract {
+	// A helper that returns a zero-value contract; must NOT register as an action.
+	return action.ActionContract{}
+}
+
+func NewDefinition() (domain.Definition, error) {
+	b := domain.New("inline")
+	b = b.Event(EventSubmitted)
+	b = b.Event(EventActivated)
+	b = b.Transition(EventSubmitted, "", StateSubmitted)
+	b = b.Transition(EventActivated, StateSubmitted, StateActive)
+	b = b.Allow(StateSubmitted, ActionActivate)
+	for _, c := range Contracts() {
+		b = b.Action(c)
+	}
+	return b.Build()
+}
+`
+
+func TestVerify_InlineSliceCatalog(t *testing.T) {
+	dir := writeDomainFile(t, inlineSliceCatalogDomain)
+	r, err := verifyDir(dir)
+	if err != nil {
+		t.Fatalf("verifyDir: %v", err)
+	}
+	if !r.OK {
+		t.Fatalf("expected OK for inline-slice catalog, got findings: %+v", r.Findings)
+	}
+	// Exactly one action; the zero-value helper return must not register.
+	facts, err := parseDomainPackage(dir)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(facts.Actions) != 1 || facts.Actions[0].Name != "ACTIVATE" {
+		t.Fatalf("expected exactly one ACTIVATE action, got %+v", facts.Actions)
+	}
+}
+
+func TestVerify_ResolvesInternalDomain(t *testing.T) {
+	root := t.TempDir()
+	pkgDir := filepath.Join(root, "internal", "domain")
+	if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(pkgDir, "domain.go"), []byte(completeDomain), 0o644); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := resolveDomainDir(root)
+	if err != nil {
+		t.Fatalf("resolveDomainDir: %v", err)
+	}
+	if got != pkgDir {
+		t.Fatalf("expected %s, got %s", pkgDir, got)
+	}
+}
+
+func TestVerify_NotADomain(t *testing.T) {
+	dir := writeDomainFile(t, "package thing\n\nfunc Hello() string { return \"hi\" }\n")
+	r, err := verifyDir(dir)
+	if err != nil {
+		t.Fatalf("verifyDir: %v", err)
+	}
+	if r.OK || !hasFinding(r, "not_a_domain") {
+		t.Fatalf("expected not_a_domain, got: %+v", r.Findings)
+	}
+}
