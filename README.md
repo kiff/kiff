@@ -146,6 +146,11 @@ generates a framework-faithful `domain/` package — state machine, action
 contracts with TODO executor stubs, and passing tests — optionally inside a
 full project shell. See [docs/scaffold-a-domain.md](./docs/scaffold-a-domain.md).
 
+`kiff verify` is the design-time check that a domain is done: it flags any
+action still bound to a scaffold stub, an inconsistent state machine, or an
+incomplete contract, and exits non-zero (with `-json` for CI). A scaffolded
+domain fails `kiff verify` until you implement the executors.
+
 While the framework is unpublished, scaffold against a local checkout:
 
 ```bash
@@ -243,7 +248,7 @@ For the tool-call bridge pattern, see [`examples/llm-bridge/`](./examples/llm-br
 
 ## Status
 
-KIFF is at v0.5. The core coordination loop is complete and tested. The trust
+KIFF is at v0.6. The core coordination loop is complete and tested. The trust
 boundary is enforced at the framework level: approvals cannot be self-granted,
 executors must be explicit, every validation and execution is audited.
 
