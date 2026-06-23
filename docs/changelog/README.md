@@ -28,3 +28,4 @@ If you are adopting KIFF for the first time, you do not need to read these. Star
 - [Brick 21](./brick-21.md) — Breadth demo: support-ops + kiff timeline
 - [Brick 22](./brick-22.md) — Agentic-ops template
 - [Brick 23](./brick-23.md) — Runtime metrics recorder
+- [Brick 24](./brick-24.md) — Scaffold a domain from a descriptor
