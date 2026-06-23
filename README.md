@@ -141,6 +141,11 @@ See [docs/conventions.md](./docs/conventions.md) for the normal way to lay thing
 out and [docs/build-a-domain.md](./docs/build-a-domain.md) for the authoring
 walkthrough.
 
+`kiff scaffold` goes the other way: give it a JSON domain descriptor and it
+generates a framework-faithful `domain/` package — state machine, action
+contracts with TODO executor stubs, and passing tests — optionally inside a
+full project shell. See [docs/scaffold-a-domain.md](./docs/scaffold-a-domain.md).
+
 While the framework is unpublished, scaffold against a local checkout:
 
 ```bash
@@ -238,7 +243,7 @@ For the tool-call bridge pattern, see [`examples/llm-bridge/`](./examples/llm-br
 
 ## Status
 
-KIFF is at v0.4. The core coordination loop is complete and tested. The trust
+KIFF is at v0.5. The core coordination loop is complete and tested. The trust
 boundary is enforced at the framework level: approvals cannot be self-granted,
 executors must be explicit, every validation and execution is audited.
 
