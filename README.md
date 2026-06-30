@@ -8,7 +8,7 @@
 
 **Let your agents act on consequential work, and stay in control of what they can do. Written in Go.**
 
-KIFF is a Go framework for backends where agents take real actions. Govern the action, not the actor. It makes two guarantees load-bearing:
+KIFF is a Go framework for backends where agents and automation take real actions. Govern the action, not the actor. It makes two guarantees load-bearing:
 decisions use an entity's event-derived current state, and external callers cannot
 compile a path that grants their own runtime approval.
 
