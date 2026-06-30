@@ -6,9 +6,9 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**Govern the action, not the actor. Written in Go.**
+**Let your agents act on consequential work, and stay in control of what they can do. Written in Go.**
 
-KIFF is a Go framework for governed backends. It makes two guarantees load-bearing:
+KIFF is a Go framework for backends where agents and automation take real actions. Govern the action, not the actor. It makes two guarantees load-bearing:
 decisions use an entity's event-derived current state, and external callers cannot
 compile a path that grants their own runtime approval.
 
@@ -66,7 +66,7 @@ Agents propose. The runtime validates state, permissions, parameters, and
 approval rules. Right proposals execute with a trail. Wrong ones are refused
 with a reason. Six primitives. That is the whole protocol.
 
-## See it refuse a real action
+## See it decide a real action
 
 No installation needed: watch the committed 24-second terminal recording.
 
