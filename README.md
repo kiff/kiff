@@ -172,6 +172,20 @@ domain is defined in Go and runs as a service; the application that calls it
 stays in its own stack. See [docs/governing-over-http.md](./docs/governing-over-http.md)
 for copy-paste TypeScript and Python.
 
+### Connecting an existing agent
+
+Use this repo when you want the domain/runtime kernel: events, state,
+action contracts, permissions, approvals, execution, and audit. If you already
+have an agent and want to connect its tool calls to KIFF, start with
+[`kiff-guard`](https://github.com/kiff/kiff-guard).
+
+`kiff-guard` is the adapter layer. It attaches to frameworks such as Agno,
+LangGraph/LangChain, OpenAI Agents SDK, Google ADK, Pydantic AI, Strands,
+Haystack, Microsoft Agent Framework, LlamaIndex, and OpenClaw, or to a plain
+HTTP client when no framework is involved. In observe mode it learns the agent's
+real action traffic and derives starter KIFF domain material; in enforce mode it
+asks the KIFF runtime for a decision before the tool runs.
+
 ## What a domain looks like
 
 Your domain owns vocabulary. KIFF owns coordination. A complete domain definition
