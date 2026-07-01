@@ -6,30 +6,38 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**Let your agents act on consequential work, and stay in control of what they can do. Written in Go.**
+**A Go framework for making risky agent actions shippable.**
 
-KIFF is a Go framework for backends where agents and automation take real actions. Govern the action, not the actor. It makes two guarantees load-bearing:
-decisions use an entity's event-derived current state, and external callers cannot
-compile a path that grants their own runtime approval.
+KIFF is for backends where agents need to do real work: issue refunds, mark
+invoices paid, trigger payouts, change records. The agent proposes the action;
+KIFF checks the entity's current state and your domain contract before your
+executor runs.
 
-## State-aware decisions prevent duplicate effects
+If the action is allowed, it executes. If the entity is in the wrong state, the
+actor lacks permission, or a human approval is missing, KIFF returns a typed
+reason and leaves production untouched. The point is not to watch agents after
+the fact. It is to make the action safe enough to ship.
 
-An invoice is `PENDING`. A payment action succeeds, emits `PAYMENT_CAPTURED`, and
-the event moves the invoice to `PAID`. Then a flaky connection retries the exact
-same request.
+## The boundary that lets the action run
 
-KIFF derives the entity's current state by applying its events. The retry is
-therefore decided against `PAID`, not the stale `PENDING` snapshot that motivated
-the first call. Because the payment action is only valid from `PENDING`, KIFF
-refuses the retry before its executor runs.
+Start with the useful path. An order is `CREATED`. An ops agent proposes
+`MARK_PAID` with a payment id. KIFF validates the action against the current
+state, required parameters, and permissions, then runs the executor. The executor
+emits `ORDER_PAID`, and the order becomes `PAID`.
 
 ```text
-PAYMENT_REQUESTED → PENDING → payment executes → PAYMENT_CAPTURED → PAID
-                                                               ↳ retry refused
+ORDER_PLACED → CREATED → MARK_PAID executes → ORDER_PAID → PAID
 ```
 
-That is the first guarantee: state comes before action. Stored events can rebuild
-the same current state later, so the decision and its evidence remain explainable.
+That is the line KIFF is trying to make shippable: the agent did the work. The
+same boundary handles the dangerous cases. If a flaky connection retries a
+payment after the entity is already `PAID`, or an agent asks for a high-risk
+refund without approval, KIFF decides against the new current state and returns a
+reason before the executor runs.
+
+Two guarantees are load-bearing: decisions use the entity's event-derived
+current state, and external callers cannot compile a path that grants their own
+runtime approval.
 
 ## Compile-time self-approval boundary
 
@@ -45,26 +53,25 @@ against external-module fixtures. It asserts that both
 access-control reason.
 
 This guarantee applies when consequential calls route through the KIFF runtime.
-KIFF does not claim to govern a side effect reached through a path that bypasses
+KIFF does not claim to control a side effect reached through a path that bypasses
 the runtime entirely.
 
-## Deciding beats watching
+## Below the model, before the side effect
 
-The common answer to agent risk is observability: traces, spans, dashboards.
-But visibility into a completed action is not control over it. By the time a
-trace shows the duplicate payment, the money is out. By the time a dashboard
-flags the over-refund, the ceiling is breached.
+KIFF is not a chatbot framework, prompt builder, model SDK, or workflow engine.
+The conversation layer stays yours. The model can use OpenAI tool calls,
+Anthropic tool use, LangChain, Agno, a cron job, or a plain HTTP client.
 
-KIFF sits on the one boundary that matters — between the proposal and the
-consequential action — and refuses what the state forbids.
+KIFF starts at the moment a tool call is about to become a side effect:
 
 ```text
-event → state → decision → action → approval → audit
+event → state → decision → action → result → audit
 ```
 
-Agents propose. The runtime validates state, permissions, parameters, and
-approval rules. Right proposals execute with a trail. Wrong ones are refused
-with a reason. Six primitives. That is the whole protocol.
+Agents propose. The runtime validates state, parameters, permissions, and
+approval rules. Allowed proposals execute through explicit executor functions.
+Everything else returns a stable reason: `approval_required`,
+`permission_denied`, `state_not_allowed`, `missing_parameter`, or `blocked`.
 
 ## See it decide a real action
 
@@ -85,8 +92,8 @@ go run ./cmd/kiff-tour
 
 Three minutes of terminal output:
 
-1. An order is placed and paid. Smooth flow.
-2. An agent tries to issue a $999 refund without approval. **KIFF refuses it.**
+1. An order is placed and the agent marks it paid. The action executes.
+2. The same agent tries a $999 refund without approval. KIFF holds it.
 3. A human grants approval. The same call now executes.
 4. Replay rebuilds the entity from events alone. Every fact reconstructs.
 
@@ -106,11 +113,12 @@ You are building a backend where:
 - some actions are risky enough that a human should sign off;
 - someone, eventually, asks "why did this happen?" and needs a real answer.
 
-Common fits: post-purchase operations, marketplace coordination, compliance
-workflows, internal operational tools, financial operations, mission-style systems
-where the next move is not fully known but still has to be recorded and bounded.
+Common fits: post-purchase operations, marketplace coordination, internal
+operational tools, financial operations, payouts, refunds, recovery, fulfillment,
+and mission-style systems where the next move is not fully known but still has
+to stay inside exact limits.
 
-If your application is simple CRUD or direct LLM tool calls with no governed
+If your application is simple CRUD or direct LLM tool calls with no consequential
 state, KIFF is too much structure. Use something smaller and ship.
 
 ## Where it stops
@@ -159,7 +167,7 @@ kiff new -replace-local /path/to/kiff github.com/acme/orders
 
 An external caller does not need to import Go. A proposal is a single
 HTTP POST, so an agent, webhook, or backend in any language — TypeScript,
-Python, Ruby — drives the same governed runtime without importing Go. The
+Python, Ruby — drives the same KIFF runtime without importing Go. The
 domain is defined in Go and runs as a service; the application that calls it
 stays in its own stack. See [docs/governing-over-http.md](./docs/governing-over-http.md)
 for copy-paste TypeScript and Python.
@@ -202,7 +210,7 @@ three states, two actions). For a more involved domain, see
 
 Start here:
 
-- [Why KIFF](./docs/why.md): the long-form argument for why agents need a governance layer, not better prompts.
+- [Why KIFF](./docs/why.md): the long-form argument for why risky agent actions need a boundary outside the prompt.
 - [Philosophy](./docs/philosophy.md): what KIFF chooses to be, and what it chooses not to be.
 - [Comparisons](./docs/comparisons.md): honest positioning beside adjacent architectural categories.
 
@@ -248,9 +256,9 @@ For the tool-call bridge pattern, see [`examples/llm-bridge/`](./examples/llm-br
 
 ## Status
 
-KIFF is at v0.6. The core coordination loop is complete and tested. The trust
+KIFF is at v0.6. The core action boundary is complete and tested. The trust
 boundary is enforced at the framework level: approvals cannot be self-granted,
-executors must be explicit, every validation and execution is audited.
+executors must be explicit, and every validation and execution is recorded.
 
 Production deployments should implement the store interfaces against a real
 backend. The file-backed JSONL stores are for demos and local development; the
