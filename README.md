@@ -26,7 +26,7 @@ state, required parameters, and permissions, then runs the executor. The executo
 emits `ORDER_PAID`, and the order becomes `PAID`.
 
 ```text
-ORDER_PLACED -> CREATED -> MARK_PAID executes -> ORDER_PAID -> PAID
+ORDER_PLACED → CREATED → MARK_PAID executes → ORDER_PAID → PAID
 ```
 
 That is the line KIFF is trying to make shippable: the agent did the work. The
@@ -65,7 +65,7 @@ Anthropic tool use, LangChain, Agno, a cron job, or a plain HTTP client.
 KIFF starts at the moment a tool call is about to become a side effect:
 
 ```text
-event -> state -> decision -> action -> result
+event → state → decision → action → result → audit
 ```
 
 Agents propose. The runtime validates state, parameters, permissions, and
