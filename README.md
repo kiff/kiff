@@ -65,7 +65,14 @@ kiff new -scenario refund github.com/acme/refunds
 While the framework is unpublished, scaffold against a local checkout with
 `kiff new -replace-local /path/to/kiff github.com/acme/orders`.
 
-## What the scaffold gives you
+Two more CLI paths: `kiff scaffold` generates a `domain/` package from a JSON
+descriptor, and `kiff verify` checks a domain is complete — no stub executors,
+a consistent state machine, complete contracts — before it ships. See
+[scaffold from a descriptor](./docs/scaffold-a-domain.md).
+
+## What the refund scenario gives you
+
+The `-scenario refund` project above is wired with:
 
 - a typed action contract per risky action (allowed states, params, permissions, risk, approval)
 - a headless HTTP API for agent tools, plus the KIFF governance API
@@ -90,6 +97,25 @@ untouched. Callers cannot self-grant approval — that boundary is enforced at
 compile time.
 
 Read the full model in [the governed action boundary](./docs/governed-action-boundary.md).
+
+A domain is a small Go definition — a state machine plus action contracts:
+
+```go
+def, _ := domain.New("refund").
+    Entity("Order").
+    Transition("ORDER_PAID", "CREATED", "PAID").
+    Transition("ORDER_REFUNDED", "PAID", "REFUNDED").
+    Allow("PAID", "REFUND_ORDER").
+    Action(RefundOrderContract()). // high-risk, approval required
+    Build()
+
+rt, _ := runtime.NewForDomain(def, runtime.Config{PermissionPolicy: refund.NewPermissionPolicy()})
+```
+
+Each contract declares its allowed states, required parameters and permissions,
+risk, approval requirement, and executor. The shortest worked example is
+[examples/refund](./examples/refund/); [build a domain](./docs/build-a-domain.md)
+is the full walkthrough.
 
 ## Where to go next
 
