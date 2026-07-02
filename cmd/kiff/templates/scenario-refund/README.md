@@ -48,27 +48,45 @@ The domain lives in [`domain/domain.go`](./domain/domain.go); its executors are 
 └── go.mod
 ```
 
-## Connecting your own agent (custom-http)
+## The app API (what an agent calls)
 
-The agent-facing tool is a single HTTP call. Anything that speaks HTTP — any
-language, any framework — drives it:
+The generated project exposes a **headless app API** under `/api` — the surface
+an agent (or any HTTP client) calls to operate the app. It is distinct from the
+KIFF governance API (mounted at `/`): every `/api/tools/{tool}` call is
+validated and executed by the KIFF runtime, and the business side effect runs
+only after the runtime allows the action. The agent never touches the side
+effect directly.
+
+```
+POST /api/tools/{tool}              invoke a governed action (mark_paid, refund_order)
+GET  /api/actions                   list the governed actions
+GET  /api/tools/manifest.json       compact tool manifest (for agent tool runners)
+GET  /api/openapi.json              OpenAPI 3 doc (for generic HTTP clients)
+GET  /api/entities/{id}             current state
+GET  /api/entities/{id}/timeline    audit timeline
+POST /api/approvals/{id}/grant|deny review an approval
+```
+
+The routes, manifest, and OpenAPI document are all generated from the runtime's
+action catalog, so they never drift from the domain.
 
 ```bash
-curl -s -X POST http://localhost:8080/demo/agent/refund \
+curl -s -X POST http://localhost:8080/api/tools/refund_order \
   -H 'content-type: application/json' \
-  -d '{"order_id":"order-2","amount_cents":99900,"reason":"customer eligible"}'
+  -d '{"entity_id":"order-2","parameters":{"amount_cents":99900,"reason":"customer eligible"}}'
 ```
 
 The response is a typed decision envelope your agent can switch on:
 
 ```json
-{ "outcome": "approval_required", "action": "REFUND_ORDER", "order_id": "order-2",
-  "next_step": "request_approval", "approval_id": "approval-order-2-1" }
+{ "outcome": "approval_required", "action": "REFUND_ORDER", "tool": "refund_order",
+  "entity_id": "order-2", "next_step": "request_approval", "approval_id": "appr-order-2-1" }
 ```
 
 Possible `outcome` values: `allowed`, `approval_required`, `blocked`, `invalid`.
-The agent never calls the business side effect directly — it asks KIFF, and only
-a runtime-allowed action reaches the ledger.
+By convention this app API maps `approval_required` and `blocked` to `409`,
+`invalid` to `400`, and `allowed` to `200`; the `outcome` field is the source
+of truth.
 
 ## Verify it
 

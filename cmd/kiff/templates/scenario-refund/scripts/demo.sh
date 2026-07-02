@@ -43,18 +43,22 @@ echo "ledger now has TWO refunds for order-1 — the money went out twice:"
 get /demo/ledger
 
 echo
-echo "== 2) GUARDED refund of order-2 THROUGH KIFF =="
+echo "== 2) GUARDED refund of order-2 through the app API (POST /api/tools/refund_order) =="
 echo "-- high-risk: KIFF holds it for approval --"
-post /demo/agent/refund '{"order_id":"order-2","amount_cents":99900,"reason":"customer eligible","approval_id":"appr-demo-2"}'
+post /api/tools/refund_order '{"entity_id":"order-2","approval_id":"appr-demo-2","parameters":{"amount_cents":99900,"reason":"customer eligible"}}'
 echo "-- an operator grants the approval --"
-post /approvals/appr-demo-2/grant '{"actor":{"id":"ops-operator","type":"human","roles":["ops_operator"]},"reason":"verified"}'
+post /api/approvals/appr-demo-2/grant '{}'
 echo "-- same call now executes; the side effect runs --"
-post /demo/agent/refund '{"order_id":"order-2","amount_cents":99900,"reason":"customer eligible","approval_id":"appr-demo-2"}'
+post /api/tools/refund_order '{"entity_id":"order-2","approval_id":"appr-demo-2","parameters":{"amount_cents":99900,"reason":"customer eligible"}}'
 echo "-- repeat is REFUSED: the order already moved to REFUNDED --"
-post /demo/agent/refund '{"order_id":"order-2","amount_cents":99900,"reason":"double refund attempt"}'
+post /api/tools/refund_order '{"entity_id":"order-2","parameters":{"amount_cents":99900,"reason":"double refund attempt"}}'
 
 echo
-echo "== 3) replay proves order-2's state from events alone =="
+echo "== 3) the app's tool manifest, generated from the domain =="
+get /api/tools/manifest.json
+
+echo
+echo "== 4) replay proves order-2's state from events alone =="
 get '/demo/rebuild?entity=order-2'
 
 echo
