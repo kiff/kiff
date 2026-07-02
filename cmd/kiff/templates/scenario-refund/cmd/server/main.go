@@ -158,7 +158,10 @@ func seedOrders(ctx context.Context, rt *runtime.Runtime) error {
 	for _, s := range seededOrders {
 		if _, err := rt.RebuildState(ctx, s.id); err == nil {
 			continue // restored from persisted events
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return fmt.Errorf("restore %s: %w", s.id, err)
 		}
+		// No events yet: seed a fresh order.
 		if _, err := rt.IngestRaw(ctx, adapter.RawInput{
 			ID:         "seed-" + s.id,
 			Adapter:    domain.AdapterRefund,

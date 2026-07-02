@@ -117,6 +117,8 @@ restart test in `cmd/server`.
 
 Scaffold with `-store postgres` to get local-dev wiring (`docker-compose.yml`,
 `.env.example`). Credentials come from the environment — nothing is hard-coded.
+The values in `.env.example` (and `sslmode=disable`) are **dev-only**; use real
+secrets and TLS in production.
 
 ```bash
 cp .env.example .env
