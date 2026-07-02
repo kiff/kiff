@@ -10,6 +10,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/actor"
 	"github.com/kiff/kiff/pkg/kiff/adapter"
 	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/permission"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 	"github.com/kiff/kiff/pkg/kiff/store"
@@ -146,12 +147,13 @@ func (h *Handler) handleValidateAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.Runtime.ValidateAction(r.Context(), actionCtx, contract); err != nil {
-		writeRuntimeError(w, err)
+		writeActionOutcome(w, err, actionCtx)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"valid":  true,
-		"action": contract.Name,
+		"valid":   true,
+		"outcome": outcome.Allowed,
+		"action":  contract.Name,
 	})
 }
 
@@ -162,11 +164,12 @@ func (h *Handler) handleExecuteAction(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.Runtime.ExecuteAction(r.Context(), actionCtx, contract)
 	if err != nil {
-		writeRuntimeError(w, err)
+		writeActionOutcome(w, err, actionCtx)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"result": result,
+		"outcome": outcome.Allowed,
+		"result":  result,
 	})
 }
 
@@ -368,6 +371,70 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]any{
 		"error": message,
 	})
+}
+
+// actionErrorStatus maps an action decision error to its HTTP status, matching
+// the status codes writeRuntimeError uses so the envelope path is consistent.
+func actionErrorStatus(err error) int {
+	switch {
+	case errors.Is(err, action.ErrPermissionDenied):
+		return http.StatusForbidden
+	case errors.Is(err, action.ErrApprovalRequired):
+		return http.StatusConflict
+	case errors.Is(err, action.ErrStateNotAllowed):
+		return http.StatusBadRequest
+	case errors.Is(err, action.ErrMissingParameter):
+		return http.StatusBadRequest
+	case errors.Is(err, action.ErrExecutorMissing):
+		return http.StatusUnprocessableEntity
+	case errors.Is(err, action.ErrInvalidContract):
+		return http.StatusUnprocessableEntity
+	default:
+		return http.StatusBadRequest
+	}
+}
+
+// isActionOutcome reports whether err is an action decision that maps to the
+// typed outcome envelope (as opposed to a store/adapter/approval error).
+func isActionOutcome(err error) bool {
+	return errors.Is(err, action.ErrApprovalRequired) ||
+		errors.Is(err, action.ErrPermissionDenied) ||
+		errors.Is(err, action.ErrStateNotAllowed) ||
+		errors.Is(err, action.ErrMissingParameter) ||
+		errors.Is(err, action.ErrExecutorMissing) ||
+		errors.Is(err, action.ErrInvalidContract)
+}
+
+// writeActionOutcome writes a normalized decision envelope for an action error.
+// Non-action errors (store, adapter, approval) fall back to the plain error
+// path so their status codes and semantics are unchanged.
+func writeActionOutcome(w http.ResponseWriter, err error, actionCtx action.ActionContext) {
+	if !isActionOutcome(err) {
+		writeRuntimeError(w, err)
+		return
+	}
+	d := outcome.FromError(err, actionCtx.ActionName, actionCtx.EntityID, actionCtx.CurrentState)
+	writeJSON(w, actionErrorStatus(err), actionOutcomeResponse{
+		Outcome:      d.Outcome,
+		Reason:       d.Reason,
+		Action:       d.Action,
+		EntityID:     d.EntityID,
+		CurrentState: d.CurrentState,
+		NextStep:     d.NextStep,
+		Error:        d.Message,
+	})
+}
+
+// actionOutcomeResponse is the JSON body for an action decision. It carries the
+// typed outcome envelope plus a backward-compatible `error` field.
+type actionOutcomeResponse struct {
+	Outcome      outcome.Outcome `json:"outcome"`
+	Reason       outcome.Reason  `json:"reason,omitempty"`
+	Action       string          `json:"action,omitempty"`
+	EntityID     string          `json:"entity_id,omitempty"`
+	CurrentState string          `json:"current_state,omitempty"`
+	NextStep     string          `json:"next_step,omitempty"`
+	Error        string          `json:"error,omitempty"`
 }
 
 func writeJSON(w http.ResponseWriter, status int, body any) {

@@ -351,3 +351,108 @@ func mustJSON(t *testing.T, value any) []byte {
 	}
 	return data
 }
+
+// decodeOutcome pulls the decision-envelope fields out of a response body.
+type outcomeBody struct {
+	Outcome  string `json:"outcome"`
+	Reason   string `json:"reason"`
+	Action   string `json:"action"`
+	NextStep string `json:"next_step"`
+	Error    string `json:"error"`
+	Valid    bool   `json:"valid"`
+}
+
+func decodeOutcome(t *testing.T, body []byte) outcomeBody {
+	t.Helper()
+	var o outcomeBody
+	if err := json.Unmarshal(body, &o); err != nil {
+		t.Fatalf("decode outcome body: %v (%s)", err, body)
+	}
+	return o
+}
+
+func TestHandlerExecuteEmitsAllowedOutcome(t *testing.T) {
+	handler := newMissionHandler(t)
+	ingestMissionSubmitted(t, handler)
+	body := mustJSON(t, actionRequest{Actor: mission.AgentActor})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/CREATE_ATTEMPT/execute", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if o := decodeOutcome(t, recorder.Body.Bytes()); o.Outcome != "allowed" {
+		t.Fatalf("expected outcome=allowed, got %q (%s)", o.Outcome, recorder.Body.String())
+	}
+}
+
+func TestHandlerValidateEmitsAllowedOutcome(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareActiveAttempt(t, handler)
+	body := mustJSON(t, actionRequest{
+		Actor:      mission.AgentActor,
+		Parameters: map[string]any{"move": "draft the first bounded move"},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/PROPOSE_MOVE/validate", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	o := decodeOutcome(t, recorder.Body.Bytes())
+	if !o.Valid || o.Outcome != "allowed" {
+		t.Fatalf("expected valid+allowed, got %+v (%s)", o, recorder.Body.String())
+	}
+}
+
+func TestHandlerApprovalRequiredEmitsEnvelope(t *testing.T) {
+	handler := newMissionHandler(t)
+	prepareWaitingApprovalAttempt(t, handler)
+	body := mustJSON(t, actionRequest{
+		Actor:      mission.AgentActor,
+		Parameters: map[string]any{"move": "draft the first bounded move"},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/EXECUTE_MOVE/execute", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	o := decodeOutcome(t, recorder.Body.Bytes())
+	if o.Outcome != "approval_required" || o.Reason != "approval_required" {
+		t.Fatalf("expected approval_required outcome+reason, got %+v", o)
+	}
+	if o.NextStep != "request_approval" {
+		t.Fatalf("expected next_step=request_approval, got %q", o.NextStep)
+	}
+	if o.Action != mission.ActionExecuteMove {
+		t.Fatalf("expected action=%s, got %q", mission.ActionExecuteMove, o.Action)
+	}
+	if o.Error == "" {
+		t.Fatalf("expected backward-compatible error field to be populated")
+	}
+}
+
+func TestHandlerWrongStateEmitsBlockedEnvelope(t *testing.T) {
+	handler := newMissionHandler(t)
+	ingestMissionSubmitted(t, handler) // state SUBMITTED; PROPOSE_MOVE needs ACTIVE
+	body := mustJSON(t, actionRequest{
+		Actor:      mission.AgentActor,
+		Parameters: map[string]any{"move": "premature move"},
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/entities/attempt-1/actions/PROPOSE_MOVE/validate", bytes.NewReader(body))
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	o := decodeOutcome(t, recorder.Body.Bytes())
+	if o.Outcome != "blocked" || o.Reason != "state_not_allowed" {
+		t.Fatalf("expected blocked/state_not_allowed, got %+v", o)
+	}
+}
