@@ -1,18 +1,19 @@
 // Command server hosts the refund scenario over HTTP.
 //
-// The KIFF httpapi handler is the governance surface (mounted at /). Around it
-// sit a few demo routes that make the enablement story runnable with curl:
+// Two surfaces sit on one KIFF runtime:
+//
+//   - The KIFF governance API (mounted at / by httpapi) — the runtime surface:
+//     /events/raw, /entities/{id}/actions/..., /approvals/..., timeline.
+//   - The app's own headless API (/api/...) — what an agent calls to operate
+//     the app. Every /api/tools/{tool} call is validated and executed by the
+//     runtime before any side effect. See api.go.
+//
+// A couple of /demo routes make the enablement story runnable with curl:
 //
 //	GET  /demo/orders                 list seeded orders and their state
-//	POST /demo/agent/refund           refund THROUGH KIFF (the governed path)
 //	POST /demo/unguarded/refund       refund with NO governance (the danger)
 //	GET  /demo/ledger                 the mock business side effects recorded
 //	GET  /demo/rebuild?entity=<id>    replay: materialized vs event-derived state
-//
-// The agent-facing tool (`/demo/agent/refund`) never touches the business
-// side effect directly — it asks the KIFF runtime to decide, and only a
-// runtime-allowed action reaches the ledger. That is the boundary the demo
-// exists to show.
 package main
 
 import (
@@ -24,7 +25,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/kiff/kiff/cmd/kiff/templates/scenario-refund/domain"
@@ -70,8 +70,10 @@ func main() {
 		}
 	}
 	fmt.Printf("refund scenario listening on %s\n", localURL(listener.Addr().String()))
-	fmt.Println("routes: /demo/orders, /demo/agent/refund, /demo/unguarded/refund, /demo/ledger, /demo/rebuild")
-	fmt.Println("NOTE: the demo API is unauthenticated. Add auth before exposing it beyond localhost.")
+	fmt.Println("app API:        POST /api/tools/{tool}, GET /api/actions, /api/openapi.json, /api/tools/manifest.json")
+	fmt.Println("                GET  /api/entities/{id}[/timeline], POST /api/approvals/{id}/grant|deny")
+	fmt.Println("demo/contrast:  POST /demo/unguarded/refund, GET /demo/orders|/demo/ledger|/demo/rebuild")
+	fmt.Println("NOTE: these APIs are unauthenticated. Add auth before exposing beyond localhost.")
 
 	server := &http.Server{Handler: buildMux(rt), ReadHeaderTimeout: 5 * time.Second}
 	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -99,10 +101,18 @@ func buildRuntime(dataDir string) (*runtime.Runtime, func(), error) {
 }
 
 func buildMux(rt *runtime.Runtime) http.Handler {
-	d := &demoHandler{rt: rt, ledger: &ledger{}}
+	return buildMuxWithLedger(rt, &ledger{})
+}
+
+// buildMuxWithLedger wires the mux against a caller-provided ledger so tests
+// can inspect the recorded side effects.
+func buildMuxWithLedger(rt *runtime.Runtime, l *ledger) http.Handler {
+	api := newAPIHandler(rt, l)
+	d := &demoHandler{rt: rt, ledger: l}
+
 	mux := http.NewServeMux()
+	api.register(mux)
 	mux.HandleFunc("/demo/orders", d.handleListOrders)
-	mux.HandleFunc("/demo/agent/refund", d.handleGuardedRefund)
 	mux.HandleFunc("/demo/unguarded/refund", d.handleUnguardedRefund)
 	mux.HandleFunc("/demo/ledger", d.handleLedger)
 	mux.HandleFunc("/demo/rebuild", d.handleRebuild)
@@ -149,27 +159,17 @@ func seedOrders(ctx context.Context, rt *runtime.Runtime) error {
 	return nil
 }
 
+// demoHandler carries the /demo/* contrast routes: seeded-order listing, the
+// unguarded anti-pattern, the ledger, and replay.
 type demoHandler struct {
 	rt     *runtime.Runtime
 	ledger *ledger
-
-	mu  sync.Mutex
-	seq int
-}
-
-func (h *demoHandler) nextApprovalID(orderID string) string {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.seq++
-	return fmt.Sprintf("approval-%s-%d", orderID, h.seq)
 }
 
 type refundRequest struct {
 	OrderID     string `json:"order_id"`
 	AmountCents int64  `json:"amount_cents"`
 	Reason      string `json:"reason"`
-	ApprovalID  string `json:"approval_id,omitempty"`
-	Reasoning   string `json:"reasoning,omitempty"`
 }
 
 func (h *demoHandler) handleListOrders(w http.ResponseWriter, r *http.Request) {
@@ -194,67 +194,22 @@ func (h *demoHandler) handleListOrders(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"orders": out})
 }
 
-// handleGuardedRefund routes the refund through KIFF. The ledger is written
-// only after the runtime allows the action.
-func (h *demoHandler) handleGuardedRefund(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeRefund(w, r)
-	if !ok {
-		return
-	}
-	current, ok, err := h.rt.States.Current(r.Context(), req.OrderID)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	if !ok {
-		writeError(w, http.StatusNotFound, "order not found")
-		return
-	}
-	contract, ok := h.rt.Actions.Get(domain.ActionRefundOrder)
-	if !ok {
-		writeError(w, http.StatusInternalServerError, "missing contract")
-		return
-	}
-	approvalID := req.ApprovalID
-	if approvalID == "" {
-		approvalID = h.nextApprovalID(req.OrderID)
-	}
-	actionCtx := action.ActionContext{
-		ActionName:   domain.ActionRefundOrder,
-		EntityID:     req.OrderID,
-		EntityType:   domain.EntityOrder,
-		CurrentState: current.Value,
-		Actor:        domain.AgentActor,
-		Parameters:   map[string]any{"amount_cents": req.AmountCents, "reason": req.Reason},
-		ApprovalID:   approvalID,
-	}
-
-	res, err := h.rt.ExecuteAction(r.Context(), actionCtx, contract)
-	if err != nil {
-		d := outcome.FromError(err, domain.ActionRefundOrder, req.OrderID, current.Value)
-		// If approval is required, open the request so an operator can grant it.
-		if d.Outcome == outcome.ApprovalRequired {
-			_, _ = h.rt.RequestApproval(r.Context(), approvalID, actionCtx, contract, req.Reasoning)
-		}
-		writeJSON(w, statusForOutcome(d.Outcome), refundResponse(d, approvalID, nil))
-		return
-	}
-	// Allowed: the side effect runs now, and only now.
-	h.ledger.record(refundRecord{OrderID: req.OrderID, AmountCents: req.AmountCents, Reason: req.Reason, Guarded: true})
-	postState := current.Value
-	if cur, ok, err := h.rt.States.Current(r.Context(), req.OrderID); err == nil && ok {
-		postState = cur.Value
-	}
-	d := outcome.Succeeded(domain.ActionRefundOrder, req.OrderID, postState)
-	writeJSON(w, http.StatusOK, refundResponse(d, approvalID, &res))
-}
-
 // handleUnguardedRefund is the anti-pattern: it performs the business side
 // effect directly, with no state check, permission, or approval. Call it twice
-// and the same order gets refunded twice. This is what KIFF prevents.
+// and the same order gets refunded twice. This is what the /api path prevents.
 func (h *demoHandler) handleUnguardedRefund(w http.ResponseWriter, r *http.Request) {
-	req, ok := decodeRefund(w, r)
-	if !ok {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, "POST only")
+		return
+	}
+	defer r.Body.Close()
+	var req refundRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid json: "+err.Error())
+		return
+	}
+	if req.OrderID == "" || req.AmountCents <= 0 || req.Reason == "" {
+		writeError(w, http.StatusBadRequest, "order_id, amount_cents, reason are required")
 		return
 	}
 	h.ledger.record(refundRecord{OrderID: req.OrderID, AmountCents: req.AmountCents, Reason: req.Reason, Guarded: false})
@@ -298,57 +253,15 @@ func (h *demoHandler) handleRebuild(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func decodeRefund(w http.ResponseWriter, r *http.Request) (refundRequest, bool) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "POST only")
-		return refundRequest{}, false
-	}
-	defer r.Body.Close()
-	var req refundRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid json: "+err.Error())
-		return refundRequest{}, false
-	}
-	if req.OrderID == "" || req.AmountCents <= 0 || req.Reason == "" {
-		writeError(w, http.StatusBadRequest, "order_id, amount_cents, reason are required")
-		return refundRequest{}, false
-	}
-	return req, true
-}
-
-func refundResponse(d outcome.Decision, approvalID string, res *action.ActionResult) map[string]any {
-	body := map[string]any{
-		"outcome":   d.Outcome,
-		"action":    d.Action,
-		"order_id":  d.EntityID,
-		"state":     d.CurrentState,
-		"next_step": d.NextStep,
-	}
-	if d.Reason != "" {
-		body["reason"] = d.Reason
-	}
-	if d.Message != "" {
-		body["error"] = d.Message
-	}
-	if d.Outcome == outcome.ApprovalRequired {
-		body["approval_id"] = approvalID
-	}
-	if res != nil {
-		body["result"] = res
-	}
-	return body
-}
-
-// statusForOutcome maps a decision outcome to an HTTP status for this demo's
-// app-facing API. Note this app layer maps approval_required to 202 Accepted
-// (the refund is pending a human), which deliberately differs from the core
-// governance httpapi, where it is 409 Conflict. The canonical app-API
-// convention is settled in the formal headless app API (#41).
+// statusForOutcome maps a decision outcome to an HTTP status for the app API.
+// Convention (canonical for the generated app API): approval_required and
+// blocked both map to 409 Conflict — the action cannot proceed against the
+// current state — matching the core KIFF httpapi. invalid maps to 400. The
+// typed `outcome` field in the body is the source of truth; the status is a
+// hint for generic HTTP clients.
 func statusForOutcome(o outcome.Outcome) int {
 	switch o {
-	case outcome.ApprovalRequired:
-		return http.StatusAccepted
-	case outcome.Blocked:
+	case outcome.ApprovalRequired, outcome.Blocked:
 		return http.StatusConflict
 	case outcome.Invalid:
 		return http.StatusBadRequest
