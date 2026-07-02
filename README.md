@@ -6,34 +6,36 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**A Go framework for making risky agent actions shippable.**
+**Put an agent on consequential actions — and keep the money moving once.**
 
-KIFF is for backends where agents need to do real work: issue refunds, mark
-invoices paid, trigger payouts, change records. The agent proposes the action;
-KIFF checks the entity's current state and your domain contract before your
-executor runs.
+Give a support agent the refund button. The eligible refund runs. When the same
+call retries after the order is already `REFUNDED`, KIFF turns it into a no-op
+before money moves again. A high-risk refund waits for a human, then executes
+once approved — and every step replays.
 
-If the action is allowed, it executes. If the entity is in the wrong state, the
-actor lacks permission, or a human approval is missing, KIFF returns a typed
-reason and leaves production untouched. The point is not to watch agents after
-the fact. It is to make the action safe enough to ship.
+```text
+agent proposes → KIFF reads state → action runs or waits → result is replayable
+```
 
-## The boundary that lets the action run
+KIFF is a Go framework for backends where agents do real work — refunds, paid
+invoices, payouts, record changes. The agent proposes; KIFF checks the entity's
+event-derived state and your action contract before your executor runs. Allowed,
+it runs. Wrong state, missing permission, or approval needed: it returns a typed
+reason and leaves production untouched.
+
+## How the boundary works
 
 Start with the useful path. An order is `CREATED`. An ops agent proposes
-`MARK_PAID` with a payment id. KIFF validates the action against the current
-state, required parameters, and permissions, then runs the executor. The executor
-emits `ORDER_PAID`, and the order becomes `PAID`.
+`MARK_PAID`. KIFF validates state, parameters, and permissions, then runs the
+executor, which emits `ORDER_PAID` and moves the order to `PAID`.
 
 ```text
 ORDER_PLACED → CREATED → MARK_PAID executes → ORDER_PAID → PAID
 ```
 
-That is the line KIFF is trying to make shippable: the agent did the work. The
-same boundary handles the dangerous cases. If a flaky connection retries a
-payment after the entity is already `PAID`, or an agent asks for a high-risk
-refund without approval, KIFF decides against the new current state and returns a
-reason before the executor runs.
+The same boundary handles the dangerous cases: a retry after the order is
+already `PAID`, or a high-risk refund without approval, is decided against the
+current state and returns a reason before the executor runs.
 
 Two guarantees are load-bearing: decisions use the entity's event-derived
 current state, and external callers cannot compile a path that grants their own
@@ -77,7 +79,7 @@ Everything else returns a stable reason: `approval_required`,
 
 No installation needed: watch the committed 24-second terminal recording.
 
-![KIFF terminal tour showing an agent executing an action, a high-risk one held for approval, then executed, and the trail replayed](./docs/demo/kiff-tour.svg)
+![KIFF terminal tour: the agent marks an order paid, a high-risk refund is held for approval then executes once granted, a repeat is refused, and the trail replays](./docs/demo/kiff-tour.svg)
 
 The recording follows the runnable tour. A reproducible terminal-recording recipe
 is committed at [`docs/demo/kiff-tour.tape`](./docs/demo/kiff-tour.tape).
