@@ -167,7 +167,6 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-
 // TestScaffold_AgenticOps_LayoutAndImports verifies the new agentic-ops
 // template scaffolds with the expected files, that template variables
 // are filled, and that any internal references to the embedded import
