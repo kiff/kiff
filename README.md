@@ -5,148 +5,119 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**Ship agents into the work that moves money.**
+**KIFF is a Go framework for putting agents on consequential actions — safely.**
 
-Refunds, payouts, collections, discounts — the actions you've kept agents away
-from, because one wrong move is expensive and hard to undo. KIFF is the boundary
-that decides *before* the action runs, so you can finally put an agent on it.
+Refunds, payouts, invoices, record changes: the work you've kept agents away
+from, because one wrong move is expensive. KIFF sits between what an agent
+*proposes* and what actually happens to your data. The agent proposes; KIFF
+decides against real state and your rules; only allowed actions run.
 
-Give a support agent the refund button: the eligible refund runs, a high-risk
-one waits for a human and executes once approved, and a repeat after the order
-is already `REFUNDED` is refused before any money moves. Every step replays.
+KIFF helps you model, before you connect an agent:
+
+- events, state, and the lifecycle an entity moves through
+- actions as explicit contracts — not free-form tool calls
+- permissions, and human approvals for the risky moves
+- decisions, evidence, and an audit trail you can replay
+
+KIFF is not a chatbot framework, a web framework, or an LLM wrapper. The
+conversation layer stays yours — OpenAI, Anthropic, LangGraph, Agno, a cron job,
+or a plain HTTP client. KIFF starts the moment a tool call becomes a side effect.
 
 ```text
-agent proposes → KIFF reads state → action runs or waits → result is replayable
+agent proposes → KIFF reads state → action runs or waits for a human → result is audited & replayable
 ```
-
-KIFF is a small Go framework for backends where agents do real work. The agent
-proposes; KIFF validates the action against the entity's event-derived state and
-your contract before your executor runs.
 
 ## See it
 
-A 24-second terminal tour — no install needed:
+One agent, one refund, read at your own pace:
 
-![KIFF terminal tour: the agent marks an order paid, a high-risk refund is held for approval then executes once granted, a repeat is refused, and the trail replays](./docs/demo/kiff-tour.svg)
+```text
+order-2 is PAID
 
-1. An order is placed and the agent marks it paid. The action executes.
-2. The agent tries a `$999` refund without approval. KIFF holds it for a human.
-3. A human grants approval. The same call now executes.
-4. Replay rebuilds the entity from events alone. Every fact reconstructs.
+  agent → REFUND_ORDER  $999, high-risk
+  KIFF  ⏸ HELD — approval required            the executor did NOT run
+  human → approves
+  KIFF  ✓ ALLOWED — refund executes → REFUNDED
 
-Run it yourself:
+  agent → REFUND_ORDER  (same call, retried)
+  KIFF  ✗ BLOCKED — order is already REFUNDED  refused before money moves again
 
-```bash
-git clone https://github.com/kiff/kiff
-cd kiff
-go run ./cmd/kiff-tour
+  replay from events alone → REFUNDED          materialized == replayed
 ```
+
+The useful action runs. The risky one waits for a human. The duplicate is
+refused. And the whole path rebuilds from the event log. Watch the live
+version any time with `go run ./cmd/kiff-tour`.
 
 ## Try it
 
-Scaffold a complete, runnable project and start the server:
-
 ```bash
 go install github.com/kiff/kiff/cmd/kiff@latest
-kiff new github.com/acme/orders
-cd orders
-go mod tidy
-go run ./cmd/server
-```
-
-`kiff new` scaffolds a runnable HTTP server and a tiny `tasks` starter domain —
-rename the entity, events, states, and actions to match yours. Want the full
-governed-action example (an `Order` with `MARK_PAID` and an approval-gated
-`REFUND_ORDER`, a headless agent API, and a `make demo` walkthrough)? Scaffold
-the refund scenario:
-
-```bash
 kiff new -scenario refund github.com/acme/refunds
+cd refunds
+go mod tidy
+make demo
 ```
 
-While the framework is unpublished, scaffold against a local checkout with
-`kiff new -replace-local /path/to/kiff github.com/acme/orders`.
+That scaffolds a complete, runnable project: an `Order` with `MARK_PAID` and an
+approval-gated `REFUND_ORDER`, a headless HTTP API an agent can call, and a
+`make demo` walkthrough of the flow above. `kiff new <module>` (without a
+scenario) gives a minimal `tasks` starter instead.
 
-Two more CLI paths: `kiff scaffold` generates a `domain/` package from a JSON
-descriptor, and `kiff verify` checks a domain is complete — no stub executors,
-a consistent state machine, complete contracts — before it ships. See
-[scaffold from a descriptor](./docs/scaffold-a-domain.md).
+Then `kiff verify` tells you the domain is ready to ship (no stub executors,
+consistent state machine, complete contracts), and `kiff scaffold` generates a
+`domain/` package from a JSON descriptor. Building against a local checkout? Add
+`-replace-local /path/to/kiff`.
 
-## What the refund scenario gives you
+## What you get
 
-The `-scenario refund` project above is wired with:
-
-- a typed action contract per risky action (allowed states, params, permissions, risk, approval)
+- a typed action contract per risky action — allowed states, parameters, permissions, risk, approval
 - a headless HTTP API for agent tools, plus the KIFF governance API
-- persistence options for the action + evidence trail (`file`, `postgres`, or `memory`)
-- deterministic state/duplicate handling — the repeat is refused, not double-executed
-- replayable decision evidence: rebuild the entity from events alone
-- positive and adversarial tests around the risky path
+- persistence for the action and evidence trail: `file`, `postgres`, or `memory`
+- deterministic duplicate handling — the repeat is refused, not double-executed
+- replayable decision evidence — rebuild any entity from its events
+- an authority boundary callers can't bypass — approvals can't be self-granted (enforced at compile time)
 
-An external caller does not need Go. A proposal is a single HTTP POST, so an
-agent, webhook, or backend in any language drives the same runtime — see
-[governing over HTTP](./docs/governing-over-http.md) for copy-paste TypeScript
-and Python.
-
-## How it works
-
-The agent proposes an action. KIFF validates it against the entity's
-event-derived current state, the required parameters, the actor's permissions,
-and the approval requirement. Only an allowed action reaches your executor;
-everything else returns a typed reason (`approval_required`, `permission_denied`,
-`state_not_allowed`, `missing_parameter`, `blocked`) and leaves production
-untouched. Callers cannot self-grant approval — that boundary is enforced at
-compile time.
-
-Read the full model in [the governed action boundary](./docs/governed-action-boundary.md).
-
-A domain is a small Go definition — a state machine plus action contracts:
-
-```go
-b := domain.New("refund").
-    Entity("Order").
-    Event("ORDER_PLACED").Event("ORDER_PAID").Event("ORDER_REFUNDED").
-    Transition("ORDER_PLACED", "", "CREATED").
-    Transition("ORDER_PAID", "CREATED", "PAID").
-    Transition("ORDER_REFUNDED", "PAID", "REFUNDED").
-    Allow("CREATED", "MARK_PAID").
-    Allow("PAID", "REFUND_ORDER")
-for _, c := range refund.Contracts() { // MARK_PAID (low-risk), REFUND_ORDER (approval)
-    b = b.Action(c)
-}
-def, _ := b.Build()
-
-rt, _ := runtime.NewForDomain(def, runtime.Config{PermissionPolicy: refund.NewPermissionPolicy()})
-```
-
-Each contract declares its allowed states, required parameters and permissions,
-risk, approval requirement, and executor. The shortest worked example is
-[examples/refund](./examples/refund/); [build a domain](./docs/build-a-domain.md)
-is the full walkthrough.
+A caller doesn't need Go: a proposal is a single HTTP POST, so an agent or
+backend in any language drives the same runtime.
 
 ## Where to go next
 
-- [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end.
-- [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON.
-- [The governed action boundary](./docs/governed-action-boundary.md) — how decisions and approvals work.
-- [Govern over HTTP](./docs/governing-over-http.md) — connect a non-Go agent or backend.
-- [Connect an existing agent](https://github.com/kiff/kiff-guard) — `kiff-guard` adapters for Agno, LangGraph, OpenAI Agents, and more.
-- [Architecture & packages](./docs/architecture.md) — the package map and responsibilities.
-- [Why KIFF](./docs/why.md) · [Philosophy](./docs/philosophy.md) · [Comparisons](./docs/comparisons.md) — positioning and honest limits.
+This README is the doorway. The depth lives in the docs.
+
+**Understand**
+- [Why KIFF](./docs/why.md) — why risky agent actions need a boundary outside the prompt
+- [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
+- [Philosophy](./docs/philosophy.md) · [Comparisons](./docs/comparisons.md) — what KIFF is, and where it stops
+
+**Build**
+- [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end
+- [Conventions](./docs/conventions.md) — the normal way to lay out a project
+- [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON
+- [Govern over HTTP](./docs/governing-over-http.md) — drive KIFF from TypeScript, Python, or any stack
+- [Connect an existing agent](https://github.com/kiff/kiff-guard) — `kiff-guard` adapters for Agno, LangGraph, OpenAI Agents, and more
+
+**Reference**
+- [Architecture & packages](./docs/architecture.md) — the package map and responsibilities
+- [Principles in practice](./docs/principles/) — five short pages, one principle each
+- [Vision](./docs/vision.md) · [Changelog](./docs/changelog/)
+
+**Examples**
+- [examples/refund](./examples/refund/) — one entity, three states, two actions (start here)
+- [examples/mission](./examples/mission/) — a larger domain · [examples/llm-bridge](./examples/llm-bridge/) — the tool-call bridge pattern
 
 ## Who it is not for
 
 If your app is simple CRUD, or direct LLM tool calls with no consequential
 state, KIFF is too much structure — ship something smaller. KIFF earns its keep
-when multiple actors touch the same state, what is allowed depends on lifecycle,
+when multiple actors touch the same state, what's allowed depends on lifecycle,
 some actions need a human sign-off, and someone eventually asks "why did this
-happen?" See [comparisons](./docs/comparisons.md) for where KIFF stops and a
-workflow engine or model SDK takes over.
+happen?"
 
 ## Status
 
 KIFF is at v0.6. The core action boundary is complete and tested: approvals
-cannot be self-granted, executors must be explicit, and every validation and
+can't be self-granted, executors must be explicit, and every validation and
 execution is recorded. For production, implement the store interfaces against a
 real backend — the [Postgres store](./pkg/kiff/store/postgres) is the reference;
 the file-backed JSONL stores are for demos and local development.
