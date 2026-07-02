@@ -387,6 +387,8 @@ func actionErrorStatus(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, action.ErrExecutorMissing):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, action.ErrInvalidContract):
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusBadRequest
 	}
