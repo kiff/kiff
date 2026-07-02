@@ -1,8 +1,8 @@
 # {{.ModulePath}}
 
-A KIFF starter project, scaffolded with `kiff new -template=agentic-ops`. It is a complete agentic-ops backend in one repo:
+A KIFF starter project, scaffolded with `kiff new -template=agentic-ops`. It puts an agent on a real, consequential action and makes that shippable — a complete agentic-ops backend in one repo:
 
-- A KIFF runtime hosting one risky action (`REFUND_ORDER`) under approval.
+- A KIFF runtime hosting one risky action (`REFUND_ORDER`) the agent can run under approval.
 - A tiny HTTP server that exposes the kiff httpapi plus a `/demo/agent/refund` route the agent calls.
 - An Agno-shaped Python agent with two providers (offline fixture + AWS Bedrock).
 - Two runners: one mutates a mock DB, one talks to KIFF. The diff is the pitch.
@@ -14,7 +14,7 @@ go mod tidy
 make demo
 ```
 
-You will see the same agent run twice: once unguarded (a $999 refund mutates the mock DB), once through KIFF (the same refund is held for approval, granted, then executed). The audit timeline and a rebuild check confirm materialized state matches the events.
+You will see the same agent run twice: once unguarded (a $999 refund mutates the mock DB), once through KIFF (the agent issues the refund once it is held for approval and a human grants it). The audit timeline and a rebuild check confirm materialized state matches the events.
 
 ## Bedrock (live LLM, ~5 minutes)
 

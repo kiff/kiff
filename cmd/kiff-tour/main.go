@@ -69,8 +69,8 @@ func runTour(ctx context.Context, p pacer) error {
 	}
 
 	p.banner("KIFF — a 90-second tour")
-	p.line("We will run a tiny refund domain through the KIFF loop.")
-	p.line("You will see KIFF stop an action as clearly as it executes one.")
+	p.line("We will put an agent on a tiny refund domain and run the KIFF loop.")
+	p.line("You will see the agent do real work — and see the boundary hold the one move that needs a human.")
 	p.pause()
 
 	orderID := "order-tour"
@@ -140,8 +140,8 @@ func runTour(ctx context.Context, p pacer) error {
 	if !errors.Is(err, action.ErrApprovalRequired) {
 		return fmt.Errorf("expected ErrApprovalRequired, got %v", err)
 	}
-	p.block("execution BLOCKED  →  REFUND_ORDER (approval required, none granted)")
-	p.line("KIFF refused. The state did not change. The audit trail has the attempt.")
+	p.block("execution HELD  →  REFUND_ORDER (approval required, none granted)")
+	p.line("KIFF held it for a human. The state did not change — this is what makes putting the agent on refunds safe.")
 	p.pause()
 
 	// ───────────────────────────────────────────────────
@@ -198,7 +198,7 @@ func runTour(ctx context.Context, p pacer) error {
 	}
 	p.pause()
 
-	p.banner("Done. KIFF executed the safe path, blocked the unsafe one, and explained both.")
+	p.banner("Done. The agent shipped the safe action, the risky one waited for a human, and the whole path replays.")
 	p.line("That is the loop: %s",
 		p.bold("event → state → decision → action → approval → audit"))
 	p.line("Build your domain on top of it. See %s and %s.",
@@ -230,8 +230,8 @@ func (p pacer) wrap(color, s string) string {
 	return color + s + cReset
 }
 
-func (p pacer) bold(s string) string  { return p.wrap(cBold, s) }
-func (p pacer) cyan(s string) string  { return p.wrap(cCyan, s) }
+func (p pacer) bold(s string) string { return p.wrap(cBold, s) }
+func (p pacer) cyan(s string) string { return p.wrap(cCyan, s) }
 func (p pacer) dim(format string, args ...any) {
 	fmt.Println(p.wrap(cDim, "    "+fmt.Sprintf(format, args...)))
 	p.beatPause()

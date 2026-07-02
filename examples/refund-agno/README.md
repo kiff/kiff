@@ -1,24 +1,26 @@
-# refund-agno — KIFF stops a real LLM agent from doing damage
+# refund-agno — put an LLM agent on real refunds, safely
 
-This example is the headline pitch demo for KIFF. It runs the same Agno
-agent twice over three support tickets:
+This example is the headline pitch demo for KIFF. It puts an Agno agent on a
+real, consequential job — issuing customer refunds — and shows what makes that
+shippable. It runs the same agent twice over three support tickets:
 
 1. **Run A — without KIFF.** The agent's tool mutates a mock database
-   directly. A $999 refund happens because nothing exists between the
-   model and the data. This is what most agentic backends ship today.
+   directly. Small refunds and a $999 one all go through, because nothing
+   sits between the model and the money. This is what most agentic backends
+   ship today.
 2. **Run B — through KIFF.** Same agent, same model, same prompt, same
-   tickets. Now the tool POSTs to a tiny KIFF HTTP server. KIFF
-   validates state, parameters, permissions, and approval; small refunds
-   pass straight through (`AUTO_REFUND`), the high-value refund is
-   blocked (`approval_required`), an operator grants one and denies
-   another, the granted retry executes, the denied retry stays blocked.
+   tickets. Now the tool POSTs to a tiny KIFF HTTP server, and the agent can
+   actually do the work: the eligible refund executes straight through
+   (`AUTO_REFUND`); the high-value refund waits for a human (`approval_required`);
+   an operator grants one and denies another; the granted retry executes; the
+   denied one stays put.
 
-The whole story ends with the audit timeline and a rebuild check that
-proves the materialized state matches the events.
+The story ends with the audit timeline and a rebuild check that proves the
+materialized state matches the events — the proof you can verify after the fact.
 
 The offline run is hermetic. No AWS credentials, no Bedrock, no API keys.
-This is intentional: a CTO can clone the repo, run `make demo`, and see
-KIFF block a refund in under sixty seconds.
+This is intentional: a CTO can clone the repo, run `make demo`, and watch an
+agent ship refunds inside the lines in under sixty seconds.
 
 The Bedrock run uses Agno's native AwsBedrock provider with whichever
 model id you set in `BEDROCK_MODEL_ID` (the user-side run that produced
@@ -285,9 +287,9 @@ Proof points to look for in your own Bedrock run:
 - The rebuild check at the end matches materialized state for every
   order.
 
-## What KIFF blocked, and why
+## What ran, what waited, and why
 
-| Ticket | Amount      | KIFF action chosen | Reason it was gated                           | Final state          |
+| Ticket | Amount      | KIFF action chosen | How the boundary handled it                   | Final state          |
 | ------ | ----------- | ------------------ | --------------------------------------------- | -------------------- |
 | 1      | 4 200 cents | `AUTO_REFUND`      | under the auto-refund ceiling (10 000 cents)  | `REFUNDED`           |
 | 2      | 99 900 cents | `REFUND_ORDER`    | high-risk action; approval required           | `REFUNDED` (granted) |
@@ -373,16 +375,17 @@ GET  /admin
 
 ## Why this is the headline demo
 
-- **The buyer reads it in five lines.** Refund. Order. Approval. Audit.
-  Replay. No domain glossary required.
-- **The denied path is the sale.** Most demos hide the deny case behind
-  a "TODO". This one runs it on every `make demo`.
+- **The buyer reads it in five lines.** The agent issues refunds. The risky
+  one waits for a human. The repeat is declined. The trail replays. No domain
+  glossary required.
+- **Enablement is the sale.** The agent does the real revenue/ops work — the
+  boundary is what lets you put it on that path. The approval and the decline
+  are what make shipping it safe, not the point of the demo.
 - **It is reproducible without keys.** A CTO can run it on a plane.
 - **It shows the same agent, same prompt, same model.** The diff is the
-  governance layer, not the agent's intelligence.
-- **The audit story lands at the end.** Three timelines, three rebuilds,
-  zero drift. That is the answer to "why did this happen three weeks
-  ago?".
+  boundary, not the agent's intelligence.
+- **The proof lands at the end.** Three timelines, three rebuilds, zero drift.
+  That is the answer to "why did this happen three weeks ago?".
 
 ## See also
 

@@ -77,7 +77,7 @@ Everything else returns a stable reason: `approval_required`,
 
 No installation needed: watch the committed 24-second terminal recording.
 
-![KIFF terminal tour showing a blocked action, approval, execution, and replay](./docs/demo/kiff-tour.svg)
+![KIFF terminal tour showing an agent executing an action, a high-risk one held for approval, then executed, and the trail replayed](./docs/demo/kiff-tour.svg)
 
 The recording follows the runnable tour. A reproducible terminal-recording recipe
 is committed at [`docs/demo/kiff-tour.tape`](./docs/demo/kiff-tour.tape).
