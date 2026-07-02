@@ -84,3 +84,20 @@ Two entry points on the runtime:
 This boundary is a local framework guarantee. It applies to consequential calls
 that route through the KIFF runtime; KIFF does not claim to control a side
 effect reached through a path that bypasses the runtime entirely.
+
+## Compile-time self-approval boundary
+
+The authority boundary is not only a runtime check — the "no self-approval"
+guarantee is enforced by the Go type system. External code using KIFF's public
+API cannot grant itself runtime approval, and cannot compile a path that does:
+
+- `ActionContext.approved` is unexported, so external modules cannot set it via
+  a struct literal (`action.ActionContext{approved: true}` fails to compile).
+- `GrantApproval` requires a capability value from an `internal` package that
+  external modules cannot import (`ctx.GrantApproval(trust.Grant{})` fails to
+  compile). The approval bit is minted only inside the framework's trust
+  boundary, after the runtime verifies a granted approval exists in the store.
+
+The conformance suite proves exactly these two boundaries by running `go build`
+against external-module fixtures and asserting both fail to compile for the
+expected access-control reason.
