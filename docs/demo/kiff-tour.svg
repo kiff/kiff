@@ -1,11 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-labelledby="title desc">
   <title id="title">KIFF terminal tour</title>
-  <desc id="desc">An animated terminal recording showing a safe action, a refused refund, human approval, execution, and event replay.</desc>
+  <desc id="desc">An animated terminal recording: an agent marks an order paid, a high-risk refund is held for a human then executes once approved, and the event log replays the whole path.</desc>
   <style>
     .term { font: 16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fill: #e6edf3 }
     .dim { fill: #8b949e }
     .green { fill: #3fb950 }
     .red { fill: #ff7b72 }
+    .yellow { fill: #d29922 }
     .blue { fill: #58a6ff }
     .bold { font-weight: 700 }
   </style>
@@ -29,13 +30,13 @@
 
   <g opacity="0">
     <animate attributeName="opacity" dur="24s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;.25;.27;.48;.5;1"/>
-    <text x="22" y="112" class="term blue">Scene 2 — An agent tries to issue a $999 refund</text>
-    <text x="22" y="160" class="term">The agent confidently calls REFUND_ORDER.</text>
-    <text x="22" y="210" class="term red bold">✖ execution BLOCKED → approval required, none granted</text>
-    <text x="22" y="258" class="term">KIFF refused. The state did not change.</text>
-    <text x="22" y="298" class="term">The audit trail has the attempt.</text>
-    <rect x="18" y="338" width="900" height="58" rx="6" fill="#2d1418" stroke="#ff7b72"/>
-    <text x="36" y="374" class="term red">The consequential executor never ran.</text>
+    <text x="22" y="112" class="term blue">Scene 2 — A high-value $999 refund needs a human</text>
+    <text x="22" y="160" class="term">The agent proposes REFUND_ORDER — a high-risk move.</text>
+    <text x="22" y="210" class="term yellow bold">⏸ execution HELD → approval required, none granted</text>
+    <text x="22" y="258" class="term">KIFF held it for a human. The state did not change.</text>
+    <text x="22" y="298" class="term">The audit trail has the request.</text>
+    <rect x="18" y="338" width="900" height="58" rx="6" fill="#2a2410" stroke="#d29922"/>
+    <text x="36" y="374" class="term yellow">The executor waits — this is what makes shipping the agent safe.</text>
   </g>
 
   <g opacity="0">
@@ -56,7 +57,7 @@
     <text x="46" y="246" class="term dim">ORDER_PAID     → PAID</text>
     <text x="46" y="286" class="term dim">ORDER_REFUNDED → REFUNDED</text>
     <text x="22" y="340" class="term green bold">✔ state rebuilt → REFUNDED</text>
-    <text x="22" y="404" class="term">Safe path executed. Unsafe path blocked. Both explained.</text>
+    <text x="22" y="404" class="term">Agent shipped the safe action. The risky one waited for a human. The trail replays.</text>
     <text x="22" y="458" class="term dim">event → state → decision → action → approval → audit</text>
   </g>
 </svg>
