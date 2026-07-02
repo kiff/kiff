@@ -88,6 +88,49 @@ By convention this app API maps `approval_required` and `blocked` to `409`,
 `invalid` to `400`, and `allowed` to `200`; the `outcome` field is the source
 of truth.
 
+## Persistence
+
+The project has **two persistence surfaces**, selected by `-store`:
+
+- **KIFF evidence** — events, decisions, approvals, audit. This is the proof KIFF's guarantees rest on.
+- **App state** — the mock refund ledger (your real business writes go here).
+
+Store modes (server flag `-store`, default `file`):
+
+| `-store`   | KIFF evidence            | App ledger        | Survives restart |
+|------------|--------------------------|-------------------|------------------|
+| `file`     | JSONL under `-data-dir`  | JSONL under dir   | yes              |
+| `memory`   | in-memory                | in-memory         | no               |
+| `postgres` | Postgres (`DATABASE_URL`)| in-memory (mock)  | KIFF evidence: yes |
+
+```bash
+go run ./cmd/server -store file -data-dir ./data     # default: persistent
+go run ./cmd/server -store memory                    # non-persistent
+```
+
+Because state is event-derived, a restart with a persistent store rehydrates
+each order from its events. The proof: refund an order, restart the server, and
+a repeat refund is still refused — the order is already `REFUNDED`. See the
+restart test in `cmd/server`.
+
+### Postgres
+
+Scaffold with `-store postgres` to get local-dev wiring (`docker-compose.yml`,
+`.env.example`). Credentials come from the environment — nothing is hard-coded.
+The values in `.env.example` (and `sslmode=disable`) are **dev-only**; use real
+secrets and TLS in production.
+
+```bash
+cp .env.example .env
+make db-up                       # start local Postgres
+export DATABASE_URL=postgres://kiff:kiff@localhost:5432/kiff?sslmode=disable
+go run ./cmd/server -store postgres
+```
+
+The server applies the KIFF schema on startup (idempotent). The mock refund
+ledger stays in-memory here — replace it with your own table when you wire your
+real business state.
+
 ## Verify it
 
 ```bash

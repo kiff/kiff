@@ -1,6 +1,11 @@
 package main
 
-import "sync"
+import (
+	"bufio"
+	"encoding/json"
+	"os"
+	"sync"
+)
 
 // refundRecord is one entry in the mock business ledger — the side effect a
 // refund action produces. In a real app this would be a row in your database
@@ -12,19 +17,57 @@ type refundRecord struct {
 	Guarded     bool   `json:"guarded"`
 }
 
-// ledger is an in-memory stand-in for the app's business state. The whole
-// point of the demo is the contrast: the unguarded path writes here directly
-// (a duplicate refund gets recorded), while the KIFF-guarded path only writes
-// after the runtime allows the action (a duplicate is refused before it lands).
+// ledger is the app's business state. The contrast the demo exists to show:
+// the unguarded path writes here directly (a duplicate refund lands), while
+// the KIFF-guarded path only writes after the runtime allows the action.
+//
+// When path is set, the ledger is append-only JSONL on disk and is loaded on
+// startup, so the app-state surface survives a restart alongside the KIFF
+// evidence. An empty path keeps it in-memory (the -store=memory mode).
 type ledger struct {
 	mu      sync.Mutex
 	records []refundRecord
+	path    string
+}
+
+func newLedger(path string) *ledger {
+	l := &ledger{path: path}
+	if path != "" {
+		l.load()
+	}
+	return l
+}
+
+func (l *ledger) load() {
+	f, err := os.Open(l.path)
+	if err != nil {
+		return // no prior ledger yet
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for sc.Scan() {
+		var r refundRecord
+		if json.Unmarshal(sc.Bytes(), &r) == nil {
+			l.records = append(l.records, r)
+		}
+	}
 }
 
 func (l *ledger) record(r refundRecord) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	l.records = append(l.records, r)
+	if l.path == "" {
+		return
+	}
+	f, err := os.OpenFile(l.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	if b, err := json.Marshal(r); err == nil {
+		_, _ = f.Write(append(b, '\n'))
+	}
 }
 
 func (l *ledger) all() []refundRecord {

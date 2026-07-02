@@ -141,3 +141,73 @@ func TestRunScaffold_UnknownScenario(t *testing.T) {
 		t.Fatalf("expected error for unknown scenario")
 	}
 }
+
+func TestResolveStore(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		in   string
+		want string
+		ok   bool
+	}{
+		{"", "file", true},
+		{"file", "file", true},
+		{"memory", "memory", true},
+		{"postgres", "postgres", true},
+		{"sqlite", "", false},
+	}
+	for _, tc := range cases {
+		got, err := resolveStore(tc.in)
+		if tc.ok && (err != nil || got != tc.want) {
+			t.Fatalf("resolveStore(%q) = (%q,%v), want (%q,nil)", tc.in, got, err, tc.want)
+		}
+		if !tc.ok && err == nil {
+			t.Fatalf("resolveStore(%q): expected error", tc.in)
+		}
+	}
+}
+
+// TestScaffold_ScenarioStoreGating: file/memory scaffolds omit the Postgres
+// wiring; the postgres scaffold includes it.
+func TestScaffold_ScenarioStoreGating(t *testing.T) {
+	t.Parallel()
+	pgFiles := []string{"docker-compose.yml", ".env.example", filepath.Join("cmd", "server", "store_postgres.go")}
+
+	for _, store := range []string{"file", "memory"} {
+		tmp := t.TempDir()
+		data := templateData{ModulePath: "github.com/acme/r", ModuleName: "r", GoVersion: StarterGoVersion, KiffVersion: StarterKiffVersion, Store: store}
+		tmpl, _ := resolveTemplate(templateScenarioRefund)
+		if err := scaffold(tmp, tmpl, data); err != nil {
+			t.Fatalf("scaffold %s: %v", store, err)
+		}
+		for _, f := range pgFiles {
+			if _, err := os.Stat(filepath.Join(tmp, f)); !os.IsNotExist(err) {
+				t.Fatalf("store=%s should not emit %s", store, f)
+			}
+		}
+		// Makefile should carry the chosen store default.
+		mk := readFile(t, filepath.Join(tmp, "Makefile"))
+		if !strings.Contains(mk, "STORE ?= "+store) {
+			t.Fatalf("Makefile missing STORE ?= %s:\n%s", store, mk)
+		}
+	}
+
+	tmp := t.TempDir()
+	data := templateData{ModulePath: "github.com/acme/r", ModuleName: "r", GoVersion: StarterGoVersion, KiffVersion: StarterKiffVersion, Store: "postgres"}
+	tmpl, _ := resolveTemplate(templateScenarioRefund)
+	if err := scaffold(tmp, tmpl, data); err != nil {
+		t.Fatalf("scaffold postgres: %v", err)
+	}
+	for _, f := range pgFiles {
+		if _, err := os.Stat(filepath.Join(tmp, f)); err != nil {
+			t.Fatalf("store=postgres should emit %s: %v", f, err)
+		}
+	}
+}
+
+func TestRunScaffold_StoreRequiresScenario(t *testing.T) {
+	t.Parallel()
+	err := runNew([]string{"-store", "file", "github.com/acme/x"})
+	if err == nil || !strings.Contains(err.Error(), "requires -scenario") {
+		t.Fatalf("expected -store-requires-scenario error, got %v", err)
+	}
+}

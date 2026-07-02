@@ -13,27 +13,23 @@ import (
 
 func newServer(t *testing.T) (http.Handler, *ledger) {
 	t.Helper()
-	rt, err := runtimeSeeded(t)
-	if err != nil {
-		t.Fatalf("runtime: %v", err)
-	}
-	l := &ledger{}
+	rt, l := runtimeSeeded(t)
 	return buildMuxWithLedger(rt, l), l
 }
 
-func runtimeSeeded(t *testing.T) (*runtime.Runtime, error) {
+func runtimeSeeded(t *testing.T) (*runtime.Runtime, *ledger) {
 	t.Helper()
-	rt, closer, err := buildRuntime("")
+	rt, l, closer, err := build(context.Background(), "memory", "", "")
 	if err != nil {
-		return nil, err
+		t.Fatalf("build: %v", err)
 	}
 	if closer != nil {
 		t.Cleanup(closer)
 	}
 	if err := seedOrders(context.Background(), rt); err != nil {
-		return nil, err
+		t.Fatalf("seed: %v", err)
 	}
-	return rt, nil
+	return rt, l
 }
 
 func do(t *testing.T, h http.Handler, method, path, body string) (int, map[string]any) {
