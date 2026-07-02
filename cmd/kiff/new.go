@@ -171,7 +171,7 @@ func resolveTemplate(name string) (templateSpec, error) {
 	case templateScenarioRefund:
 		return templateSpec{Name: templateScenarioRefund, FS: scenarioRefundFS, Root: scenarioRefundRoot, ImportPrefix: scenarioRefundImport}, nil
 	default:
-		return templateSpec{}, fmt.Errorf("unknown template: %q (known: starter, agentic-ops)", name)
+		return templateSpec{}, fmt.Errorf("unknown template: %q (known: starter, agentic-ops, scenario-refund)", name)
 	}
 }
 

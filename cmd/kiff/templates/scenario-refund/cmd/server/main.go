@@ -241,7 +241,11 @@ func (h *demoHandler) handleGuardedRefund(w http.ResponseWriter, r *http.Request
 	}
 	// Allowed: the side effect runs now, and only now.
 	h.ledger.record(refundRecord{OrderID: req.OrderID, AmountCents: req.AmountCents, Reason: req.Reason, Guarded: true})
-	d := outcome.Succeeded(domain.ActionRefundOrder, req.OrderID, current.Value)
+	postState := current.Value
+	if cur, ok, err := h.rt.States.Current(r.Context(), req.OrderID); err == nil && ok {
+		postState = cur.Value
+	}
+	d := outcome.Succeeded(domain.ActionRefundOrder, req.OrderID, postState)
 	writeJSON(w, http.StatusOK, refundResponse(d, approvalID, &res))
 }
 
@@ -335,6 +339,11 @@ func refundResponse(d outcome.Decision, approvalID string, res *action.ActionRes
 	return body
 }
 
+// statusForOutcome maps a decision outcome to an HTTP status for this demo's
+// app-facing API. Note this app layer maps approval_required to 202 Accepted
+// (the refund is pending a human), which deliberately differs from the core
+// governance httpapi, where it is 409 Conflict. The canonical app-API
+// convention is settled in the formal headless app API (#41).
 func statusForOutcome(o outcome.Outcome) int {
 	switch o {
 	case outcome.ApprovalRequired:
