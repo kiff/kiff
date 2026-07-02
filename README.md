@@ -1,7 +1,6 @@
 # KIFF
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/kiff/kiff.svg)](https://pkg.go.dev/github.com/kiff/kiff)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kiff/kiff?style=flat)](https://goreportcard.com/report/github.com/kiff/kiff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
