@@ -26,14 +26,22 @@ var starterFS embed.FS
 //go:embed all:templates/agentic-ops
 var agenticOpsFS embed.FS
 
+// scenarioRefundFS embeds the refund governed-action scenario template.
+//
+//go:embed all:templates/scenario-refund
+var scenarioRefundFS embed.FS
+
 const (
-	templateStarter     = "starter"
-	templateAgenticOps  = "agentic-ops"
-	starterRoot         = "templates/starter"
-	agenticOpsRoot      = "templates/agentic-ops"
-	starterImportPrefix = "github.com/kiff/kiff/cmd/kiff/templates/starter"
-	agenticOpsImport    = "github.com/kiff/kiff/cmd/kiff/templates/agentic-ops"
-	goModTemplateName   = "go.mod.tmpl"
+	templateStarter        = "starter"
+	templateAgenticOps     = "agentic-ops"
+	templateScenarioRefund = "scenario-refund"
+	starterRoot            = "templates/starter"
+	agenticOpsRoot         = "templates/agentic-ops"
+	scenarioRefundRoot     = "templates/scenario-refund"
+	starterImportPrefix    = "github.com/kiff/kiff/cmd/kiff/templates/starter"
+	agenticOpsImport       = "github.com/kiff/kiff/cmd/kiff/templates/agentic-ops"
+	scenarioRefundImport   = "github.com/kiff/kiff/cmd/kiff/templates/scenario-refund"
+	goModTemplateName      = "go.mod.tmpl"
 )
 
 // templateData feeds text/template rendering for files like go.mod.tmpl and
@@ -58,17 +66,33 @@ func runNew(args []string) error {
 		fmt.Fprintln(os.Stderr, "EXAMPLES:")
 		fmt.Fprintln(os.Stderr, "  kiff new github.com/acme/orders")
 		fmt.Fprintln(os.Stderr, "  kiff new -template=agentic-ops github.com/acme/ops")
+		fmt.Fprintln(os.Stderr, "  kiff new -scenario=refund github.com/acme/refunds")
 	}
 	dir := fs.String("dir", "", "directory to scaffold into (default: last segment of module path)")
 	force := fs.Bool("force", false, "scaffold into a non-empty directory")
 	replaceLocal := fs.String("replace-local", "", "emit a `replace github.com/kiff/kiff => <path>` directive in go.mod (use while the framework is unpublished)")
 	templateName := fs.String("template", templateStarter, "scaffold template: starter (default) | agentic-ops")
+	scenario := fs.String("scenario", "", "governed-action scenario: refund (generates a complete agent-on-a-risky-action project)")
+	agentMode := fs.String("agent", "", "agent integration for a scenario: custom-http (default when -scenario is set)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if fs.NArg() != 1 {
 		fs.Usage()
 		return errors.New("expected exactly one argument: the module path")
+	}
+
+	// A scenario is a governed-action project template. When set, it selects
+	// its own template and validates the chosen agent integration.
+	if strings.TrimSpace(*scenario) != "" {
+		resolved, err := resolveScenarioTemplate(*scenario, *agentMode)
+		if err != nil {
+			fs.Usage()
+			return err
+		}
+		*templateName = resolved
+	} else if strings.TrimSpace(*agentMode) != "" {
+		return errors.New("-agent requires -scenario")
 	}
 
 	tmpl, err := resolveTemplate(*templateName)
@@ -120,7 +144,7 @@ func runNew(args []string) error {
 	fmt.Printf("  cd %s\n", rel)
 	fmt.Println("  go mod tidy")
 	switch tmpl.Name {
-	case templateAgenticOps:
+	case templateAgenticOps, templateScenarioRefund:
 		fmt.Println("  make demo")
 	default:
 		fmt.Println("  go run ./cmd/server")
@@ -144,8 +168,28 @@ func resolveTemplate(name string) (templateSpec, error) {
 		return templateSpec{Name: templateStarter, FS: starterFS, Root: starterRoot, ImportPrefix: starterImportPrefix}, nil
 	case templateAgenticOps:
 		return templateSpec{Name: templateAgenticOps, FS: agenticOpsFS, Root: agenticOpsRoot, ImportPrefix: agenticOpsImport}, nil
+	case templateScenarioRefund:
+		return templateSpec{Name: templateScenarioRefund, FS: scenarioRefundFS, Root: scenarioRefundRoot, ImportPrefix: scenarioRefundImport}, nil
 	default:
 		return templateSpec{}, fmt.Errorf("unknown template: %q (known: starter, agentic-ops)", name)
+	}
+}
+
+// resolveScenarioTemplate validates a -scenario/-agent pair and returns the
+// template name that implements it. The generated project is identical across
+// agents except the agent-facing wrapper; today only custom-http ships in the
+// framework repo (deeper adapters live in kiff-guard).
+func resolveScenarioTemplate(scenario, agentMode string) (string, error) {
+	switch scenario {
+	case "refund":
+		switch agentMode {
+		case "", "custom-http":
+			return templateScenarioRefund, nil
+		default:
+			return "", fmt.Errorf("unknown -agent %q for scenario refund (known: custom-http)", agentMode)
+		}
+	default:
+		return "", fmt.Errorf("unknown -scenario %q (known: refund)", scenario)
 	}
 }
 
