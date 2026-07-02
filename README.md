@@ -103,13 +103,18 @@ Read the full model in [the governed action boundary](./docs/governed-action-bou
 A domain is a small Go definition — a state machine plus action contracts:
 
 ```go
-def, _ := domain.New("refund").
+b := domain.New("refund").
     Entity("Order").
+    Event("ORDER_PLACED").Event("ORDER_PAID").Event("ORDER_REFUNDED").
+    Transition("ORDER_PLACED", "", "CREATED").
     Transition("ORDER_PAID", "CREATED", "PAID").
     Transition("ORDER_REFUNDED", "PAID", "REFUNDED").
-    Allow("PAID", "REFUND_ORDER").
-    Action(RefundOrderContract()). // high-risk, approval required
-    Build()
+    Allow("CREATED", "MARK_PAID").
+    Allow("PAID", "REFUND_ORDER")
+for _, c := range refund.Contracts() { // MARK_PAID (low-risk), REFUND_ORDER (approval)
+    b = b.Action(c)
+}
+def, _ := b.Build()
 
 rt, _ := runtime.NewForDomain(def, runtime.Config{PermissionPolicy: refund.NewPermissionPolicy()})
 ```
