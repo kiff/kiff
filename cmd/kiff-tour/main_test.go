@@ -9,8 +9,9 @@ import (
 )
 
 // TestTour_RunsAndShowsKeyMoments verifies the narrated tour completes without
-// error and that the three load-bearing beats appear in the output: a paid
-// state transition, a blocked execution, and a granted approval that succeeds.
+// error and that the load-bearing beats appear in the output: a paid state
+// transition, the agent executing a low-risk action, a high-risk action held
+// for approval, and a granted approval that succeeds.
 func TestTour_RunsAndShowsKeyMoments(t *testing.T) {
 	out := captureStdout(t, func() {
 		if err := runTour(context.Background(), pacer{step: 0, beat: 0, color: false}); err != nil {
@@ -20,7 +21,7 @@ func TestTour_RunsAndShowsKeyMoments(t *testing.T) {
 
 	required := []string{
 		"state           →  PAID",
-		"execution BLOCKED",
+		"execution HELD",
 		"approval granted",
 		"state           →  REFUNDED",
 		"state rebuilt",

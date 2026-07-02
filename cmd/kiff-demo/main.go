@@ -15,7 +15,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("=== KIFF Demo: Granted Approval (Happy Path) ===")
+	fmt.Println("=== KIFF Demo: the agent ships the move (approval granted) ===")
 	for _, line := range happyResult.Lines {
 		fmt.Printf("  %s\n", line)
 	}
@@ -38,7 +38,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("=== KIFF Demo: Denied Approval (Governance Enforced) ===")
+	fmt.Println("=== KIFF Demo: the boundary holds (approval denied) ===")
 	for _, line := range deniedResult.Lines {
 		fmt.Printf("  %s\n", line)
 	}
