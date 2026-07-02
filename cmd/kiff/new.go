@@ -52,6 +52,7 @@ type templateData struct {
 	GoVersion    string
 	KiffVersion  string
 	ReplaceLocal string // optional path used to emit a `replace` directive
+	Store        string // scenario store backend: memory | file | postgres
 }
 
 func runNew(args []string) error {
@@ -74,6 +75,7 @@ func runNew(args []string) error {
 	templateName := fs.String("template", templateStarter, "scaffold template: starter (default) | agentic-ops")
 	scenario := fs.String("scenario", "", "governed-action scenario: refund (generates a complete agent-on-a-risky-action project)")
 	agentMode := fs.String("agent", "", "agent integration for a scenario: custom-http (default when -scenario is set)")
+	storeMode := fs.String("store", "", "scenario store backend: file (default) | memory | postgres")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -84,15 +86,28 @@ func runNew(args []string) error {
 
 	// A scenario is a governed-action project template. When set, it selects
 	// its own template and validates the chosen agent integration.
-	if strings.TrimSpace(*scenario) != "" {
+	store := "file"
+	isScenario := strings.TrimSpace(*scenario) != ""
+	if isScenario {
 		resolved, err := resolveScenarioTemplate(*scenario, *agentMode)
 		if err != nil {
 			fs.Usage()
 			return err
 		}
 		*templateName = resolved
-	} else if strings.TrimSpace(*agentMode) != "" {
-		return errors.New("-agent requires -scenario")
+		s, err := resolveStore(*storeMode)
+		if err != nil {
+			fs.Usage()
+			return err
+		}
+		store = s
+	} else {
+		if strings.TrimSpace(*agentMode) != "" {
+			return errors.New("-agent requires -scenario")
+		}
+		if strings.TrimSpace(*storeMode) != "" {
+			return errors.New("-store requires -scenario")
+		}
 	}
 
 	tmpl, err := resolveTemplate(*templateName)
@@ -125,6 +140,7 @@ func runNew(args []string) error {
 		GoVersion:    StarterGoVersion,
 		KiffVersion:  StarterKiffVersion,
 		ReplaceLocal: strings.TrimSpace(*replaceLocal),
+		Store:        store,
 	}
 
 	if err := scaffold(target, tmpl, data); err != nil {
@@ -160,6 +176,31 @@ type templateSpec struct {
 	FS           embed.FS
 	Root         string
 	ImportPrefix string
+}
+
+// resolveStore validates the -store choice for a scenario. Default is file
+// (persistent, zero-Docker). Postgres pulls in local-dev wiring; memory is the
+// non-persistent opt-out.
+func resolveStore(store string) (string, error) {
+	switch store {
+	case "":
+		return "file", nil
+	case "file", "memory", "postgres":
+		return store, nil
+	default:
+		return "", fmt.Errorf("unknown -store %q (known: file, memory, postgres)", store)
+	}
+}
+
+// scenarioPostgresOnly reports whether a scaffolded file should be emitted only
+// when the postgres store is selected. Keeps file/memory scaffolds free of
+// Postgres wiring (and its pgx dependency).
+func scenarioPostgresOnly(rel string) bool {
+	switch rel {
+	case "docker-compose.yml", ".env.example", filepath.Join("cmd", "server", "store_postgres.go"):
+		return true
+	}
+	return false
 }
 
 func resolveTemplate(name string) (templateSpec, error) {
@@ -209,6 +250,11 @@ func scaffold(target string, tmpl templateSpec, data templateData) error {
 		rel, err := filepath.Rel(tmpl.Root, p)
 		if err != nil {
 			return err
+		}
+		// Postgres wiring is emitted only for the postgres store, so file and
+		// memory scaffolds stay free of the pgx dependency.
+		if data.Store != "postgres" && scenarioPostgresOnly(rel) {
+			return nil
 		}
 		// Normalize *.tmpl to its non-tmpl name in the output. This covers
 		// go.mod.tmpl and any future .tmpl files (Makefile.tmpl,

@@ -11,6 +11,8 @@ set -euo pipefail
 : "${SERVER_BIN:?SERVER_BIN must be set}"
 : "${PORT_FILE:?PORT_FILE must be set}"
 : "${SERVER_LOG:?SERVER_LOG must be set}"
+: "${STORE:=file}"
+: "${PROJECT_DIR:=.}"
 
 cleanup() {
   if [[ -n "${SERVER_PID:-}" ]] && kill -0 "${SERVER_PID}" 2>/dev/null; then
@@ -22,7 +24,12 @@ cleanup() {
 trap cleanup EXIT INT TERM
 rm -f "${PORT_FILE}"
 
-"${SERVER_BIN}" -addr :0 -port-file "${PORT_FILE}" >"${SERVER_LOG}" 2>&1 &
+server_args=(-addr :0 -port-file "${PORT_FILE}" -store "${STORE}")
+if [[ "${STORE}" == "file" ]]; then
+  server_args+=(-data-dir "${PROJECT_DIR}/data")
+fi
+
+"${SERVER_BIN}" "${server_args[@]}" >"${SERVER_LOG}" 2>&1 &
 SERVER_PID=$!
 for _ in $(seq 1 50); do [[ -s "${PORT_FILE}" ]] && break; sleep 0.2; done
 if [[ ! -s "${PORT_FILE}" ]]; then echo "server did not start:"; cat "${SERVER_LOG}"; exit 1; fi

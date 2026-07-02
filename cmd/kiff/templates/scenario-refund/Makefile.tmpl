@@ -5,6 +5,8 @@
 #   make verify : kiff verify ./domain (requires the kiff CLI on PATH)
 #   make build  : build ./bin/server
 #   make clean  : remove build artifacts and stale demo files
+#   make db-up  : start local Postgres (only for -store postgres scaffolds)
+#   make db-down: stop local Postgres
 
 PROJECT_DIR := $(shell pwd)
 BIN_DIR     := $(PROJECT_DIR)/bin
@@ -12,10 +14,14 @@ SERVER_BIN  := $(BIN_DIR)/server
 PORT_FILE   := $(PROJECT_DIR)/.demo-port
 SERVER_LOG  := $(PROJECT_DIR)/.demo-server.log
 
-.PHONY: demo test verify build clean help
+# Store backend for `make demo`, chosen at scaffold time. Override on the CLI:
+#   make demo STORE=memory
+STORE ?= {{.Store}}
+
+.PHONY: demo test verify build clean help db-up db-down
 
 help:
-	@echo "Targets: demo test verify build clean"
+	@echo "Targets: demo test verify build clean db-up db-down"
 
 build: $(SERVER_BIN)
 
@@ -33,7 +39,15 @@ demo: build
 	@SERVER_BIN=$(SERVER_BIN) \
 	  PORT_FILE=$(PORT_FILE) \
 	  SERVER_LOG=$(SERVER_LOG) \
+	  PROJECT_DIR=$(PROJECT_DIR) \
+	  STORE=$(STORE) \
 	  bash $(PROJECT_DIR)/scripts/demo.sh
+
+db-up:
+	docker compose up -d
+
+db-down:
+	docker compose down
 
 clean:
 	rm -rf $(BIN_DIR) $(PORT_FILE) $(SERVER_LOG) $(PROJECT_DIR)/data

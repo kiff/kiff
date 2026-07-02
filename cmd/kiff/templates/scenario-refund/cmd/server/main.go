@@ -2,18 +2,18 @@
 //
 // Two surfaces sit on one KIFF runtime:
 //
-//   - The KIFF governance API (mounted at / by httpapi) — the runtime surface:
-//     /events/raw, /entities/{id}/actions/..., /approvals/..., timeline.
+//   - The KIFF governance API (mounted at / by httpapi) — the runtime surface.
 //   - The app's own headless API (/api/...) — what an agent calls to operate
 //     the app. Every /api/tools/{tool} call is validated and executed by the
 //     runtime before any side effect. See api.go.
 //
-// A couple of /demo routes make the enablement story runnable with curl:
+// Persistence has two surfaces (see README):
+//   - KIFF evidence (events, decisions, approvals, audit) via -store.
+//   - App state (the mock refund ledger) alongside it when persistent.
 //
-//	GET  /demo/orders                 list seeded orders and their state
-//	POST /demo/unguarded/refund       refund with NO governance (the danger)
-//	GET  /demo/ledger                 the mock business side effects recorded
-//	GET  /demo/rebuild?entity=<id>    replay: materialized vs event-derived state
+// -store selects the backend: memory (default off), file (JSONL under
+// -data-dir), or postgres (-database-url / DATABASE_URL). With a persistent
+// store the proof survives a restart: an order already REFUNDED stays refused.
 package main
 
 import (
@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/kiff/kiff/cmd/kiff/templates/scenario-refund/domain"
@@ -35,16 +36,25 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/httpapi"
 	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
-	"github.com/kiff/kiff/pkg/kiff/store/file"
+	"github.com/kiff/kiff/pkg/kiff/store"
+	filestore "github.com/kiff/kiff/pkg/kiff/store/file"
 )
+
+// postgresOpener is set by store_postgres.go (scaffolded only with
+// -store=postgres). When nil, requesting -store=postgres is a clear error
+// rather than a missing dependency.
+var postgresOpener func(ctx context.Context, url string) (*store.Bundle, func(), error)
 
 func main() {
 	addr := flag.String("addr", ":8080", "HTTP listen address; :0 picks a free port")
-	dataDir := flag.String("data-dir", "", "Directory for file-backed JSONL stores; empty uses in-memory")
+	storeMode := flag.String("store", "file", "store backend: memory | file | postgres")
+	dataDir := flag.String("data-dir", "", "directory for file-backed stores (default ./data for -store=file)")
+	dbURL := flag.String("database-url", os.Getenv("DATABASE_URL"), "postgres connection string for -store=postgres")
 	portFile := flag.String("port-file", "", "If set, write the chosen port to this file")
 	flag.Parse()
 
-	rt, closer, err := buildRuntime(*dataDir)
+	ctx := context.Background()
+	rt, l, closer, err := build(ctx, *storeMode, *dataDir, *dbURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "server failed to start: %v\n", err)
 		os.Exit(1)
@@ -52,7 +62,7 @@ func main() {
 	if closer != nil {
 		defer closer()
 	}
-	if err := seedOrders(context.Background(), rt); err != nil {
+	if err := seedOrders(ctx, rt); err != nil {
 		fmt.Fprintf(os.Stderr, "seed: %v\n", err)
 		os.Exit(1)
 	}
@@ -69,55 +79,67 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	fmt.Printf("refund scenario listening on %s\n", localURL(listener.Addr().String()))
-	fmt.Println("app API:        POST /api/tools/{tool}, GET /api/actions, /api/openapi.json, /api/tools/manifest.json")
-	fmt.Println("                GET  /api/entities/{id}[/timeline], POST /api/approvals/{id}/grant|deny")
-	fmt.Println("demo/contrast:  POST /demo/unguarded/refund, GET /demo/orders|/demo/ledger|/demo/rebuild")
+	fmt.Printf("refund scenario listening on %s (store=%s)\n", localURL(listener.Addr().String()), *storeMode)
+	fmt.Println("app API:  POST /api/tools/{tool}, GET /api/actions|/api/openapi.json|/api/tools/manifest.json")
+	fmt.Println("          GET  /api/entities/{id}[/timeline], POST /api/approvals/{id}/grant|deny")
 	fmt.Println("NOTE: these APIs are unauthenticated. Add auth before exposing beyond localhost.")
 
-	server := &http.Server{Handler: buildMux(rt), ReadHeaderTimeout: 5 * time.Second}
+	server := &http.Server{Handler: buildMuxWithLedger(rt, l), ReadHeaderTimeout: 5 * time.Second}
 	if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		fmt.Fprintf(os.Stderr, "server failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func buildRuntime(dataDir string) (*runtime.Runtime, func(), error) {
-	if dataDir == "" {
+// build wires the runtime and the app ledger for the chosen store backend.
+func build(ctx context.Context, storeMode, dataDir, dbURL string) (*runtime.Runtime, *ledger, func(), error) {
+	switch storeMode {
+	case "memory":
 		rt, err := domain.NewRuntime()
-		return rt, nil, err
-	}
-	bundle, err := file.NewBundle(dataDir)
-	if err != nil {
-		return nil, nil, fmt.Errorf("open file bundle: %w", err)
-	}
-	sb := bundle.AsStoreBundle()
-	rt, err := domain.NewRuntimeWithStores(&sb)
-	if err != nil {
-		_ = bundle.Close()
-		return nil, nil, err
-	}
-	return rt, func() { _ = bundle.Close() }, nil
-}
+		return rt, newLedger(""), nil, err
 
-func buildMux(rt *runtime.Runtime) http.Handler {
-	return buildMuxWithLedger(rt, &ledger{})
-}
+	case "file":
+		if dataDir == "" {
+			dataDir = "./data"
+		}
+		if err := os.MkdirAll(dataDir, 0o755); err != nil {
+			return nil, nil, nil, err
+		}
+		bundle, err := filestore.NewBundle(dataDir)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		sb := bundle.AsStoreBundle()
+		rt, err := domain.NewRuntimeWithStores(&sb)
+		if err != nil {
+			_ = bundle.Close()
+			return nil, nil, nil, err
+		}
+		return rt, newLedger(filepath.Join(dataDir, "ledger.jsonl")), func() { _ = bundle.Close() }, nil
 
-// buildMuxWithLedger wires the mux against a caller-provided ledger so tests
-// can inspect the recorded side effects.
-func buildMuxWithLedger(rt *runtime.Runtime, l *ledger) http.Handler {
-	api := newAPIHandler(rt, l)
-	d := &demoHandler{rt: rt, ledger: l}
+	case "postgres":
+		if postgresOpener == nil {
+			return nil, nil, nil, errors.New("this build was not scaffolded with -store=postgres")
+		}
+		if dbURL == "" {
+			return nil, nil, nil, errors.New("-store=postgres requires -database-url or DATABASE_URL")
+		}
+		stores, closer, err := postgresOpener(ctx, dbURL)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		rt, err := domain.NewRuntimeWithStores(stores)
+		if err != nil {
+			closer()
+			return nil, nil, nil, err
+		}
+		// The mock app ledger stays in-memory here; a real app persists its
+		// own business state (see README). KIFF evidence is in Postgres.
+		return rt, newLedger(""), closer, nil
 
-	mux := http.NewServeMux()
-	api.register(mux)
-	mux.HandleFunc("/demo/orders", d.handleListOrders)
-	mux.HandleFunc("/demo/unguarded/refund", d.handleUnguardedRefund)
-	mux.HandleFunc("/demo/ledger", d.handleLedger)
-	mux.HandleFunc("/demo/rebuild", d.handleRebuild)
-	mux.Handle("/", httpapi.NewHandler(rt))
-	return mux
+	default:
+		return nil, nil, nil, fmt.Errorf("unknown -store %q (want memory|file|postgres)", storeMode)
+	}
 }
 
 var seededOrders = []struct {
@@ -128,8 +150,15 @@ var seededOrders = []struct {
 	{"order-2", 99900},
 }
 
+// seedOrders makes each demo order exist in PAID. With a persistent store it
+// is restart-safe: if the order already has events, it rehydrates the
+// in-memory state from them instead of re-seeding (which would double-ingest
+// or fail against the persisted state).
 func seedOrders(ctx context.Context, rt *runtime.Runtime) error {
 	for _, s := range seededOrders {
+		if _, err := rt.RebuildState(ctx, s.id); err == nil {
+			continue // restored from persisted events
+		}
 		if _, err := rt.IngestRaw(ctx, adapter.RawInput{
 			ID:         "seed-" + s.id,
 			Adapter:    domain.AdapterRefund,
@@ -159,8 +188,27 @@ func seedOrders(ctx context.Context, rt *runtime.Runtime) error {
 	return nil
 }
 
-// demoHandler carries the /demo/* contrast routes: seeded-order listing, the
-// unguarded anti-pattern, the ledger, and replay.
+func buildMux(rt *runtime.Runtime) http.Handler {
+	return buildMuxWithLedger(rt, newLedger(""))
+}
+
+// buildMuxWithLedger wires the mux against a caller-provided ledger so tests
+// can inspect the recorded side effects.
+func buildMuxWithLedger(rt *runtime.Runtime, l *ledger) http.Handler {
+	api := newAPIHandler(rt, l)
+	d := &demoHandler{rt: rt, ledger: l}
+
+	mux := http.NewServeMux()
+	api.register(mux)
+	mux.HandleFunc("/demo/orders", d.handleListOrders)
+	mux.HandleFunc("/demo/unguarded/refund", d.handleUnguardedRefund)
+	mux.HandleFunc("/demo/ledger", d.handleLedger)
+	mux.HandleFunc("/demo/rebuild", d.handleRebuild)
+	mux.Handle("/", httpapi.NewHandler(rt))
+	return mux
+}
+
+// demoHandler carries the /demo/* contrast routes.
 type demoHandler struct {
 	rt     *runtime.Runtime
 	ledger *ledger
@@ -257,8 +305,7 @@ func (h *demoHandler) handleRebuild(w http.ResponseWriter, r *http.Request) {
 // Convention (canonical for the generated app API): approval_required and
 // blocked both map to 409 Conflict — the action cannot proceed against the
 // current state — matching the core KIFF httpapi. invalid maps to 400. The
-// typed `outcome` field in the body is the source of truth; the status is a
-// hint for generic HTTP clients.
+// typed `outcome` field in the body is the source of truth.
 func statusForOutcome(o outcome.Outcome) int {
 	switch o {
 	case outcome.ApprovalRequired, outcome.Blocked:
