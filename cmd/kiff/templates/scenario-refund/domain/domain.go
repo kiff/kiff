@@ -15,6 +15,7 @@ package domain
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/kiff/kiff/pkg/kiff/action"
@@ -206,7 +207,9 @@ func orderEvent(orderID, eventType, actorID string, payload map[string]any) even
 	}
 }
 
-// ReadIntCents coerces a JSON-decoded numeric parameter to int64 cents.
+// ReadIntCents coerces a JSON-decoded numeric parameter to int64 cents. It
+// also accepts a numeric string (e.g. "4200") so a client that follows the
+// generated OpenAPI — which types parameters as strings today — still works.
 func ReadIntCents(params map[string]any, key string) (int64, error) {
 	value, ok := params[key]
 	if !ok {
@@ -219,6 +222,12 @@ func ReadIntCents(params map[string]any, key string) (int64, error) {
 		return v, nil
 	case float64:
 		return int64(v), nil
+	case string:
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, fmt.Errorf("%s must be an integer, got %q", key, v)
+		}
+		return n, nil
 	default:
 		return 0, fmt.Errorf("%s must be a number, got %T", key, value)
 	}

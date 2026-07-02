@@ -134,6 +134,24 @@ func TestToolCall_UnknownTool(t *testing.T) {
 	}
 }
 
+// TestToolCall_AcceptsStringParamsFromOpenAPISchema: the generated OpenAPI
+// types parameters as strings; a client that follows it and sends
+// "amount_cents":"99900" must still work (the executor coerces it).
+func TestToolCall_AcceptsStringParamsFromOpenAPISchema(t *testing.T) {
+	h, l := newServer(t)
+	do(t, h, http.MethodPost, "/api/tools/refund_order",
+		`{"entity_id":"order-2","approval_id":"a1","parameters":{"amount_cents":"99900","reason":"eligible"}}`)
+	do(t, h, http.MethodPost, "/api/approvals/a1/grant", `{}`)
+	code, resp := do(t, h, http.MethodPost, "/api/tools/refund_order",
+		`{"entity_id":"order-2","approval_id":"a1","parameters":{"amount_cents":"99900","reason":"eligible"}}`)
+	if code != http.StatusOK || resp["outcome"] != "allowed" {
+		t.Fatalf("expected 200 allowed with string amount, got %d %v", code, resp)
+	}
+	if got := l.totalForOrder("order-2"); got != 99900 {
+		t.Fatalf("expected 99900 recorded from string param, got %d", got)
+	}
+}
+
 // TestTimelineReflectsAPICall: after a governed refund, the entity timeline
 // shows the executed action.
 func TestTimelineReflectsAPICall(t *testing.T) {

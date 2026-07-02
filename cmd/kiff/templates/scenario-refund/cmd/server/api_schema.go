@@ -43,6 +43,12 @@ func openAPIDoc(rt *runtime.Runtime) map[string]any {
 		props := map[string]any{}
 		required := []string{}
 		for _, p := range c.RequiredParameters {
+			// Limitation: action.ActionContract.RequiredParameters carries
+			// names only, not types, so every parameter is typed as string
+			// here. The scaffold's executors coerce numeric strings (see
+			// domain.ReadIntCents), so a client following this schema still
+			// works. Enriching contracts with parameter types (for an accurate
+			// schema) is a framework-level follow-up.
 			props[p] = map[string]any{"type": "string"}
 			required = append(required, p)
 		}

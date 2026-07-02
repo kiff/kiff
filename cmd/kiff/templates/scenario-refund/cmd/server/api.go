@@ -54,6 +54,10 @@ func (h *apiHandler) nextApprovalID(entityID string) string {
 // toolName is the LLM-facing name for an action: its lowercased form.
 // REFUND_ORDER <-> refund_order. Deriving it from the action name keeps the
 // manifest and the routes in sync with the catalog.
+//
+// Note: this round-trip assumes UPPER_SNAKE action names (the scaffold
+// convention). A mixed-case action name would not round-trip through
+// ToLower/ToUpper and its tool route would 404.
 func toolName(actionName string) string { return strings.ToLower(actionName) }
 func actionFromTool(tool string) string { return strings.ToUpper(tool) }
 
