@@ -1,25 +1,28 @@
 # KIFF
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/kiff/kiff.svg)](https://pkg.go.dev/github.com/kiff/kiff)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kiff/kiff)](https://goreportcard.com/report/github.com/kiff/kiff)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kiff/kiff?style=flat)](https://goreportcard.com/report/github.com/kiff/kiff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**Put agents on consequential actions without handing them unchecked side effects.**
+**Ship agents into the work that moves money.**
 
-Give a support agent the refund button. The eligible refund runs. A high-risk
-refund waits for a human, then executes once approved. A repeat after the order
+Refunds, payouts, collections, discounts — the actions you've kept agents away
+from, because one wrong move is expensive and hard to undo. KIFF is the boundary
+that decides *before* the action runs, so you can finally put an agent on it.
+
+Give a support agent the refund button: the eligible refund runs, a high-risk
+one waits for a human and executes once approved, and a repeat after the order
 is already `REFUNDED` is refused before any money moves. Every step replays.
 
 ```text
 agent proposes → KIFF reads state → action runs or waits → result is replayable
 ```
 
-KIFF is a small Go framework for backends where agents do real work — refunds,
-paid invoices, payouts, record changes. The agent proposes; KIFF validates the
-action against the entity's event-derived state and your contract before your
-executor runs.
+KIFF is a small Go framework for backends where agents do real work. The agent
+proposes; KIFF validates the action against the entity's event-derived state and
+your contract before your executor runs.
 
 ## See it
 
