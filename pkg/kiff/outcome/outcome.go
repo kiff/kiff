@@ -98,6 +98,10 @@ func Classify(err error) (Outcome, Reason) {
 	case errors.Is(err, action.ErrInvalidContract):
 		return Invalid, ReasonInvalidContract
 	default:
+		// ErrDuplicateAction is intentionally not mapped here: it is a
+		// registration-time error that cannot surface through action
+		// evaluation. Any unrecognized error fails safe to Blocked so a
+		// caller never reads an unknown failure as permission to run.
 		return Blocked, ReasonError
 	}
 }
