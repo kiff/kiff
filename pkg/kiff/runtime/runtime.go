@@ -19,6 +19,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/domain"
 	"github.com/kiff/kiff/pkg/kiff/event"
 	"github.com/kiff/kiff/pkg/kiff/internal/trust"
+	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/permission"
 	"github.com/kiff/kiff/pkg/kiff/proposal"
 	"github.com/kiff/kiff/pkg/kiff/state"
@@ -454,6 +455,27 @@ func (r *Runtime) RecordApproval(ctx context.Context, a approval.Approval) error
 		"status":       a.Status,
 		"reason":       a.Reason,
 	})
+}
+
+// EvaluateAction validates an action against the current state, required
+// parameters, permissions, and approval, and returns a normalized decision
+// envelope. It is read-only: it never runs the executor and never writes an
+// audit record. Use it to answer "what would happen if I ran this?" — for
+// example, to hand an agent or an app API a typed outcome before deciding
+// whether to execute.
+func (r *Runtime) EvaluateAction(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) outcome.Decision {
+	name := contract.Name
+	if name == "" {
+		name = actionCtx.ActionName
+	}
+	resolved, err := r.applyApproval(ctx, actionCtx, contract)
+	if err != nil {
+		return outcome.FromError(err, name, actionCtx.EntityID, actionCtx.CurrentState)
+	}
+	if _, err := r.Validator.Validate(ctx, resolved, contract, r.Permissions); err != nil {
+		return outcome.FromError(err, name, resolved.EntityID, resolved.CurrentState)
+	}
+	return outcome.Succeeded(name, resolved.EntityID, resolved.CurrentState)
 }
 
 // ValidateAction validates an action and appends the corresponding audit record.
