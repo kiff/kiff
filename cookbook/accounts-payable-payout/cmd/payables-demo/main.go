@@ -100,4 +100,18 @@ func main() {
 		payment := result.Payments[len(result.Payments)-1]
 		fmt.Printf("Payment: %s %s %.2f via %s\n", payment.PaymentID, payment.Currency, float64(payment.AmountCents)/100, payment.IdempotencyKey)
 	}
+
+	// The framework assembles the governed lifecycle from its own records
+	// (proposal -> validation -> approval -> execution); the app no longer
+	// stitches this together by hand.
+	life := result.Lifecycle
+	fmt.Println()
+	fmt.Printf("Lifecycle for %s (state %s, executed=%t):\n", life.EntityID, life.CurrentState, life.Executed())
+	for _, stage := range life.Stages {
+		detail := stage.Action
+		if detail == "" {
+			detail = stage.Message
+		}
+		fmt.Printf(" - %-22s %s\n", stage.Kind, detail)
+	}
 }

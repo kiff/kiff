@@ -16,6 +16,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/decision"
 	"github.com/kiff/kiff/pkg/kiff/event"
 	"github.com/kiff/kiff/pkg/kiff/evidence"
+	"github.com/kiff/kiff/pkg/kiff/lifecycle"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 	"github.com/kiff/kiff/pkg/kiff/state"
 )
@@ -47,16 +48,21 @@ type HeldPayment struct {
 }
 
 type Snapshot struct {
-	InvoiceID      string           `json:"invoice_id"`
-	CurrentState   string           `json:"current_state"`
-	AllowedActions []string         `json:"allowed_actions"`
-	Facts          InvoiceFacts     `json:"facts"`
-	Lines          []AppLine        `json:"lines"`
-	LastProposal   *AgentProposal   `json:"last_proposal,omitempty"`
-	Held           *HeldPayment     `json:"held,omitempty"`
-	Timeline       []TimelineEntry  `json:"timeline"`
-	Payments       []PaymentReceipt `json:"payments"`
-	Model          string           `json:"model"`
+	InvoiceID      string          `json:"invoice_id"`
+	CurrentState   string          `json:"current_state"`
+	AllowedActions []string        `json:"allowed_actions"`
+	Facts          InvoiceFacts    `json:"facts"`
+	Lines          []AppLine       `json:"lines"`
+	LastProposal   *AgentProposal  `json:"last_proposal,omitempty"`
+	Held           *HeldPayment    `json:"held,omitempty"`
+	Timeline       []TimelineEntry `json:"timeline"`
+	// Lifecycle is the framework's read-only projection of the invoice's
+	// governed history (proposal → validation → approval → execution),
+	// assembled by runtime.EntityLifecycle. It replaces the hand-stitched
+	// timeline the sandbox app had to build itself (#63).
+	Lifecycle lifecycle.Lifecycle `json:"lifecycle"`
+	Payments  []PaymentReceipt    `json:"payments"`
+	Model     string              `json:"model"`
 }
 
 type TimelineEntry struct {
@@ -400,6 +406,11 @@ func (a *InteractiveApp) snapshot(ctx context.Context) (Snapshot, error) {
 		return Snapshot{}, err
 	}
 
+	life, err := a.rt.EntityLifecycle(ctx, a.invoiceID)
+	if err != nil {
+		return Snapshot{}, err
+	}
+
 	return Snapshot{
 		InvoiceID:      a.invoiceID,
 		CurrentState:   currentState,
@@ -409,6 +420,7 @@ func (a *InteractiveApp) snapshot(ctx context.Context) (Snapshot, error) {
 		LastProposal:   a.last,
 		Held:           a.held,
 		Timeline:       timelineEntries(records),
+		Lifecycle:      life,
 		Payments:       a.gateway.List(),
 		Model:          a.modelLabel,
 	}, nil
