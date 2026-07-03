@@ -23,8 +23,12 @@ const (
 	KindApprovalRecorded Kind = "approval_recorded"
 	KindApprovalGranted  Kind = "approval_granted"
 	KindApprovalDenied   Kind = "approval_denied"
-	KindActionExecuted   Kind = "action_executed"
-	KindActionFailed     Kind = "action_failed"
+	// KindApprovalReviewRejected records a review attempt refused before it
+	// could change the approval: the reviewer lacked authority or was the
+	// same actor that requested the approval (segregation of duties).
+	KindApprovalReviewRejected Kind = "approval_review_rejected"
+	KindActionExecuted         Kind = "action_executed"
+	KindActionFailed           Kind = "action_failed"
 )
 
 // AuditKind is kept as an explicit alias for readability.

@@ -389,40 +389,14 @@ func (r *Runtime) RequestApproval(ctx context.Context, approvalID string, action
 	return request, nil
 }
 
-// ReviewApproval grants or denies an existing pending approval.
+// ReviewApproval grants or denies an existing pending approval by reviewer id.
+//
+// This is the simple path: it performs no reviewer-authority or
+// segregation-of-duties check, so it stays usable for low-complexity demos.
+// For high-risk workflows that must verify the reviewer holds authority and
+// is not the requester, use ReviewApprovalAs.
 func (r *Runtime) ReviewApproval(ctx context.Context, approvalID string, reviewedBy string, status approval.Status, reason string) (approval.Approval, error) {
-	if approvalID == "" {
-		return approval.Approval{}, fmt.Errorf("%w: approval id is required", approval.ErrInvalidApproval)
-	}
-	if reviewedBy == "" {
-		return approval.Approval{}, fmt.Errorf("%w: approval reviewed by is required", approval.ErrInvalidApproval)
-	}
-	if status != approval.StatusGranted && status != approval.StatusDenied {
-		return approval.Approval{}, fmt.Errorf("%w: approval review status must be granted or denied", approval.ErrInvalidApproval)
-	}
-
-	existing, ok, err := r.Approvals.Get(ctx, approvalID)
-	if err != nil {
-		return approval.Approval{}, err
-	}
-	if !ok {
-		return approval.Approval{}, fmt.Errorf("%w: %s", approval.ErrApprovalNotFound, approvalID)
-	}
-	if existing.Status != approval.StatusPending {
-		return approval.Approval{}, fmt.Errorf("%w: approval %q has already been reviewed", approval.ErrInvalidApproval, approvalID)
-	}
-
-	existing.Status = status
-	existing.ReviewedBy = reviewedBy
-	existing.ReviewedAt = time.Now().UTC()
-	if reason != "" {
-		existing.Reason = reason
-	}
-	if err := r.RecordApproval(ctx, existing); err != nil {
-		return approval.Approval{}, err
-	}
-	r.metrics.Inc(CounterApprovalsReviewed, 1, EntityType(existing.EntityType))
-	return existing, nil
+	return r.reviewApproval(ctx, approvalID, actor.Actor{ID: reviewedBy}, ReviewRequirement{}, status, reason)
 }
 
 // RecordApproval stores and audits an approval record.
