@@ -192,8 +192,8 @@ func TestLowValueExecutorRejectsHighAmountEvenInPreparedState(t *testing.T) {
 		Actor:        ClaimsServiceActor,
 		Parameters:   payoutParams(claimID, claimantID, policyID, 180000),
 	}, contract)
-	if err == nil {
-		t.Fatal("expected high low-value payout to fail")
+	if !errors.Is(err, action.ErrInvalidParameter) {
+		t.Fatalf("expected invalid parameter for high low-value payout, got %v", err)
 	}
 	if payouts := gateway.List(); len(payouts) != 0 {
 		t.Fatalf("expected no payout, got %#v", payouts)

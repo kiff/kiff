@@ -238,6 +238,25 @@ func NewRuntime(gateway PayerPortalGateway) (*runtime.Runtime, error) {
 	return runtime.NewForDomain(definition, runtime.Config{PermissionPolicy: Policy()})
 }
 
+func submissionParameters() []action.ParameterSpec {
+	return []action.ParameterSpec{
+		action.StringParam("request_id"),
+		action.StringParam("patient_id"),
+		action.StringParam("payer_id"),
+		action.StringParam("procedure_code"),
+		action.StringParam("evidence_packet_id"),
+		action.StringParam("idempotency_key"),
+	}
+}
+
+func reviewedSubmissionParameters() []action.ParameterSpec {
+	return append(submissionParameters(), action.StringParam("clinician_note"))
+}
+
+func boolParamSpec(name string) action.ParameterSpec {
+	return action.ParameterSpec{Name: name, Type: action.ParamBool, Required: true}
+}
+
 func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 	if gateway == nil {
 		gateway = NewInMemoryPayerPortal()
@@ -246,7 +265,7 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 		{
 			Name:                ActionRequestClinicalEvidence,
 			AllowedStates:       []string{StateReceived},
-			RequiredParameters:  []string{"missing_items"},
+			Parameters:          []action.ParameterSpec{action.StringParam("missing_items")},
 			RequiredPermissions: []permission.Permission{PermissionRequestClinicalEvidence},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
@@ -255,31 +274,33 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionRecordClinicalEvidence,
-			AllowedStates:       []string{StateReceived, StateWaitingEvidence},
-			RequiredParameters:  []string{"patient_id", "payer_id", "procedure_code", "evidence_packet_id"},
+			Name:          ActionRecordClinicalEvidence,
+			AllowedStates: []string{StateReceived, StateWaitingEvidence},
+			Parameters:    []action.ParameterSpec{action.StringParam("patient_id"), action.StringParam("payer_id"), action.StringParam("procedure_code"), action.StringParam("evidence_packet_id")},
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				return validateEvidenceParameters(ctx.Parameters)
+			},
 			RequiredPermissions: []permission.Permission{PermissionRecordClinicalEvidence},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				if err := validateEvidenceParameters(ctx.Parameters); err != nil {
-					return action.ActionResult{}, err
-				}
 				return eventResult(ActionRecordClinicalEvidence, ctx, EventClinicalEvidenceAdded, "recorded clinical evidence packet", ctx.Parameters), nil
 			},
 		},
 		{
-			Name:                ActionCheckPolicyCriteria,
-			AllowedStates:       []string{StateReadyForCriteria},
-			RequiredParameters:  []string{"criteria_met", "denial_risk_score", "missing_evidence"},
+			Name:               ActionCheckPolicyCriteria,
+			AllowedStates:      []string{StateReadyForCriteria},
+			RequiredParameters: []string{"denial_risk_score"},
+			Parameters:         []action.ParameterSpec{boolParamSpec("criteria_met"), boolParamSpec("missing_evidence")},
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := criteriaCheckFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionCheckPolicyCriteria},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				check, err := criteriaCheckFromParams(ctx.Parameters)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
+				check, _ := criteriaCheckFromParams(ctx.Parameters)
 				payload := copyParams(ctx.Parameters)
 				if check.Automatable() {
 					payload["low_denial_risk_limit"] = LowDenialRiskLimit
@@ -290,23 +311,24 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionPrepareAuthorization,
-			AllowedStates:       []string{StateCriteriaMet},
-			RequiredParameters:  []string{"request_id", "patient_id", "payer_id", "procedure_code", "evidence_packet_id", "idempotency_key"},
+			Name:          ActionPrepareAuthorization,
+			AllowedStates: []string{StateCriteriaMet},
+			Parameters:    submissionParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters, false)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionPrepareAuthorization},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				if _, err := instructionFromParams(ctx.Parameters, false); err != nil {
-					return action.ActionResult{}, err
-				}
 				return eventResult(ActionPrepareAuthorization, ctx, EventAuthorizationPrepared, "prepared payer authorization submission", ctx.Parameters), nil
 			},
 		},
 		{
 			Name:                ActionHoldForClinicianReview,
 			AllowedStates:       []string{StateReadyForCriteria, StateCriteriaMet},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionHoldForClinicianReview},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -315,39 +337,41 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionSubmitAuthorization,
-			AllowedStates:       []string{StatePrepared},
-			RequiredParameters:  []string{"request_id", "patient_id", "payer_id", "procedure_code", "evidence_packet_id", "idempotency_key"},
+			Name:          ActionSubmitAuthorization,
+			AllowedStates: []string{StatePrepared},
+			Parameters:    submissionParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters, false)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionSubmitAuthorization},
 			Risk:                action.RiskHigh,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(ctx context.Context, actionCtx action.ActionContext) (action.ActionResult, error) {
-				instruction, err := instructionFromParams(actionCtx.Parameters, false)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
+				instruction, _ := instructionFromParams(actionCtx.Parameters, false)
 				return submitAuthorization(ctx, gateway, ActionSubmitAuthorization, actionCtx, instruction)
 			},
 		},
 		{
-			Name:                ActionSubmitReviewedAuthorization,
-			AllowedStates:       []string{StateReviewRequired},
-			RequiredParameters:  []string{"request_id", "patient_id", "payer_id", "procedure_code", "evidence_packet_id", "idempotency_key", "clinician_note"},
+			Name:          ActionSubmitReviewedAuthorization,
+			AllowedStates: []string{StateReviewRequired},
+			Parameters:    reviewedSubmissionParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters, true)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionSubmitReviewedAuthorization},
 			Risk:                action.RiskCritical,
 			ApprovalRequirement: action.ApprovalRequired,
 			Executor: func(ctx context.Context, actionCtx action.ActionContext) (action.ActionResult, error) {
-				instruction, err := instructionFromParams(actionCtx.Parameters, true)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
+				instruction, _ := instructionFromParams(actionCtx.Parameters, true)
 				return submitAuthorization(ctx, gateway, ActionSubmitReviewedAuthorization, actionCtx, instruction)
 			},
 		},
 		{
 			Name:                ActionWithdrawRequest,
 			AllowedStates:       []string{StateReceived, StateWaitingEvidence, StateReadyForCriteria, StateCriteriaMet, StateReviewRequired, StatePrepared},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionWithdrawRequest},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,

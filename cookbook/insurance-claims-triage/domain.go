@@ -240,6 +240,46 @@ func NewRuntime(gateway PayoutGateway) (*runtime.Runtime, error) {
 	})
 }
 
+func payoutParameters() []action.ParameterSpec {
+	return []action.ParameterSpec{
+		action.StringParam("claim_id"),
+		action.StringParam("claimant_id"),
+		action.StringParam("policy_id"),
+		positiveIntParam("payout_amount_cents"),
+		action.EnumParam("currency", "USD", "EUR"),
+		action.StringParam("idempotency_key"),
+	}
+}
+
+func lowValuePayoutParameters() []action.ParameterSpec {
+	return []action.ParameterSpec{
+		action.StringParam("claim_id"),
+		action.StringParam("claimant_id"),
+		action.StringParam("policy_id"),
+		boundedIntParam("payout_amount_cents", 1, LowValuePayoutLimitCents),
+		action.EnumParam("currency", "USD", "EUR"),
+		action.StringParam("idempotency_key"),
+	}
+}
+
+func positiveIntParam(name string) action.ParameterSpec {
+	min := int64(1)
+	spec := action.IntParam(name)
+	spec.Min = &min
+	return spec
+}
+
+func boundedIntParam(name string, min, max int64) action.ParameterSpec {
+	spec := action.IntParam(name)
+	spec.Min = &min
+	spec.Max = &max
+	return spec
+}
+
+func boolParamSpec(name string) action.ParameterSpec {
+	return action.ParameterSpec{Name: name, Type: action.ParamBool, Required: true}
+}
+
 func Contracts(gateway PayoutGateway) []action.ActionContract {
 	if gateway == nil {
 		gateway = NewLedgerPayoutGateway()
@@ -248,7 +288,7 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 		{
 			Name:                ActionRequestEvidence,
 			AllowedStates:       []string{StateReceived},
-			RequiredParameters:  []string{"missing_evidence"},
+			Parameters:          []action.ParameterSpec{action.StringParam("missing_evidence")},
 			RequiredPermissions: []permission.Permission{PermissionRequestEvidence},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
@@ -259,7 +299,7 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 		{
 			Name:                ActionRecordEvidence,
 			AllowedStates:       []string{StateWaitingEvidence},
-			RequiredParameters:  []string{"evidence_received"},
+			Parameters:          []action.ParameterSpec{action.StringParam("evidence_received")},
 			RequiredPermissions: []permission.Permission{PermissionRecordEvidence},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
@@ -268,31 +308,33 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionVerifyCoverage,
-			AllowedStates:       []string{StateReceived},
-			RequiredParameters:  []string{"claim_id", "claimant_id", "policy_id", "loss_type", "coverage_confirmed"},
+			Name:          ActionVerifyCoverage,
+			AllowedStates: []string{StateReceived},
+			Parameters:    []action.ParameterSpec{action.StringParam("claim_id"), action.StringParam("claimant_id"), action.StringParam("policy_id"), action.StringParam("loss_type"), boolParamSpec("coverage_confirmed")},
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				return validateCoverageParameters(ctx.Parameters)
+			},
 			RequiredPermissions: []permission.Permission{PermissionVerifyCoverage},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				if err := validateCoverageParameters(ctx.Parameters); err != nil {
-					return action.ActionResult{}, err
-				}
 				return eventResult(ActionVerifyCoverage, ctx, EventCoverageVerified, "verified policy coverage for the reported loss", ctx.Parameters), nil
 			},
 		},
 		{
-			Name:                ActionAssessRisk,
-			AllowedStates:       []string{StateCoverageVerified},
-			RequiredParameters:  []string{"risk_score", "payout_amount_cents", "currency", "fraud_signals"},
+			Name:               ActionAssessRisk,
+			AllowedStates:      []string{StateCoverageVerified},
+			RequiredParameters: []string{"risk_score"},
+			Parameters:         []action.ParameterSpec{positiveIntParam("payout_amount_cents"), action.EnumParam("currency", "USD", "EUR"), boolParamSpec("fraud_signals")},
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := assessmentFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionAssessRisk},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				assessment, err := assessmentFromParams(ctx.Parameters)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
+				assessment, _ := assessmentFromParams(ctx.Parameters)
 				if assessment.LowRisk() {
 					payload := copyParams(ctx.Parameters)
 					payload["low_value_limit_cents"] = LowValuePayoutLimitCents
@@ -304,27 +346,24 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionPrepareLowValuePayout,
-			AllowedStates:       []string{StateLowRiskReady},
-			RequiredParameters:  []string{"claim_id", "claimant_id", "policy_id", "payout_amount_cents", "currency", "idempotency_key"},
+			Name:          ActionPrepareLowValuePayout,
+			AllowedStates: []string{StateLowRiskReady},
+			Parameters:    lowValuePayoutParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionPrepareLowValuePayout},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				instruction, err := instructionFromParams(ctx.Parameters)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
-				if instruction.AmountCents > LowValuePayoutLimitCents {
-					return action.ActionResult{}, fmt.Errorf("low-value payout limit exceeded: %d cents > %d cents", instruction.AmountCents, LowValuePayoutLimitCents)
-				}
 				return eventResult(ActionPrepareLowValuePayout, ctx, EventPayoutPrepared, "prepared low-value payout instruction", ctx.Parameters), nil
 			},
 		},
 		{
 			Name:                ActionHoldForAdjuster,
 			AllowedStates:       []string{StateCoverageVerified, StateLowRiskReady},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionHoldForAdjuster},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -333,42 +372,41 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionIssueLowValuePayout,
-			AllowedStates:       []string{StatePayoutPrepared},
-			RequiredParameters:  []string{"claim_id", "claimant_id", "policy_id", "payout_amount_cents", "currency", "idempotency_key"},
+			Name:          ActionIssueLowValuePayout,
+			AllowedStates: []string{StatePayoutPrepared},
+			Parameters:    lowValuePayoutParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionIssueLowValuePayout},
 			Risk:                action.RiskHigh,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(ctx context.Context, actionCtx action.ActionContext) (action.ActionResult, error) {
-				instruction, err := instructionFromParams(actionCtx.Parameters)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
-				if instruction.AmountCents > LowValuePayoutLimitCents {
-					return action.ActionResult{}, fmt.Errorf("low-value payout limit exceeded: %d cents > %d cents", instruction.AmountCents, LowValuePayoutLimitCents)
-				}
+				instruction, _ := instructionFromParams(actionCtx.Parameters)
 				return issuePayout(ctx, gateway, ActionIssueLowValuePayout, actionCtx, instruction)
 			},
 		},
 		{
-			Name:                ActionIssueApprovedPayout,
-			AllowedStates:       []string{StateReviewRequired},
-			RequiredParameters:  []string{"claim_id", "claimant_id", "policy_id", "payout_amount_cents", "currency", "idempotency_key"},
+			Name:          ActionIssueApprovedPayout,
+			AllowedStates: []string{StateReviewRequired},
+			Parameters:    payoutParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionIssueApprovedPayout},
 			Risk:                action.RiskCritical,
 			ApprovalRequirement: action.ApprovalRequired,
 			Executor: func(ctx context.Context, actionCtx action.ActionContext) (action.ActionResult, error) {
-				instruction, err := instructionFromParams(actionCtx.Parameters)
-				if err != nil {
-					return action.ActionResult{}, err
-				}
+				instruction, _ := instructionFromParams(actionCtx.Parameters)
 				return issuePayout(ctx, gateway, ActionIssueApprovedPayout, actionCtx, instruction)
 			},
 		},
 		{
 			Name:                ActionDenyClaim,
 			AllowedStates:       []string{StateReceived, StateWaitingEvidence, StateCoverageVerified, StateLowRiskReady, StateReviewRequired, StatePayoutPrepared},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionDenyClaim},
 			Risk:                action.RiskHigh,
 			ApprovalRequirement: action.ApprovalNever,

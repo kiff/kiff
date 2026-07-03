@@ -160,6 +160,49 @@ func TestAgentCannotSelfSubmitByAddingPortalRole(t *testing.T) {
 	}
 }
 
+func TestMalformedCriteriaParameterIsRejectedBeforeExecutor(t *testing.T) {
+	ctx := context.Background()
+	rt, err := NewRuntime(NewInMemoryPayerPortal())
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	requestID := "pa-invalid-3503"
+	patientID := "patient-nguyen"
+	payerID := "payer-central"
+	procedure := "imaging-c"
+	if err := rt.IngestEvent(ctx, NewAuthRequestReceivedEvent(requestID, patientID, payerID, procedure, time.Now())); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	mustExecute(t, ctx, rt, ActionRecordClinicalEvidence, requestID, StateReceived, PriorAuthAgentActor, evidenceParams(requestID, patientID, payerID, procedure, "evidence-invalid-3503"))
+
+	contract, err := Contract(rt, ActionCheckPolicyCriteria)
+	if err != nil {
+		t.Fatalf("contract: %v", err)
+	}
+	_, err = rt.ExecuteAction(ctx, action.ActionContext{
+		ActionName:   ActionCheckPolicyCriteria,
+		EntityID:     requestID,
+		EntityType:   EntityPriorAuthRequest,
+		CurrentState: StateReadyForCriteria,
+		Actor:        PriorAuthAgentActor,
+		Parameters: map[string]any{
+			"criteria_met":      "yes",
+			"denial_risk_score": 0.12,
+			"missing_evidence":  false,
+		},
+	}, contract)
+	if !errors.Is(err, action.ErrInvalidParameter) {
+		t.Fatalf("expected invalid parameter, got %v", err)
+	}
+	current, err := CurrentState(ctx, rt, requestID)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if current.Value != StateReadyForCriteria {
+		t.Fatalf("expected state to remain %s, got %s", StateReadyForCriteria, current.Value)
+	}
+}
+
 func TestOnlyClinicianCanReviewAuthorizationApproval(t *testing.T) {
 	ctx := context.Background()
 	rt, err := NewRuntime(NewInMemoryPayerPortal())
