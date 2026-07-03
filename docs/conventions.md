@@ -183,6 +183,23 @@ KIFF does not provide:
 
 This is intentional. The framework stays small so your domain stays clear.
 
+## Where examples live: `examples/` vs `cookbook/`
+
+The repo keeps two deliberate categories of worked code:
+
+- **`examples/`** — focused, single-concept demos of one framework capability
+  (e.g. `examples/refund/` for the core loop, `examples/llm-bridge/` for the
+  tool-call bridge). Read these to learn a primitive.
+- **`cookbook/`** — end-to-end, production-shaped recipes for a real
+  consequential workflow (e.g. `cookbook/accounts-payable-payout/`). A recipe
+  wires a domain, an app controller, an agent adapter, tests, and a runnable
+  demo together, and follows the recipe standard in
+  [`cookbook/README.md`](../cookbook/README.md). Read these to see the whole
+  shape of a governed agentic workflow.
+
+Both stay runnable and hermetic (offline by default; any real LLM/provider is
+opt-in, with no credentials in CI).
+
 ## When to break the conventions
 
 Break them when you have a real reason. Then write a short comment explaining what you broke and why. The conventions exist so that, when you do deviate, the deviation is visible and intentional.
