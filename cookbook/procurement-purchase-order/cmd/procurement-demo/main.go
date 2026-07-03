@@ -9,6 +9,7 @@ import (
 
 	procurement "github.com/kiff/kiff/cookbook/procurement-purchase-order"
 	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
@@ -152,6 +153,9 @@ func main() {
 	for _, receipt := range gateway.List() {
 		fmt.Printf("PO: %s vendor=%s amount=%s %.2f via %s\n", receipt.PurchaseOrderID, receipt.VendorID, receipt.Currency, float64(receipt.AmountCents)/100, receipt.IdempotencyKey)
 	}
+	if err := printLifecycle(ctx, rt, requestID); err != nil {
+		fail("lifecycle", err)
+	}
 }
 
 func step(ctx context.Context, rt *runtime.Runtime, agent procurement.Agent, requestID, input string) error {
@@ -188,6 +192,40 @@ func actionNames(contracts []action.ActionContract) []string {
 		names = append(names, contract.Name)
 	}
 	return names
+}
+
+func printLifecycle(ctx context.Context, rt *runtime.Runtime, requestID string) error {
+	lifecycle, err := rt.EntityLifecycle(ctx, requestID)
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	fmt.Printf("Lifecycle view: state=%s disposition=%s decisions=%d approvals=%d stages=%d\n",
+		lifecycle.CurrentState, lifecycle.Disposition(), len(lifecycle.Decisions), len(lifecycle.Approvals), len(lifecycle.Stages))
+	for _, stage := range lifecycle.Stages {
+		if !showLifecycleStage(stage.Kind) {
+			continue
+		}
+		detail := stage.Action
+		if detail == "" {
+			detail = stage.Message
+		}
+		fmt.Printf(" - %s actor=%s detail=%s\n", stage.Kind, stage.ActorID, detail)
+	}
+	return nil
+}
+
+func showLifecycleStage(kind audit.Kind) bool {
+	switch kind {
+	case audit.KindDecisionProposed,
+		audit.KindApprovalRequired,
+		audit.KindApprovalGranted,
+		audit.KindActionExecuted,
+		audit.KindActionDeduplicated:
+		return true
+	default:
+		return false
+	}
 }
 
 func fail(step string, err error) {

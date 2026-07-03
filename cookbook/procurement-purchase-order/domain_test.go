@@ -49,6 +49,13 @@ func TestLowRiskPurchaseCreatesPOWithoutHumanApproval(t *testing.T) {
 	if !auditHasActorAction(timeline, audit.KindActionExecuted, ERPServiceActor.ID, ActionCreateStandardPO) {
 		t.Fatal("expected ERP service to create the PO")
 	}
+	lifecycle, err := rt.EntityLifecycle(ctx, requestID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateOrdered || !lifecycle.Executed() || lifecycle.AwaitingApproval() {
+		t.Fatalf("unexpected lifecycle view: state=%s disposition=%s awaiting=%v", lifecycle.CurrentState, lifecycle.Disposition(), lifecycle.AwaitingApproval())
+	}
 	replayed, err := rt.RebuildState(ctx, requestID)
 	if err != nil {
 		t.Fatalf("rebuild: %v", err)
@@ -113,6 +120,57 @@ func TestHighRiskPurchaseRequiresManagerApprovalAndDeduplicates(t *testing.T) {
 	}
 	if !auditHasKind(timeline, audit.KindActionDeduplicated) {
 		t.Fatal("expected idempotent retry audit")
+	}
+	lifecycle, err := rt.EntityLifecycle(ctx, requestID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateOrdered || lifecycle.Disposition() != audit.KindActionDeduplicated {
+		t.Fatalf("expected ordered deduplicated lifecycle, got state=%s disposition=%s", lifecycle.CurrentState, lifecycle.Disposition())
+	}
+	if !lifecycle.Has(audit.KindApprovalGranted) || !lifecycle.Has(audit.KindActionExecuted) || !lifecycle.Has(audit.KindActionDeduplicated) {
+		t.Fatalf("expected approval grant, execution, and deduplicated retry in lifecycle stages: %+v", lifecycle.Stages)
+	}
+	if len(lifecycle.Approvals) != 1 || lifecycle.Approvals[0].Status != approval.StatusGranted {
+		t.Fatalf("expected granted approval attached to lifecycle, got %+v", lifecycle.Approvals)
+	}
+}
+
+func TestAgentProposalIsVisibleInLifecycle(t *testing.T) {
+	ctx := context.Background()
+	gateway := NewInMemoryPurchasingGateway()
+	rt, err := NewRuntime(gateway)
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	requestID := "pr-proposal-6006"
+	seedRequest(t, ctx, rt, requestID, "requester-nguyen", "engineering")
+
+	proposal := AgentProposal{
+		ActionName:       ActionAttachQuote,
+		Parameters:       quoteParams(requestID, 84000, false, false),
+		ReasoningSummary: "attach supplier quote before purchase risk assessment",
+		Confidence:       0.9,
+	}
+	if err := RecordAgentProposal(ctx, rt, requestID, "Attach the supplier quote.", proposal); err != nil {
+		t.Fatalf("record proposal: %v", err)
+	}
+	if _, err := ApplyAgentProposal(ctx, rt, requestID, StateReceived, proposal); err != nil {
+		t.Fatalf("apply proposal: %v", err)
+	}
+
+	lifecycle, err := rt.EntityLifecycle(ctx, requestID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateQuoteAttached {
+		t.Fatalf("expected current state %s, got %s", StateQuoteAttached, lifecycle.CurrentState)
+	}
+	if !lifecycle.Has(audit.KindDecisionProposed) || !lifecycle.Executed() {
+		t.Fatalf("expected proposed and executed lifecycle stages, got %+v", lifecycle.Stages)
+	}
+	if len(lifecycle.Decisions) != 1 || lifecycle.Decisions[0].ProposedAction != ActionAttachQuote {
+		t.Fatalf("expected proposal decision attached, got %+v", lifecycle.Decisions)
 	}
 }
 

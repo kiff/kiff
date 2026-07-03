@@ -23,7 +23,7 @@ Purchase request
   -> typed KIFF action validation
   -> dynamic approval decision
   -> ERP service execution
-  -> audit trail and replay
+  -> lifecycle view, audit trail, and replay
 ```
 
 ## Workflow
@@ -75,3 +75,7 @@ The demo follows a high-value new-vendor SaaS purchase. The agent gathers quote
 and budget facts, KIFF routes the request to `REVIEW_REQUIRED`, blocks ERP PO
 creation until a procurement manager approves, executes through the ERP service,
 and then proves a retry is deduplicated by the runtime.
+
+The demo also prints `Runtime.EntityLifecycle`, which assembles the
+decision/proposal, approval record, execution stages, and deduplicated retry into
+one read-only view for a UI or API response.
