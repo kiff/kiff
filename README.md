@@ -99,6 +99,11 @@ checkout? Add `-replace-local /path/to/kiff`.
 - [examples/mission](./examples/mission/) — a larger stateful coordination domain
 - [examples/llm-bridge](./examples/llm-bridge/) — the tool-call bridge pattern
 
+## Cookbook
+
+- [cookbook/accounts-payable-payout](./cookbook/accounts-payable-payout/) — a Claude Haiku AP payout agent where KIFF keeps money movement behind state, permissions, approval, and idempotency
+- [cookbook](./cookbook/) — planned high-trust recipes across finance, insurance, healthcare, infrastructure, and operations
+
 ## Who It Is Not For
 
 If your app is simple CRUD, or direct LLM tool calls with no consequential
