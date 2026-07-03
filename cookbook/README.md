@@ -7,6 +7,11 @@ to automate without an explicit action boundary.
 The goal is not to show audit for its own sake. The goal is to show what KIFF
 lets a product team safely launch.
 
+If you are adapting a recipe to your own system, start with the
+[cookbook guide](../docs/cookbook-guide.md). It explains how to choose a recipe,
+map your states and actions, wire the side-effect boundary, and prove the
+executor cannot run on unsafe paths.
+
 ## Recipe Standard
 
 Each high-quality recipe should answer:

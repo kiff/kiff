@@ -67,6 +67,7 @@ ledger, cloud credentials, payer portal, or production database topology. Those
 are host-system concerns. KIFF provides the governed action boundary and the
 records needed to explain what happened.
 
-Use `docs/side-effect-boundary.md` for deployment topology, and start with the
-top-level `README.md` plus `cookbook/README.md` when evaluating which recipe
-maps to your use case.
+Use `docs/side-effect-boundary.md` for deployment topology,
+`docs/cookbook-guide.md` for adapting a recipe, and start with the top-level
+`README.md` plus `cookbook/README.md` when evaluating which recipe maps to your
+use case.
