@@ -18,6 +18,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/decision"
 	"github.com/kiff/kiff/pkg/kiff/domain"
 	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/idempotency"
 	"github.com/kiff/kiff/pkg/kiff/internal/trust"
 	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/permission"
@@ -39,6 +40,7 @@ type Config struct {
 	ApprovalStore    approval.Store
 	StateMachine     state.StateMachine
 	PermissionPolicy permission.Policy
+	IdempotencyStore idempotency.Store
 	ActionValidator  action.Validator
 	ActionCatalog    *action.Catalog
 	Adapters         []adapter.Adapter
@@ -58,6 +60,7 @@ type Runtime struct {
 	Approvals   approval.Store
 	States      state.StateMachine
 	Permissions permission.Policy
+	Idempotency idempotency.Store
 	Validator   action.Validator
 	Actions     *action.Catalog
 	Adapters    map[string]adapter.Adapter
@@ -104,6 +107,7 @@ func New(config Config) (*Runtime, error) {
 		Approvals:   config.ApprovalStore,
 		States:      config.StateMachine,
 		Permissions: config.PermissionPolicy,
+		Idempotency: config.IdempotencyStore,
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
 		Adapters:    map[string]adapter.Adapter{},
@@ -146,6 +150,9 @@ func New(config Config) (*Runtime, error) {
 	}
 	if rt.Approvals == nil {
 		rt.Approvals = approval.NewInMemoryStore()
+	}
+	if rt.Idempotency == nil {
+		rt.Idempotency = idempotency.NewInMemoryStore()
 	}
 	if rt.Validator == nil {
 		rt.Validator = action.NewDefaultValidator()
@@ -493,8 +500,49 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 	return nil
 }
 
+// idempotencyKeyFor builds the dedup key for an action context. It reports
+// false when idempotency does not apply (no store, or no key on the context),
+// so execution behaves exactly as before.
+func (r *Runtime) idempotencyKeyFor(actionCtx action.ActionContext, contract action.ActionContract) (idempotency.Key, bool) {
+	if r.Idempotency == nil || actionCtx.IdempotencyKey == "" {
+		return idempotency.Key{}, false
+	}
+	name := contract.Name
+	if name == "" {
+		name = actionCtx.ActionName
+	}
+	return idempotency.Key{Value: actionCtx.IdempotencyKey, EntityID: actionCtx.EntityID, ActionName: name}, true
+}
+
+// auditDeduplicated records an idempotent replay distinctly from a first
+// execution, so the trail shows the retry returned a prior result.
+func (r *Runtime) auditDeduplicated(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract, prior action.ActionResult) error {
+	return r.appendAudit(ctx, audit.KindActionDeduplicated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action deduplicated (idempotent replay)", map[string]any{
+		"action":          contract.Name,
+		"idempotency_key": actionCtx.IdempotencyKey,
+		"prior_status":    prior.Status,
+		"duplicate":       true,
+	})
+}
+
 // ExecuteAction validates, executes, and audits an action.
 func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) (action.ActionResult, error) {
+	idemKey, useIdem := r.idempotencyKeyFor(actionCtx, contract)
+	if useIdem {
+		// A retry of an already-succeeded request returns the stored result
+		// before validation, so it is not refused by a state that has since
+		// advanced (e.g. REFUNDED), and without re-emitting follow-up events.
+		if prior, ok, err := r.Idempotency.Lookup(ctx, idemKey); err != nil {
+			return action.ActionResult{}, err
+		} else if ok {
+			if err := r.auditDeduplicated(ctx, actionCtx, contract, prior); err != nil {
+				return action.ActionResult{}, err
+			}
+			r.metrics.Inc(CounterActionsDeduplicated, 1, EntityType(actionCtx.EntityType))
+			return prior, nil
+		}
+	}
+
 	var err error
 	actionCtx, err = r.applyApproval(ctx, actionCtx, contract)
 	if err != nil {
@@ -518,8 +566,32 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 		return failResult, action.ErrExecutorMissing
 	}
 
+	if useIdem {
+		// Atomic reserve-or-return: only one caller may execute a given key.
+		begin, beginErr := r.Idempotency.Begin(ctx, idemKey)
+		if beginErr != nil {
+			return action.ActionResult{}, beginErr
+		}
+		switch begin.Status {
+		case idempotency.Completed:
+			// Completed by a concurrent caller between Lookup and Begin.
+			if err := r.auditDeduplicated(ctx, actionCtx, contract, begin.Result); err != nil {
+				return action.ActionResult{}, err
+			}
+			r.metrics.Inc(CounterActionsDeduplicated, 1, EntityType(actionCtx.EntityType))
+			return begin.Result, nil
+		case idempotency.InProgress:
+			return action.ActionResult{}, fmt.Errorf("%w: action %q for entity %q", idempotency.ErrInProgress, contract.Name, actionCtx.EntityID)
+		}
+	}
+
 	result, err := contract.Executor(ctx, actionCtx)
 	if err != nil {
+		// The executor failed: drop the reservation so the request can be
+		// retried rather than being frozen as a cached failure.
+		if useIdem {
+			_ = r.Idempotency.Release(ctx, idemKey)
+		}
 		result = action.FailedResult(contract.Name, actionCtx.EntityID, err)
 		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action execution failed", map[string]any{
 			"action":           contract.Name,
@@ -575,8 +647,22 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 				followUpEvent.Metadata.CausationID = parentEventID
 			}
 			if err := r.IngestEvent(ctx, followUpEvent); err != nil {
+				if useIdem {
+					_ = r.Idempotency.Release(ctx, idemKey)
+				}
 				return result, err
 			}
+		}
+	}
+	if useIdem {
+		// Cache only a fully-applied terminal success. A non-success result
+		// (e.g. skipped) releases the reservation so it can be retried.
+		if result.Status == action.ExecutionSucceeded {
+			if err := r.Idempotency.Complete(ctx, idemKey, result); err != nil {
+				return action.ActionResult{}, err
+			}
+		} else {
+			_ = r.Idempotency.Release(ctx, idemKey)
 		}
 	}
 	return result, nil

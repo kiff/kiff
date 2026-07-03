@@ -111,7 +111,13 @@ type ActionContext struct {
 	Actor        actor.Actor
 	Parameters   map[string]any
 	ApprovalID   string
-	approved     bool
+	// IdempotencyKey, when set and the runtime has an idempotency store,
+	// makes execution duplicate-safe: a retry with the same key (for the same
+	// entity and action) returns the prior successful result without running
+	// the executor again or re-emitting its follow-up events. Empty means no
+	// deduplication — behavior is unchanged.
+	IdempotencyKey string
+	approved       bool
 }
 
 // IsApproved returns whether the runtime has resolved a granted approval for this context.
