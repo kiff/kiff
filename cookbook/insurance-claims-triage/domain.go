@@ -494,14 +494,17 @@ func ReviewPayoutApproval(ctx context.Context, rt *runtime.Runtime, approvalID s
 	if rt == nil {
 		return approval.Approval{}, errors.New("runtime is required")
 	}
-	if !rt.Permissions.Can(ctx, reviewer, PermissionReviewPayoutApproval) {
-		return approval.Approval{}, fmt.Errorf("%w: %q", action.ErrPermissionDenied, PermissionReviewPayoutApproval)
-	}
 	status := approval.StatusDenied
 	if granted {
 		status = approval.StatusGranted
 	}
-	return rt.ReviewApproval(ctx, approvalID, reviewer.ID, status, reason)
+	// The runtime enforces reviewer authority (the adjuster's review
+	// permission) and segregation of duties (the requester cannot approve
+	// their own payout) before the approval changes.
+	return rt.ReviewApprovalAs(ctx, approvalID, reviewer, runtime.ReviewRequirement{
+		Permission:            PermissionReviewPayoutApproval,
+		SeparateFromRequester: true,
+	}, status, reason)
 }
 
 func eventResult(actionName string, ctx action.ActionContext, eventType, summary string, payload map[string]any) action.ActionResult {

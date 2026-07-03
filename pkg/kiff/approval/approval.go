@@ -10,6 +10,10 @@ import (
 var (
 	ErrInvalidApproval  = errors.New("invalid approval")
 	ErrApprovalNotFound = errors.New("approval not found")
+	// ErrSelfReview is returned when the actor reviewing an approval is the
+	// same actor that requested it, and the review required segregation of
+	// duties. The requester/proposer of an action cannot also approve it.
+	ErrSelfReview = errors.New("approval reviewer must differ from requester")
 )
 
 // Status describes the review state of an approval.
