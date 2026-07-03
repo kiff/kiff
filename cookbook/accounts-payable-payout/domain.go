@@ -226,6 +226,45 @@ func NewRuntime(gateway PaymentGateway) (*runtime.Runtime, error) {
 	})
 }
 
+func invoiceParameters() []action.ParameterSpec {
+	return []action.ParameterSpec{
+		action.StringParam("invoice_id"),
+		action.StringParam("vendor_id"),
+		action.StringParam("invoice_number"),
+		positiveIntParam("amount_cents"),
+		action.EnumParam("currency", "USD", "EUR"),
+		bankFingerprintParam(),
+	}
+}
+
+func paymentParameters() []action.ParameterSpec {
+	return append(invoiceParameters(), action.StringParam("idempotency_key"))
+}
+
+func positiveIntParam(name string) action.ParameterSpec {
+	min := int64(1)
+	spec := action.IntParam(name)
+	spec.Min = &min
+	return spec
+}
+
+func boundedIntParam(name string, min, max int64) action.ParameterSpec {
+	spec := action.IntParam(name)
+	spec.Min = &min
+	spec.Max = &max
+	return spec
+}
+
+func boolParamSpec(name string) action.ParameterSpec {
+	return action.ParameterSpec{Name: name, Type: action.ParamBool, Required: true}
+}
+
+func bankFingerprintParam() action.ParameterSpec {
+	spec := action.StringParam("bank_fingerprint")
+	spec.MinLen = 6
+	return spec
+}
+
 func Contracts(gateway PaymentGateway) []action.ActionContract {
 	if gateway == nil {
 		gateway = NewLedgerGateway()
@@ -234,7 +273,7 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 		{
 			Name:                ActionRequestMissingInfo,
 			AllowedStates:       []string{StateReceived},
-			RequiredParameters:  []string{"missing_fields"},
+			Parameters:          []action.ParameterSpec{action.StringParam("missing_fields")},
 			RequiredPermissions: []permission.Permission{PermissionRequestMissingInfo},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
@@ -245,7 +284,7 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 		{
 			Name:                ActionRecordInfoReceived,
 			AllowedStates:       []string{StateNeedsInfo},
-			RequiredParameters:  []string{"invoice_id", "vendor_id", "invoice_number", "amount_cents", "currency", "bank_fingerprint"},
+			Parameters:          invoiceParameters(),
 			RequiredPermissions: []permission.Permission{PermissionRecordInfoReceived},
 			Risk:                action.RiskLow,
 			ApprovalRequirement: action.ApprovalNever,
@@ -256,21 +295,18 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 		{
 			Name:                ActionVerifyInvoice,
 			AllowedStates:       []string{StateReceived},
-			RequiredParameters:  []string{"invoice_id", "vendor_id", "invoice_number", "amount_cents", "currency", "bank_fingerprint"},
+			Parameters:          invoiceParameters(),
 			RequiredPermissions: []permission.Permission{PermissionVerifyInvoice},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
 			Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
-				if err := validateInvoiceParameters(ctx.Parameters); err != nil {
-					return action.ActionResult{}, err
-				}
 				return eventResult(ActionVerifyInvoice, ctx, EventInvoiceVerified, "verified invoice identity, amount, and payment rails", ctx.Parameters), nil
 			},
 		},
 		{
 			Name:                ActionMarkReadyForPayment,
 			AllowedStates:       []string{StateVerified},
-			RequiredParameters:  []string{"due_date"},
+			Parameters:          []action.ParameterSpec{action.StringParam("due_date")},
 			RequiredPermissions: []permission.Permission{PermissionMarkReadyForPayment},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -281,7 +317,7 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 		{
 			Name:                ActionHoldForApproval,
 			AllowedStates:       []string{StateReadyForPayment},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionHoldForApproval},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -290,9 +326,23 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:                ActionReleaseLowRiskPayment,
-			AllowedStates:       []string{StateReadyForPayment},
-			RequiredParameters:  []string{"invoice_id", "vendor_id", "amount_cents", "currency", "bank_fingerprint", "trusted_vendor", "idempotency_key"},
+			Name:          ActionReleaseLowRiskPayment,
+			AllowedStates: []string{StateReadyForPayment},
+			Parameters: append([]action.ParameterSpec{
+				action.StringParam("invoice_id"),
+				action.StringParam("vendor_id"),
+				action.StringParam("invoice_number"),
+				boundedIntParam("amount_cents", 1, LowRiskLimitCents),
+				action.EnumParam("currency", "USD", "EUR"),
+				bankFingerprintParam(),
+				action.StringParam("idempotency_key"),
+			}, boolParamSpec("trusted_vendor")),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				if !boolParam(ctx.Parameters, "trusted_vendor") {
+					return errors.New("low-risk payment requires trusted_vendor=true")
+				}
+				return nil
+			},
 			RequiredPermissions: []permission.Permission{PermissionReleaseLowRiskPayment},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -301,19 +351,17 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 				if err != nil {
 					return action.ActionResult{}, err
 				}
-				if instruction.AmountCents > LowRiskLimitCents {
-					return action.ActionResult{}, fmt.Errorf("low-risk payment limit exceeded: %d cents > %d cents", instruction.AmountCents, LowRiskLimitCents)
-				}
-				if !boolParam(actionCtx.Parameters, "trusted_vendor") {
-					return action.ActionResult{}, errors.New("low-risk payment requires trusted_vendor=true")
-				}
 				return releasePayment(ctx, gateway, ActionReleaseLowRiskPayment, actionCtx, instruction)
 			},
 		},
 		{
-			Name:                ActionReleaseApprovedPayment,
-			AllowedStates:       []string{StatePaymentHeld},
-			RequiredParameters:  []string{"invoice_id", "vendor_id", "amount_cents", "currency", "bank_fingerprint", "idempotency_key"},
+			Name:          ActionReleaseApprovedPayment,
+			AllowedStates: []string{StatePaymentHeld},
+			Parameters:    paymentParameters(),
+			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
+				_, err := instructionFromParams(ctx.Parameters)
+				return err
+			},
 			RequiredPermissions: []permission.Permission{PermissionReleaseApprovedPayment},
 			Risk:                action.RiskCritical,
 			ApprovalRequirement: action.ApprovalRequired,
@@ -328,7 +376,7 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 		{
 			Name:                ActionRejectInvoice,
 			AllowedStates:       []string{StateReceived, StateNeedsInfo, StateVerified, StateReadyForPayment, StatePaymentHeld},
-			RequiredParameters:  []string{"reason"},
+			Parameters:          []action.ParameterSpec{action.StringParam("reason")},
 			RequiredPermissions: []permission.Permission{PermissionRejectInvoice},
 			Risk:                action.RiskMedium,
 			ApprovalRequirement: action.ApprovalNever,
@@ -388,33 +436,6 @@ func releasePayment(ctx context.Context, gateway PaymentGateway, actionName stri
 		},
 		ExecutedAt: time.Now().UTC(),
 	}, nil
-}
-
-func validateInvoiceParameters(params map[string]any) error {
-	if strings.TrimSpace(stringParam(params, "invoice_id")) == "" {
-		return errors.New("invoice_id is required")
-	}
-	if strings.TrimSpace(stringParam(params, "vendor_id")) == "" {
-		return errors.New("vendor_id is required")
-	}
-	if strings.TrimSpace(stringParam(params, "invoice_number")) == "" {
-		return errors.New("invoice_number is required")
-	}
-	amount, err := int64Param(params, "amount_cents")
-	if err != nil {
-		return err
-	}
-	if amount <= 0 {
-		return errors.New("amount_cents must be positive")
-	}
-	currency := strings.ToUpper(stringParam(params, "currency"))
-	if currency != "USD" && currency != "EUR" {
-		return fmt.Errorf("unsupported currency %q", currency)
-	}
-	if len(strings.TrimSpace(stringParam(params, "bank_fingerprint"))) < 6 {
-		return errors.New("bank_fingerprint must identify trusted payment rails")
-	}
-	return nil
 }
 
 func validatePaymentInstruction(instruction PaymentInstruction) error {
@@ -517,9 +538,10 @@ func int64Param(params map[string]any, key string) (int64, error) {
 	case int64:
 		return typed, nil
 	case float64:
+		if typed != float64(int64(typed)) {
+			return 0, fmt.Errorf("%s must be an integer number of cents", key)
+		}
 		return int64(typed), nil
-	case jsonNumber:
-		return typed.Int64()
 	case string:
 		var parsed int64
 		if _, err := fmt.Sscanf(typed, "%d", &parsed); err == nil {
@@ -527,8 +549,4 @@ func int64Param(params map[string]any, key string) (int64, error) {
 		}
 	}
 	return 0, fmt.Errorf("%s must be an integer number of cents", key)
-}
-
-type jsonNumber interface {
-	Int64() (int64, error)
 }

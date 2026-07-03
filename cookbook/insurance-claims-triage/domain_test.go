@@ -27,7 +27,7 @@ func TestLowValueClaimCanIssuePayoutWithoutHumanApproval(t *testing.T) {
 	}
 
 	mustExecute(t, ctx, rt, ActionVerifyCoverage, claimID, StateReceived, ClaimsAgentActor, coverageParams(claimID, claimantID, policyID, "water_damage"))
-	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 0.18, 84000, false))
+	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 18, 84000, false))
 	mustExecute(t, ctx, rt, ActionPrepareLowValuePayout, claimID, StateLowRiskReady, ClaimsAgentActor, payoutParams(claimID, claimantID, policyID, 84000))
 	mustExecute(t, ctx, rt, ActionIssueLowValuePayout, claimID, StatePayoutPrepared, ClaimsServiceActor, payoutParams(claimID, claimantID, policyID, 84000))
 
@@ -68,7 +68,7 @@ func TestHighRiskPayoutRequiresAdjusterApproval(t *testing.T) {
 	}
 
 	mustExecute(t, ctx, rt, ActionVerifyCoverage, claimID, StateReceived, ClaimsAgentActor, coverageParams(claimID, claimantID, policyID, "collision"))
-	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 0.82, 420000, true))
+	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 82, 420000, true))
 
 	release, err := Contract(rt, ActionIssueApprovedPayout)
 	if err != nil {
@@ -138,7 +138,7 @@ func TestAgentCannotSelfIssuePayoutByAddingServiceRole(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 	mustExecute(t, ctx, rt, ActionVerifyCoverage, claimID, StateReceived, ClaimsAgentActor, coverageParams(claimID, claimantID, policyID, "theft"))
-	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 0.20, 60000, false))
+	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 20, 60000, false))
 	mustExecute(t, ctx, rt, ActionPrepareLowValuePayout, claimID, StateLowRiskReady, ClaimsAgentActor, payoutParams(claimID, claimantID, policyID, 60000))
 
 	contract, err := Contract(rt, ActionIssueLowValuePayout)
@@ -177,7 +177,7 @@ func TestLowValueExecutorRejectsHighAmountEvenInPreparedState(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 	mustExecute(t, ctx, rt, ActionVerifyCoverage, claimID, StateReceived, ClaimsAgentActor, coverageParams(claimID, claimantID, policyID, "wind_damage"))
-	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 0.10, 90000, false))
+	mustExecute(t, ctx, rt, ActionAssessRisk, claimID, StateCoverageVerified, ClaimsAgentActor, riskParams(claimID, 10, 90000, false))
 	mustExecute(t, ctx, rt, ActionPrepareLowValuePayout, claimID, StateLowRiskReady, ClaimsAgentActor, payoutParams(claimID, claimantID, policyID, 90000))
 
 	contract, err := Contract(rt, ActionIssueLowValuePayout)
@@ -293,7 +293,7 @@ func coverageParams(claimID, claimantID, policyID, lossType string) map[string]a
 	}
 }
 
-func riskParams(claimID string, score float64, amount int64, fraudSignals bool) map[string]any {
+func riskParams(claimID string, score int64, amount int64, fraudSignals bool) map[string]any {
 	return map[string]any{
 		"claim_id":            claimID,
 		"risk_score":          score,

@@ -52,7 +52,7 @@ const (
 	RolePayerPortal    = "payer_portal_service"
 	RoleClinician      = "clinician_reviewer"
 
-	LowDenialRiskLimit = 0.50
+	LowDenialRiskLimit = 50
 )
 
 const (
@@ -257,6 +257,13 @@ func boolParamSpec(name string) action.ParameterSpec {
 	return action.ParameterSpec{Name: name, Type: action.ParamBool, Required: true}
 }
 
+func boundedIntParam(name string, min, max int64) action.ParameterSpec {
+	spec := action.IntParam(name)
+	spec.Min = &min
+	spec.Max = &max
+	return spec
+}
+
 func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 	if gateway == nil {
 		gateway = NewInMemoryPayerPortal()
@@ -288,10 +295,9 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:               ActionCheckPolicyCriteria,
-			AllowedStates:      []string{StateReadyForCriteria},
-			RequiredParameters: []string{"denial_risk_score"},
-			Parameters:         []action.ParameterSpec{boolParamSpec("criteria_met"), boolParamSpec("missing_evidence")},
+			Name:          ActionCheckPolicyCriteria,
+			AllowedStates: []string{StateReadyForCriteria},
+			Parameters:    []action.ParameterSpec{boolParamSpec("criteria_met"), boundedIntParam("denial_risk_score", 0, 100), boolParamSpec("missing_evidence")},
 			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
 				_, err := criteriaCheckFromParams(ctx.Parameters)
 				return err
@@ -384,7 +390,7 @@ func Contracts(gateway PayerPortalGateway) []action.ActionContract {
 
 type CriteriaCheck struct {
 	CriteriaMet     bool
-	DenialRiskScore float64
+	DenialRiskScore int64
 	MissingEvidence bool
 }
 
@@ -398,7 +404,7 @@ func (c CriteriaCheck) ReviewReason() string {
 		reasons = append(reasons, "policy criteria not fully met")
 	}
 	if c.DenialRiskScore >= LowDenialRiskLimit {
-		reasons = append(reasons, fmt.Sprintf("denial risk %.2f is above %.2f", c.DenialRiskScore, LowDenialRiskLimit))
+		reasons = append(reasons, fmt.Sprintf("denial risk %d is above %d", c.DenialRiskScore, LowDenialRiskLimit))
 	}
 	if c.MissingEvidence {
 		reasons = append(reasons, "clinical evidence is incomplete")
@@ -578,12 +584,12 @@ func instructionFromParams(params map[string]any, reviewed bool) (SubmissionInst
 }
 
 func criteriaCheckFromParams(params map[string]any) (CriteriaCheck, error) {
-	score, err := float64Param(params, "denial_risk_score")
+	score, err := int64Param(params, "denial_risk_score")
 	if err != nil {
 		return CriteriaCheck{}, err
 	}
-	if score < 0 || score > 1 {
-		return CriteriaCheck{}, errors.New("denial_risk_score must be between 0 and 1")
+	if score < 0 || score > 100 {
+		return CriteriaCheck{}, errors.New("denial_risk_score must be between 0 and 100")
 	}
 	return CriteriaCheck{
 		CriteriaMet:     boolParam(params, "criteria_met"),
@@ -643,27 +649,28 @@ func boolParam(params map[string]any, key string) bool {
 	}
 }
 
-func float64Param(params map[string]any, key string) (float64, error) {
+func int64Param(params map[string]any, key string) (int64, error) {
 	value, ok := params[key]
 	if !ok {
 		return 0, fmt.Errorf("%s is required", key)
 	}
 	switch typed := value.(type) {
-	case float64:
-		return typed, nil
-	case float32:
-		return float64(typed), nil
 	case int:
-		return float64(typed), nil
+		return int64(typed), nil
 	case int64:
-		return float64(typed), nil
+		return typed, nil
+	case float64:
+		if typed != float64(int64(typed)) {
+			return 0, fmt.Errorf("%s must be an integer", key)
+		}
+		return int64(typed), nil
 	case string:
-		var parsed float64
-		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%f", &parsed); err != nil {
-			return 0, fmt.Errorf("%s must be a number", key)
+		var parsed int64
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%d", &parsed); err != nil {
+			return 0, fmt.Errorf("%s must be an integer", key)
 		}
 		return parsed, nil
 	default:
-		return 0, fmt.Errorf("%s must be a number", key)
+		return 0, fmt.Errorf("%s must be an integer", key)
 	}
 }

@@ -29,7 +29,7 @@ func TestCriteriaMetAuthorizationSubmitsWithoutHumanApproval(t *testing.T) {
 	}
 
 	mustExecute(t, ctx, rt, ActionRecordClinicalEvidence, requestID, StateReceived, PriorAuthAgentActor, evidenceParams(requestID, patientID, payerID, procedure, "evidence-low-1001"))
-	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(true, 0.12, false))
+	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(true, 12, false))
 	mustExecute(t, ctx, rt, ActionPrepareAuthorization, requestID, StateCriteriaMet, PriorAuthAgentActor, submissionParams(requestID, patientID, payerID, procedure, "evidence-low-1001"))
 	mustExecute(t, ctx, rt, ActionSubmitAuthorization, requestID, StatePrepared, PayerPortalActor, submissionParams(requestID, patientID, payerID, procedure, "evidence-low-1001"))
 
@@ -78,7 +78,7 @@ func TestAmbiguousAuthorizationRequiresClinicianApproval(t *testing.T) {
 	}
 
 	mustExecute(t, ctx, rt, ActionRecordClinicalEvidence, requestID, StateReceived, PriorAuthAgentActor, evidenceParams(requestID, patientID, payerID, procedure, "evidence-review-2002"))
-	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(false, 0.74, false))
+	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(false, 74, false))
 
 	contract, err := Contract(rt, ActionSubmitReviewedAuthorization)
 	if err != nil {
@@ -138,7 +138,7 @@ func TestAgentCannotSelfSubmitByAddingPortalRole(t *testing.T) {
 		t.Fatalf("ingest: %v", err)
 	}
 	mustExecute(t, ctx, rt, ActionRecordClinicalEvidence, requestID, StateReceived, PriorAuthAgentActor, evidenceParams(requestID, patientID, payerID, procedure, "evidence-permission-3003"))
-	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(true, 0.20, false))
+	mustExecute(t, ctx, rt, ActionCheckPolicyCriteria, requestID, StateReadyForCriteria, PriorAuthAgentActor, criteriaParams(true, 20, false))
 	mustExecute(t, ctx, rt, ActionPrepareAuthorization, requestID, StateCriteriaMet, PriorAuthAgentActor, submissionParams(requestID, patientID, payerID, procedure, "evidence-permission-3003"))
 
 	contract, err := Contract(rt, ActionSubmitAuthorization)
@@ -186,8 +186,8 @@ func TestMalformedCriteriaParameterIsRejectedBeforeExecutor(t *testing.T) {
 		CurrentState: StateReadyForCriteria,
 		Actor:        PriorAuthAgentActor,
 		Parameters: map[string]any{
-			"criteria_met":      "yes",
-			"denial_risk_score": 0.12,
+			"criteria_met":      true,
+			"denial_risk_score": 101,
 			"missing_evidence":  false,
 		},
 	}, contract)
@@ -288,7 +288,7 @@ func evidenceParams(requestID, patientID, payerID, procedureCode, evidencePacket
 	}
 }
 
-func criteriaParams(criteriaMet bool, denialRiskScore float64, missingEvidence bool) map[string]any {
+func criteriaParams(criteriaMet bool, denialRiskScore int64, missingEvidence bool) map[string]any {
 	return map[string]any{
 		"criteria_met":      criteriaMet,
 		"denial_risk_score": denialRiskScore,

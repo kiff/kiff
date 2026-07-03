@@ -44,7 +44,7 @@ func main() {
 
 	if err := execute(ctx, rt, claims.ActionAssessRisk, claimID, claims.StateCoverageVerified, claims.ClaimsAgentActor, map[string]any{
 		"claim_id":            claimID,
-		"risk_score":          0.79,
+		"risk_score":          79,
 		"payout_amount_cents": 420000,
 		"currency":            "USD",
 		"fraud_signals":       true,
