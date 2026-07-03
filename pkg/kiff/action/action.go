@@ -15,6 +15,7 @@ import (
 var (
 	ErrStateNotAllowed  = errors.New("action state not allowed")
 	ErrMissingParameter = errors.New("action required parameter missing")
+	ErrInvalidParameter = errors.New("action parameter invalid")
 	ErrPermissionDenied = errors.New("action permission denied")
 	ErrApprovalRequired = errors.New("action requires approval")
 	ErrInvalidContract  = errors.New("invalid action contract")
@@ -51,9 +52,24 @@ const (
 
 // ActionContract describes when and how an action is allowed to run.
 type ActionContract struct {
-	Name               string
-	AllowedStates      []string
+	Name          string
+	AllowedStates []string
+	// RequiredParameters lists parameter names that must be present and
+	// non-nil. It is the simplest, backward-compatible way to declare
+	// requirements. For type and constraint checking, use Parameters.
 	RequiredParameters []string
+	// Parameters optionally declares typed parameter schemas (type,
+	// required, and constraints such as min/max, length, regex, allowed
+	// values). When set, the default validator checks shape and constraints
+	// before the executor runs — a malformed value is an invalid action, not
+	// a blocked one. Leaving it empty preserves the pre-schema behavior.
+	Parameters []ParameterSpec
+	// ValidateParameters is an optional domain-owned semantic hook, run after
+	// schema validation passes. Use it for cross-field or business rules that
+	// a static schema cannot express (e.g. the amount is within an autonomous
+	// release threshold, or the vendor/account pair matches). A non-nil error
+	// classifies the action as invalid.
+	ValidateParameters func(context.Context, ActionContext) error
 	// RequiredPermissions are checked against the actor's policy-assigned
 	// roles via the permission.Policy, resolved by Actor.ID — not from
 	// Actor.Roles on the caller-built context (#19). The host assigns
@@ -188,6 +204,19 @@ func (DefaultValidator) Validate(ctx context.Context, actionCtx ActionContext, c
 		value, ok := actionCtx.Parameters[name]
 		if !ok || value == nil {
 			return ValidationResult{}, fmt.Errorf("%w: %q", ErrMissingParameter, name)
+		}
+	}
+	// Typed parameter schemas: shape and constraints are checked here, before
+	// the executor, so a malformed value is an invalid action (not a blocked
+	// one) with a precise reason.
+	if err := validateParams(contract.Parameters, actionCtx.Parameters); err != nil {
+		return ValidationResult{}, err
+	}
+	// Domain-owned semantic validation runs last in the parameter step. Its
+	// failures are invalid input; wrap so they classify as invalid_parameter.
+	if contract.ValidateParameters != nil {
+		if err := contract.ValidateParameters(ctx, actionCtx); err != nil {
+			return ValidationResult{}, fmt.Errorf("%w: %s", ErrInvalidParameter, err.Error())
 		}
 	}
 	for _, required := range contract.RequiredPermissions {

@@ -48,6 +48,7 @@ const (
 	ReasonNone             Reason = ""
 	ReasonStateNotAllowed  Reason = "state_not_allowed"
 	ReasonMissingParameter Reason = "missing_parameter"
+	ReasonInvalidParameter Reason = "invalid_parameter"
 	ReasonPermissionDenied Reason = "permission_denied"
 	ReasonApprovalRequired Reason = "approval_required"
 	ReasonExecutorMissing  Reason = "executor_missing"
@@ -93,6 +94,8 @@ func Classify(err error) (Outcome, Reason) {
 		return Blocked, ReasonPermissionDenied
 	case errors.Is(err, action.ErrMissingParameter):
 		return Invalid, ReasonMissingParameter
+	case errors.Is(err, action.ErrInvalidParameter):
+		return Invalid, ReasonInvalidParameter
 	case errors.Is(err, action.ErrExecutorMissing):
 		return Invalid, ReasonExecutorMissing
 	case errors.Is(err, action.ErrInvalidContract):
