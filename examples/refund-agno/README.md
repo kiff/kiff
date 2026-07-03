@@ -18,6 +18,11 @@ shippable. It runs the same agent twice over three support tickets:
 The story ends with the audit timeline and a rebuild check that proves the
 materialized state matches the events — the proof you can verify after the fact.
 
+> **The agent never holds a refund credential.** It only *proposes* an action;
+> the refund side effect lives behind KIFF and runs only after the runtime
+> allows it. That deployment topology is what makes this safe to ship — see
+> [the side-effect boundary](../../docs/side-effect-boundary.md).
+
 The offline run is hermetic. No AWS credentials, no Bedrock, no API keys.
 This is intentional: a CTO can clone the repo, run `make demo`, and watch an
 agent ship refunds inside the lines in under sixty seconds.
