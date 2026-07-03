@@ -240,8 +240,49 @@ func TestLowRiskExecutorRejectsHighAmountEvenIfAgentChoosesWrongAction(t *testin
 	if len(result.Payments) != 0 {
 		t.Fatalf("expected no payment, got %#v", result.Payments)
 	}
-	if !containsLine(result.Lines, "low-risk payment limit exceeded") {
-		t.Fatal("expected semantic executor validation to block high low-risk payment")
+	if !containsLine(result.Lines, "must be <= 50000") {
+		t.Fatal("expected typed parameter validation to block high low-risk payment")
+	}
+}
+
+func TestMalformedInvoiceAmountIsInvalidBeforeExecutor(t *testing.T) {
+	ctx := context.Background()
+	rt, err := NewRuntime(NewLedgerGateway())
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	invoiceID := "invoice-invalid-amount"
+	if err := rt.IngestEvent(ctx, event.Event{
+		ID:         "evt-invoice-invalid-amount",
+		Type:       EventInvoiceReceived,
+		EntityID:   invoiceID,
+		EntityType: EntityInvoice,
+		Source:     "test",
+		ActorID:    "test",
+		OccurredAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	verify, _ := contract(rt, ActionVerifyInvoice)
+	params := invoiceParams(32000)
+	params["amount_cents"] = "12.34"
+	_, err = rt.ExecuteAction(ctx, action.ActionContext{
+		ActionName:   ActionVerifyInvoice,
+		EntityID:     invoiceID,
+		EntityType:   EntityInvoice,
+		CurrentState: StateReceived,
+		Actor:        APAgentActor,
+		Parameters:   params,
+	}, verify)
+	if !errors.Is(err, action.ErrInvalidParameter) {
+		t.Fatalf("expected invalid parameter, got %v", err)
+	}
+	current, ok, err := rt.States.Current(ctx, invoiceID)
+	if err != nil {
+		t.Fatalf("state: %v", err)
+	}
+	if !ok || current.Value != StateReceived {
+		t.Fatalf("expected state to remain %s, got %+v", StateReceived, current)
 	}
 }
 

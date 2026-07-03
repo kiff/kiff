@@ -45,7 +45,7 @@ func main() {
 			ActionName: priorauth.ActionCheckPolicyCriteria,
 			Parameters: map[string]any{
 				"criteria_met":      false,
-				"denial_risk_score": 0.68,
+				"denial_risk_score": 68,
 				"missing_evidence":  false,
 			},
 			ReasoningSummary: "payer criteria are ambiguous and denial risk is elevated",

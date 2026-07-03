@@ -55,7 +55,7 @@ const (
 	RoleAdjuster      = "claim_adjuster"
 
 	LowValuePayoutLimitCents = 100000
-	LowRiskScoreLimit        = 0.50
+	LowRiskScoreLimit        = 50
 )
 
 const (
@@ -322,10 +322,9 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 			},
 		},
 		{
-			Name:               ActionAssessRisk,
-			AllowedStates:      []string{StateCoverageVerified},
-			RequiredParameters: []string{"risk_score"},
-			Parameters:         []action.ParameterSpec{positiveIntParam("payout_amount_cents"), action.EnumParam("currency", "USD", "EUR"), boolParamSpec("fraud_signals")},
+			Name:          ActionAssessRisk,
+			AllowedStates: []string{StateCoverageVerified},
+			Parameters:    []action.ParameterSpec{boundedIntParam("risk_score", 0, 100), positiveIntParam("payout_amount_cents"), action.EnumParam("currency", "USD", "EUR"), boolParamSpec("fraud_signals")},
 			ValidateParameters: func(_ context.Context, ctx action.ActionContext) error {
 				_, err := assessmentFromParams(ctx.Parameters)
 				return err
@@ -418,7 +417,7 @@ func Contracts(gateway PayoutGateway) []action.ActionContract {
 }
 
 type RiskAssessment struct {
-	Score             float64
+	Score             int64
 	PayoutAmountCents int64
 	Currency          string
 	FraudSignals      bool
@@ -431,7 +430,7 @@ func (a RiskAssessment) LowRisk() bool {
 func (a RiskAssessment) ReviewReason() string {
 	reasons := []string{}
 	if a.Score >= LowRiskScoreLimit {
-		reasons = append(reasons, fmt.Sprintf("risk score %.2f is above %.2f", a.Score, LowRiskScoreLimit))
+		reasons = append(reasons, fmt.Sprintf("risk score %d is above %d", a.Score, LowRiskScoreLimit))
 	}
 	if a.PayoutAmountCents > LowValuePayoutLimitCents {
 		reasons = append(reasons, fmt.Sprintf("payout %d cents is above low-value limit %d", a.PayoutAmountCents, LowValuePayoutLimitCents))
@@ -619,12 +618,12 @@ func instructionFromParams(params map[string]any) (PayoutInstruction, error) {
 }
 
 func assessmentFromParams(params map[string]any) (RiskAssessment, error) {
-	score, err := float64Param(params, "risk_score")
+	score, err := int64Param(params, "risk_score")
 	if err != nil {
 		return RiskAssessment{}, err
 	}
-	if score < 0 || score > 1 {
-		return RiskAssessment{}, errors.New("risk_score must be between 0 and 1")
+	if score < 0 || score > 100 {
+		return RiskAssessment{}, errors.New("risk_score must be between 0 and 100")
 	}
 	amount, err := int64Param(params, "payout_amount_cents")
 	if err != nil {
@@ -716,30 +715,5 @@ func int64Param(params map[string]any, key string) (int64, error) {
 		return parsed, nil
 	default:
 		return 0, fmt.Errorf("%s must be an integer", key)
-	}
-}
-
-func float64Param(params map[string]any, key string) (float64, error) {
-	value, ok := params[key]
-	if !ok {
-		return 0, fmt.Errorf("%s is required", key)
-	}
-	switch typed := value.(type) {
-	case float64:
-		return typed, nil
-	case float32:
-		return float64(typed), nil
-	case int:
-		return float64(typed), nil
-	case int64:
-		return float64(typed), nil
-	case string:
-		var parsed float64
-		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%f", &parsed); err != nil {
-			return 0, fmt.Errorf("%s must be a number", key)
-		}
-		return parsed, nil
-	default:
-		return 0, fmt.Errorf("%s must be a number", key)
 	}
 }
