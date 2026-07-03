@@ -88,6 +88,33 @@ Use stronger parameter validation for real deployments:
 This example uses an in-memory ledger gateway to prove the boundary without
 touching real money.
 
+## Governed Lifecycle View
+
+Following an agent proposal from output to a blocked, held, or executed outcome
+used to mean stitching decisions, validation, approval, and execution together
+by hand. The app no longer does that: `Snapshot.Lifecycle` is the framework's
+read-only projection, assembled by `runtime.EntityLifecycle`, of the invoice's
+governed history — proposal → validation → approval → execution — over the
+records KIFF already keeps. The demo prints it, and a UI or API can render it
+directly. See `pkg/kiff/lifecycle`.
+
+## Framework Features
+
+This recipe exercises:
+
+- **typed parameter schemas** — action contracts declare `ParameterSpec`
+  (amount bounds, currency enum, bank-fingerprint length) plus a
+  `ValidateParameters` hook, so a malformed value is rejected as an invalid
+  action before the executor runs.
+- **the governed lifecycle view** — surfaced on the snapshot as above.
+
+Its sibling recipes go further on the other coordination primitives:
+`security-incident-response` and `procurement-purchase-order` demonstrate
+**dynamic approval policies**, **runtime idempotency**, and **reviewer
+authority with segregation of duties**. Together the recipes cover the full
+governed-action surface. The side-effect boundary and deployment topology are
+documented in `docs/side-effect-boundary.md`.
+
 ## What This Enables
 
 Without KIFF, a team has two uncomfortable choices:

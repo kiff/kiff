@@ -324,3 +324,60 @@ func timelineHasActor(entries []TimelineEntry, kind audit.Kind, actorID, detail 
 	}
 	return false
 }
+
+// TestCapstoneLifecycleViewReflectsGovernedHistory is the capstone assertion:
+// after a high-value invoice is verified, held, approved, and paid, the
+// framework's EntityLifecycle view (surfaced on the snapshot) shows the whole
+// governed history — proposal, approval hold, approval grant, execution — and
+// the derived current status, without the app stitching it together by hand.
+func TestCapstoneLifecycleViewReflectsGovernedHistory(t *testing.T) {
+	ctx := context.Background()
+	agent := &queuedAgent{proposals: []AgentProposal{
+		{ActionName: ActionVerifyInvoice, Parameters: invoiceParams(1842000), ReasoningSummary: "complete invoice details", Confidence: 0.9},
+		{ActionName: ActionMarkReadyForPayment, Parameters: map[string]any{"due_date": "2026-07-15"}, ReasoningSummary: "ready for payment", Confidence: 0.9},
+		{ActionName: ActionHoldForApproval, Parameters: map[string]any{"reason": "above low-risk limit"}, ReasoningSummary: "high value, hold for finance", Confidence: 0.95},
+	}}
+
+	app, err := NewInteractiveApp(agent, "test-agent")
+	if err != nil {
+		t.Fatalf("new app: %v", err)
+	}
+	if _, err := app.ProcessInput(ctx, "Invoice INV-7741 from Northwind Parts for $18,420.00 USD, vendor vendor-northwind, bank ACH-9912, due 2026-07-15."); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if _, err := app.ProcessInput(ctx, "Mark the verified invoice ready for payment."); err != nil {
+		t.Fatalf("ready: %v", err)
+	}
+	if _, err := app.ProcessInput(ctx, "Pay this invoice today."); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	final, err := app.ReviewHeld(ctx, true)
+	if err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+
+	lc := final.Lifecycle
+	if lc.EntityID != final.InvoiceID {
+		t.Fatalf("lifecycle entity %q != invoice %q", lc.EntityID, final.InvoiceID)
+	}
+	if lc.CurrentState != StatePaid {
+		t.Fatalf("expected lifecycle current state %s, got %q", StatePaid, lc.CurrentState)
+	}
+	if !lc.Has(audit.KindDecisionProposed) {
+		t.Fatal("lifecycle should record the agent proposals")
+	}
+	// The app holds by recording a pending approval, then granting it — so the
+	// governed history shows the recorded hold and the grant.
+	if !lc.Has(audit.KindApprovalRecorded) || !lc.Has(audit.KindApprovalGranted) {
+		t.Fatal("lifecycle should record the approval hold and grant")
+	}
+	if !lc.Executed() {
+		t.Fatalf("lifecycle should show the latest action executed, disposition=%q", lc.Disposition())
+	}
+	if len(lc.Approvals) == 0 {
+		t.Fatal("lifecycle should attach the approval record")
+	}
+	if len(lc.Decisions) == 0 {
+		t.Fatal("lifecycle should attach the proposal decisions")
+	}
+}
