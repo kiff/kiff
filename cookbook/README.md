@@ -56,7 +56,8 @@ ambiguous or denial-risk cases, idempotency, and replayable state.
 ## Later Recipe Candidates
 
 - Customer support refund agent
-- Vendor onboarding and bank-detail change agent
+- Vendor onboarding and bank-detail change agent: implemented in
+  [`vendor-bank-change`](./vendor-bank-change).
 - Cloud infrastructure remediation agent: implemented in
   [`cloud-infra-remediation`](./cloud-infra-remediation).
 - Legal contract intake agent
