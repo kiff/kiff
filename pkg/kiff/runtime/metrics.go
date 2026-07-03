@@ -58,10 +58,11 @@ var NoopMetrics MetricsRecorder = noopMetrics{}
 // adopters can rely on; adding a new counter is a documented public
 // surface change. Removing or renaming one is a breaking change.
 const (
-	CounterEventsIngested     = "kiff.events.ingested"
-	CounterDecisionsRecorded  = "kiff.decisions.recorded"
-	CounterActionsValidated   = "kiff.actions.validated"
-	CounterActionsExecuted    = "kiff.actions.executed"
-	CounterApprovalsRequested = "kiff.approvals.requested"
-	CounterApprovalsReviewed  = "kiff.approvals.reviewed"
+	CounterEventsIngested      = "kiff.events.ingested"
+	CounterDecisionsRecorded   = "kiff.decisions.recorded"
+	CounterActionsValidated    = "kiff.actions.validated"
+	CounterActionsExecuted     = "kiff.actions.executed"
+	CounterApprovalsRequested  = "kiff.approvals.requested"
+	CounterApprovalsReviewed   = "kiff.approvals.reviewed"
+	CounterActionsDeduplicated = "kiff.actions.deduplicated"
 )

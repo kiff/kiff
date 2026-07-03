@@ -29,6 +29,10 @@ const (
 	KindApprovalReviewRejected Kind = "approval_review_rejected"
 	KindActionExecuted         Kind = "action_executed"
 	KindActionFailed           Kind = "action_failed"
+	// KindActionDeduplicated records an idempotent replay: a retry with a
+	// known idempotency key returned the prior successful result without
+	// running the executor again.
+	KindActionDeduplicated Kind = "action_deduplicated"
 )
 
 // AuditKind is kept as an explicit alias for readability.
