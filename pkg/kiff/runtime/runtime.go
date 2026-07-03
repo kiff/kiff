@@ -20,6 +20,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/event"
 	"github.com/kiff/kiff/pkg/kiff/idempotency"
 	"github.com/kiff/kiff/pkg/kiff/internal/trust"
+	"github.com/kiff/kiff/pkg/kiff/lifecycle"
 	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/permission"
 	"github.com/kiff/kiff/pkg/kiff/proposal"
@@ -329,6 +330,33 @@ func (r *Runtime) AllowedActions(ctx context.Context, entityID string) ([]action
 // Timeline returns the chronological audit trail for an entity.
 func (r *Runtime) Timeline(ctx context.Context, entityID string) ([]audit.Record, error) {
 	return r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
+}
+
+// EntityLifecycle assembles a read-only view of an entity's governed history —
+// proposal, validation, approval, execution, failure — from the existing
+// audit, decision, and approval records. It is a projection over those stores,
+// not a new source of truth: the audit trail is the chronological spine, and
+// the decisions and approvals are attached for detail. Use it to follow an
+// agent proposal from output to blocked/held/executed, e.g. to render a
+// cookbook UI or an API response.
+func (r *Runtime) EntityLifecycle(ctx context.Context, entityID string) (lifecycle.Lifecycle, error) {
+	records, err := r.Audit.Query(ctx, audit.Filter{EntityID: entityID})
+	if err != nil {
+		return lifecycle.Lifecycle{}, err
+	}
+	var decisions []decision.Decision
+	if r.Decisions != nil {
+		if decisions, err = r.Decisions.List(ctx, entityID); err != nil {
+			return lifecycle.Lifecycle{}, err
+		}
+	}
+	var approvals []approval.Approval
+	if r.Approvals != nil {
+		if approvals, err = r.Approvals.List(ctx, entityID); err != nil {
+			return lifecycle.Lifecycle{}, err
+		}
+	}
+	return lifecycle.Assemble(entityID, records, decisions, approvals), nil
 }
 
 // RebuildState reconstructs an entity state by replaying its stored events.
