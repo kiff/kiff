@@ -61,7 +61,8 @@ ambiguous or denial-risk cases, idempotency, and replayable state.
 - Cloud infrastructure remediation agent: implemented in
   [`cloud-infra-remediation`](./cloud-infra-remediation).
 - Legal contract intake agent
-- Security incident response agent
+- Security incident response agent: implemented in
+  [`security-incident-response`](./security-incident-response).
 - Loan application processing agent
 - Procurement purchase-order approval
 - Data deletion/privacy request workflow
