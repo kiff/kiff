@@ -64,5 +64,6 @@ ambiguous or denial-risk cases, idempotency, and replayable state.
 - Security incident response agent: implemented in
   [`security-incident-response`](./security-incident-response).
 - Loan application processing agent
-- Procurement purchase-order approval
+- Procurement purchase-order approval: implemented in
+  [`procurement-purchase-order`](./procurement-purchase-order).
 - Data deletion/privacy request workflow
