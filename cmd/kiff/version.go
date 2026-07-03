@@ -4,9 +4,9 @@ package main
 // generated go.mod files is tracked separately in StarterKiffVersion so the
 // two can move independently.
 const (
-	CLIVersion         = "0.6.0"
+	CLIVersion         = "0.7.0"
 	StarterGoVersion   = "1.22"
-	StarterKiffVersion = "v0.6.0"
+	StarterKiffVersion = "v0.7.0"
 )
 
 func versionString() string {

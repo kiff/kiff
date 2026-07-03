@@ -72,7 +72,11 @@ Use `kiff new <module>` without `-scenario` for a smaller starter project.
 ## What You Get
 
 - domain definitions for events, states, transitions, and action contracts
-- validation against state, parameters, permissions, risk, and approvals
+- validation against state, typed parameters, permissions, risk, and approvals
+- dynamic approval policies for actions whose risk depends on runtime facts
+- reviewer authority and segregation-of-duties checks for human approvals
+- idempotency protection for consequential executor retries
+- lifecycle views that assemble proposals, approvals, execution, and outcomes
 - approval records and audit records as protocol data, not optional logs
 - state replay from stored events
 - `memory`, `file`, and `postgres` stores
@@ -102,8 +106,27 @@ checkout? Add `-replace-local /path/to/kiff`.
 
 ## Cookbook
 
-- [cookbook/accounts-payable-payout](./cookbook/accounts-payable-payout/) — a Claude Haiku AP payout agent where KIFF keeps money movement behind state, permissions, approval, and idempotency
-- [cookbook](./cookbook/) — planned high-trust recipes across finance, insurance, healthcare, infrastructure, and operations
+Use the cookbook when you want to see what KIFF lets a team launch, not just
+what it can audit after the fact. These recipes model agents proposing useful
+work while KIFF owns the consequential action boundary.
+
+- [accounts-payable-payout](./cookbook/accounts-payable-payout/) — a
+  Claude Haiku AP agent with a money-moving payout boundary, finance approval,
+  and lifecycle view
+- [security-incident-response](./cookbook/security-incident-response/) —
+  containment decisions, session reset, and access revocation through an
+  identity-service boundary
+- [procurement-purchase-order](./cookbook/procurement-purchase-order/) —
+  purchase-order creation through an ERP service with manager approval
+- [insurance-claims-triage](./cookbook/insurance-claims-triage/) — claim
+  evidence, coverage/risk scoring, and payout execution
+- [healthcare-prior-auth](./cookbook/healthcare-prior-auth/) — clinical
+  documentation, payer criteria, and portal submission
+- [cloud-infra-remediation](./cookbook/cloud-infra-remediation/) —
+  infrastructure remediation with approval-gated isolation
+- [vendor-bank-change](./cookbook/vendor-bank-change/) — vendor payment-detail
+  changes with finance-controlled execution
+- [cookbook index](./cookbook/) — recipe standards, feature map, and later candidates
 
 ## Who It Is Not For
 
@@ -115,11 +138,12 @@ happen?"
 
 ## Status
 
-KIFF is at v0.6. The core action boundary is complete and tested: approvals
+KIFF is at v0.7. The core action boundary is complete and tested: approvals
 cannot be self-granted, executors must be explicit, and every validation and
-execution is recorded. The [Postgres store](./pkg/kiff/store/postgres) is the
-production reference; the file-backed JSONL stores are for demos and local
-development.
+execution is recorded. The cookbook now includes launch-grade recipes across
+finance, insurance, healthcare, infrastructure, security, and procurement. The
+[Postgres store](./pkg/kiff/store/postgres) is the production reference; the
+file-backed JSONL stores are for demos and local development.
 
 ## License
 

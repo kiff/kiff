@@ -30,3 +30,4 @@ If you are adopting KIFF for the first time, you do not need to read these. Star
 - [Brick 23](./brick-23.md) — Runtime metrics recorder
 - [Brick 24](./brick-24.md) — Scaffold a domain from a descriptor
 - [Brick 25](./brick-25.md) — Verify a domain package
+- [Brick 26](./brick-26.md) — Governed launch cookbook and action-safety primitives
