@@ -51,6 +51,13 @@ func TestLowRiskSessionResetContainsIncidentWithoutHumanApproval(t *testing.T) {
 	if !auditHasActorAction(timeline, audit.KindActionExecuted, IdentityServiceActor.ID, ActionExecuteSessionReset) {
 		t.Fatal("expected identity service to execute the reset")
 	}
+	lifecycle, err := rt.EntityLifecycle(ctx, incidentID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateContained || !lifecycle.Executed() || lifecycle.AwaitingApproval() {
+		t.Fatalf("unexpected lifecycle view: state=%s disposition=%s awaiting=%v", lifecycle.CurrentState, lifecycle.Disposition(), lifecycle.AwaitingApproval())
+	}
 	replayed, err := rt.RebuildState(ctx, incidentID)
 	if err != nil {
 		t.Fatalf("rebuild: %v", err)
@@ -134,6 +141,60 @@ func TestHighRiskAccessRevocationRequiresSecurityLeadApprovalAndDeduplicates(t *
 	}
 	if !auditHasKind(timeline, audit.KindActionDeduplicated) {
 		t.Fatal("expected idempotent retry to be audited as deduplicated")
+	}
+	lifecycle, err := rt.EntityLifecycle(ctx, incidentID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateContained || lifecycle.Disposition() != audit.KindActionDeduplicated {
+		t.Fatalf("expected contained deduplicated lifecycle, got state=%s disposition=%s", lifecycle.CurrentState, lifecycle.Disposition())
+	}
+	if !lifecycle.Has(audit.KindApprovalGranted) || !lifecycle.Has(audit.KindActionExecuted) || !lifecycle.Has(audit.KindActionDeduplicated) {
+		t.Fatalf("expected approval grant, execution, and deduplicated retry in lifecycle stages: %+v", lifecycle.Stages)
+	}
+	if len(lifecycle.Approvals) != 1 || lifecycle.Approvals[0].Status != approval.StatusGranted {
+		t.Fatalf("expected granted approval attached to lifecycle, got %+v", lifecycle.Approvals)
+	}
+}
+
+func TestAgentProposalIsVisibleInLifecycle(t *testing.T) {
+	ctx := context.Background()
+	control := NewInMemoryIdentityControl()
+	rt, err := NewRuntime(control)
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	incidentID := "sec-proposal-6006"
+	userID := "user-nguyen"
+	userEmail := "nguyen@example.com"
+	accountID := "acct-corp"
+	seedIncident(t, ctx, rt, incidentID, userID, userEmail, accountID)
+
+	proposal := AgentProposal{
+		ActionName:       ActionAttachSignals,
+		Parameters:       signalParams(incidentID, userID, userEmail, accountID, 24, 7, "standard", "single_user", 0, false, false, false),
+		ReasoningSummary: "attach identity telemetry before deciding containment",
+		Confidence:       0.89,
+	}
+	if err := RecordAgentProposal(ctx, rt, incidentID, "Attach the available identity signals.", proposal); err != nil {
+		t.Fatalf("record proposal: %v", err)
+	}
+	if _, err := ApplyAgentProposal(ctx, rt, incidentID, StateReceived, proposal); err != nil {
+		t.Fatalf("apply proposal: %v", err)
+	}
+
+	lifecycle, err := rt.EntityLifecycle(ctx, incidentID)
+	if err != nil {
+		t.Fatalf("lifecycle: %v", err)
+	}
+	if lifecycle.CurrentState != StateSignalsAttached {
+		t.Fatalf("expected current state %s, got %s", StateSignalsAttached, lifecycle.CurrentState)
+	}
+	if !lifecycle.Has(audit.KindDecisionProposed) || !lifecycle.Executed() {
+		t.Fatalf("expected proposed and executed lifecycle stages, got %+v", lifecycle.Stages)
+	}
+	if len(lifecycle.Decisions) != 1 || lifecycle.Decisions[0].ProposedAction != ActionAttachSignals {
+		t.Fatalf("expected proposal decision attached, got %+v", lifecycle.Decisions)
 	}
 }
 

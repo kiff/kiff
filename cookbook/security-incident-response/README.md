@@ -24,7 +24,7 @@ Security alert
   -> typed KIFF action validation
   -> dynamic approval decision
   -> identity-service execution
-  -> audit trail and replay
+  -> lifecycle view, audit trail, and replay
 ```
 
 ## Workflow
@@ -84,3 +84,6 @@ service, and then proves a retry is deduplicated by the runtime.
   submitted actor.
 - Runtime idempotency returns the prior successful result before state
   validation, so a retry after containment does not emit another event.
+- `Runtime.EntityLifecycle` assembles the decision/proposal, approval record,
+  execution stages, and deduplicated retry into one read-only view for a UI or
+  API response.

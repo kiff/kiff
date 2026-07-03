@@ -9,6 +9,7 @@ import (
 
 	security "github.com/kiff/kiff/cookbook/security-incident-response"
 	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/audit"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
@@ -138,6 +139,9 @@ func main() {
 	for _, receipt := range control.List() {
 		fmt.Printf("Operation: %s %s user=%s via %s\n", receipt.OperationID, receipt.Operation, receipt.UserID, receipt.IdempotencyKey)
 	}
+	if err := printLifecycle(ctx, rt, incidentID); err != nil {
+		fail("lifecycle", err)
+	}
 }
 
 func step(ctx context.Context, rt *runtime.Runtime, agent security.Agent, incidentID, input string) error {
@@ -174,6 +178,40 @@ func actionNames(contracts []action.ActionContract) []string {
 		names = append(names, contract.Name)
 	}
 	return names
+}
+
+func printLifecycle(ctx context.Context, rt *runtime.Runtime, incidentID string) error {
+	lifecycle, err := rt.EntityLifecycle(ctx, incidentID)
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	fmt.Printf("Lifecycle view: state=%s disposition=%s decisions=%d approvals=%d stages=%d\n",
+		lifecycle.CurrentState, lifecycle.Disposition(), len(lifecycle.Decisions), len(lifecycle.Approvals), len(lifecycle.Stages))
+	for _, stage := range lifecycle.Stages {
+		if !showLifecycleStage(stage.Kind) {
+			continue
+		}
+		detail := stage.Action
+		if detail == "" {
+			detail = stage.Message
+		}
+		fmt.Printf(" - %s actor=%s detail=%s\n", stage.Kind, stage.ActorID, detail)
+	}
+	return nil
+}
+
+func showLifecycleStage(kind audit.Kind) bool {
+	switch kind {
+	case audit.KindDecisionProposed,
+		audit.KindApprovalRequired,
+		audit.KindApprovalGranted,
+		audit.KindActionExecuted,
+		audit.KindActionDeduplicated:
+		return true
+	default:
+		return false
+	}
 }
 
 func fail(step string, err error) {
