@@ -19,27 +19,19 @@ Each high-quality recipe should answer:
 - What prevents duplicate or unsafe execution?
 - What does the host app still need to own?
 
-## Wave 1 Recipes
+## Implemented Recipes
 
 ### Accounts Payable Payout Agent
 
-Status: implemented in [`accounts-payable-payout`](./accounts-payable-payout).
+[`accounts-payable-payout`](./accounts-payable-payout)
 
 Shows a Claude Haiku AP agent that verifies invoices and proposes payment
-release while KIFF keeps money movement behind state, permissions, approval, and
-idempotency.
-
-### Industrial Shutdown / Field Dispatch Agent
-
-Status: prototype exists in the local sandbox.
-
-Shows physical-world risk: an agent can triage a machine incident and propose a
-shutdown, while KIFF pauses critical action for human authority and prevents
-unsafe follow-up actions after the line is already shut off.
+release while KIFF keeps money movement behind state, typed parameters,
+permissions, approval, lifecycle reconstruction, and audit.
 
 ### Insurance Claims Triage Agent
 
-Status: implemented in [`insurance-claims-triage`](./insurance-claims-triage).
+[`insurance-claims-triage`](./insurance-claims-triage)
 
 Shows claim intake, evidence requests, coverage verification, fraud/risk
 scoring, low-value payout preparation, service-only payout execution, high-risk
@@ -47,23 +39,68 @@ approval holds, and idempotent payout issuance.
 
 ### Healthcare Prior Authorization Coordinator
 
-Status: implemented in [`healthcare-prior-auth`](./healthcare-prior-auth).
+[`healthcare-prior-auth`](./healthcare-prior-auth)
 
 Shows evidence collection, payer criteria checks, missing clinical documentation
 requests, service-owned payer portal submission, clinician approval for
 ambiguous or denial-risk cases, idempotency, and replayable state.
 
+### Vendor Bank-Change Agent
+
+[`vendor-bank-change`](./vendor-bank-change)
+
+Shows payment-detail changes where an agent can collect vendor evidence and
+prepare a change, but finance-controlled execution and approvals govern the
+write to vendor banking data.
+
+### Cloud Infrastructure Remediation Agent
+
+[`cloud-infra-remediation`](./cloud-infra-remediation)
+
+Shows incident triage and remediation in cloud infrastructure, including
+approval-gated isolation actions and service-owned infrastructure execution.
+
+### Security Incident Response Agent
+
+[`security-incident-response`](./security-incident-response)
+
+Shows identity-risk assessment, low-risk session reset, high-risk access
+revocation, dynamic approval policy, reviewer authority, segregation of duties,
+and idempotent identity-service execution.
+
+### Procurement Purchase-Order Agent
+
+[`procurement-purchase-order`](./procurement-purchase-order)
+
+Shows quote collection, budget checks, purchase-risk assessment, purchase-order
+preparation, ERP-service execution, dynamic manager approval, reviewer
+authority, segregation of duties, and idempotent PO creation.
+
+## Feature Map
+
+Start here when evaluating a capability:
+
+- **Money movement:** [`accounts-payable-payout`](./accounts-payable-payout),
+  [`insurance-claims-triage`](./insurance-claims-triage)
+- **Approval-gated operational writes:**
+  [`vendor-bank-change`](./vendor-bank-change),
+  [`procurement-purchase-order`](./procurement-purchase-order),
+  [`cloud-infra-remediation`](./cloud-infra-remediation)
+- **Dynamic approval policy and reviewer controls:**
+  [`security-incident-response`](./security-incident-response),
+  [`procurement-purchase-order`](./procurement-purchase-order),
+  [`cloud-infra-remediation`](./cloud-infra-remediation)
+- **Lifecycle view over governed history:**
+  [`accounts-payable-payout`](./accounts-payable-payout),
+  [`security-incident-response`](./security-incident-response),
+  [`procurement-purchase-order`](./procurement-purchase-order)
+- **Human/AI/software coordination around shared state:**
+  all recipes
+
 ## Later Recipe Candidates
 
 - Customer support refund agent
-- Vendor onboarding and bank-detail change agent: implemented in
-  [`vendor-bank-change`](./vendor-bank-change).
-- Cloud infrastructure remediation agent: implemented in
-  [`cloud-infra-remediation`](./cloud-infra-remediation).
+- Industrial shutdown / field dispatch agent
 - Legal contract intake agent
-- Security incident response agent: implemented in
-  [`security-incident-response`](./security-incident-response).
 - Loan application processing agent
-- Procurement purchase-order approval: implemented in
-  [`procurement-purchase-order`](./procurement-purchase-order).
 - Data deletion/privacy request workflow
