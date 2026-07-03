@@ -87,6 +87,7 @@ checkout? Add `-replace-local /path/to/kiff`.
 
 - [Why KIFF](./docs/why.md) — why risky agent actions need a boundary outside the prompt
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
+- [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
 - [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end
 - [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON
 - [Govern over HTTP](./docs/governing-over-http.md) — drive KIFF from TypeScript, Python, or any stack
