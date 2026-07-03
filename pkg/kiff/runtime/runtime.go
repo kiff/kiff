@@ -362,7 +362,11 @@ func (r *Runtime) RebuildState(ctx context.Context, entityID string) (state.Repl
 
 // RequestApproval creates a pending approval for an action that requires approval.
 func (r *Runtime) RequestApproval(ctx context.Context, approvalID string, actionCtx action.ActionContext, contract action.ActionContract, reason string) (approval.Approval, error) {
-	if contract.ApprovalRequirement != action.ApprovalRequired {
+	required, _, err := contract.RequiresApproval(ctx, actionCtx)
+	if err != nil {
+		return approval.Approval{}, err
+	}
+	if !required {
 		return approval.Approval{}, fmt.Errorf("%w: action %q does not require approval", action.ErrApprovalRequired, contract.Name)
 	}
 	if approvalID == "" {
@@ -582,7 +586,11 @@ func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionCont
 	if actionCtx.IsApproved() || actionCtx.ApprovalID == "" || r.Approvals == nil {
 		return actionCtx, nil
 	}
-	if contract.ApprovalRequirement != action.ApprovalRequired {
+	required, _, err := contract.RequiresApproval(ctx, actionCtx)
+	if err != nil {
+		return actionCtx, err
+	}
+	if !required {
 		return actionCtx, nil
 	}
 	granted, err := r.Approvals.IsGranted(ctx, actionCtx.ApprovalID, actionCtx.EntityID, contract.Name)

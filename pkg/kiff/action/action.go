@@ -18,9 +18,13 @@ var (
 	ErrInvalidParameter = errors.New("action parameter invalid")
 	ErrPermissionDenied = errors.New("action permission denied")
 	ErrApprovalRequired = errors.New("action requires approval")
-	ErrInvalidContract  = errors.New("invalid action contract")
-	ErrDuplicateAction  = errors.New("duplicate action contract")
-	ErrExecutorMissing  = errors.New("action contract has no executor")
+	// ErrApprovalPolicy wraps a failure from a contract's dynamic
+	// ApprovalPolicy evaluator. It fails safe: an action whose approval
+	// requirement cannot be decided is never treated as allowed.
+	ErrApprovalPolicy  = errors.New("approval policy evaluation failed")
+	ErrInvalidContract = errors.New("invalid action contract")
+	ErrDuplicateAction = errors.New("duplicate action contract")
+	ErrExecutorMissing = errors.New("action contract has no executor")
 )
 
 // RiskLevel describes the operational risk of an action.
@@ -79,7 +83,14 @@ type ActionContract struct {
 	RequiredPermissions []permission.Permission
 	Risk                RiskLevel
 	ApprovalRequirement ApprovalRequirement
-	Executor            func(context.Context, ActionContext) (ActionResult, error)
+	// ApprovalPolicy, when set, decides at runtime whether this action needs
+	// approval for the concrete context — amount, state, actor, vendor trust,
+	// severity — augmenting the static ApprovalRequirement for cases a single
+	// flag cannot express. When nil, ApprovalRequirement alone decides, so
+	// existing contracts are unaffected. The runtime consults it during both
+	// validation and execution, so the evaluator must be pure.
+	ApprovalPolicy ApprovalEvaluator
+	Executor       func(context.Context, ActionContext) (ActionResult, error)
 }
 
 // ActionContext carries the operational facts used to validate an action.
@@ -225,8 +236,15 @@ func (DefaultValidator) Validate(ctx context.Context, actionCtx ActionContext, c
 		}
 	}
 
-	result := ValidationResult{RequiresApproval: contract.ApprovalRequirement == ApprovalRequired}
-	if result.RequiresApproval && !actionCtx.IsApproved() {
+	required, reason, err := contract.RequiresApproval(ctx, actionCtx)
+	if err != nil {
+		return ValidationResult{}, err
+	}
+	result := ValidationResult{RequiresApproval: required}
+	if required && !actionCtx.IsApproved() {
+		if reason != "" {
+			return result, fmt.Errorf("%w: %s", ErrApprovalRequired, reason)
+		}
 		return result, ErrApprovalRequired
 	}
 	return result, nil

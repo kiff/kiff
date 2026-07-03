@@ -51,6 +51,7 @@ const (
 	ReasonInvalidParameter Reason = "invalid_parameter"
 	ReasonPermissionDenied Reason = "permission_denied"
 	ReasonApprovalRequired Reason = "approval_required"
+	ReasonApprovalPolicy   Reason = "approval_policy_error"
 	ReasonExecutorMissing  Reason = "executor_missing"
 	ReasonInvalidContract  Reason = "invalid_contract"
 	ReasonUnknownAction    Reason = "unknown_action"
@@ -86,6 +87,10 @@ func Classify(err error) (Outcome, Reason) {
 	switch {
 	case err == nil:
 		return Allowed, ReasonNone
+	case errors.Is(err, action.ErrApprovalPolicy):
+		// A policy that cannot decide fails safe: the action is stopped, not
+		// allowed and not treated as merely awaiting a human.
+		return Blocked, ReasonApprovalPolicy
 	case errors.Is(err, action.ErrApprovalRequired):
 		return ApprovalRequired, ReasonApprovalRequired
 	case errors.Is(err, action.ErrStateNotAllowed):
