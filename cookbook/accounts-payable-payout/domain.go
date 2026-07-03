@@ -10,6 +10,7 @@ import (
 
 	"github.com/kiff/kiff/pkg/kiff/action"
 	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/approval"
 	"github.com/kiff/kiff/pkg/kiff/domain"
 	"github.com/kiff/kiff/pkg/kiff/event"
 	"github.com/kiff/kiff/pkg/kiff/permission"
@@ -61,6 +62,7 @@ const (
 	PermissionReleaseLowRiskPayment  permission.Permission = "payables.release_low_risk_payment"
 	PermissionReleaseApprovedPayment permission.Permission = "payables.release_approved_payment"
 	PermissionRejectInvoice          permission.Permission = "payables.reject_invoice"
+	PermissionReviewPayment          permission.Permission = "payables.review_payment"
 )
 
 var (
@@ -209,6 +211,7 @@ func Policy() *permission.SimplePolicy {
 	policy.GrantRole(RoleAPAgent, PermissionRejectInvoice)
 	policy.GrantRole(RolePaymentService, PermissionReleaseLowRiskPayment)
 	policy.GrantRole(RolePaymentService, PermissionReleaseApprovedPayment)
+	policy.GrantRole(RoleFinanceManager, PermissionReviewPayment)
 
 	policy.AssignRole(APAgentActor.ID, RoleAPAgent)
 	policy.AssignRole(PaymentServiceActor.ID, RolePaymentService)
@@ -364,7 +367,12 @@ func Contracts(gateway PaymentGateway) []action.ActionContract {
 			},
 			RequiredPermissions: []permission.Permission{PermissionReleaseApprovedPayment},
 			Risk:                action.RiskCritical,
-			ApprovalRequirement: action.ApprovalRequired,
+			// Approval is decided by a dynamic policy rather than a static flag:
+			// the requirement carries the reason the payment was held (amount
+			// over the autonomous limit), which flows into the approval-required
+			// error, audit, and lifecycle view.
+			ApprovalRequirement: action.ApprovalNever,
+			ApprovalPolicy:      approvedReleaseApprovalPolicy,
 			Executor: func(ctx context.Context, actionCtx action.ActionContext) (action.ActionResult, error) {
 				instruction, err := instructionFromParams(actionCtx.Parameters)
 				if err != nil {
@@ -436,6 +444,40 @@ func releasePayment(ctx context.Context, gateway PaymentGateway, actionName stri
 		},
 		ExecutedAt: time.Now().UTC(),
 	}, nil
+}
+
+// approvedReleaseApprovalPolicy decides whether a held payment release needs
+// approval, and why. RELEASE_APPROVED_PAYMENT is reached only from
+// PAYMENT_HELD, so approval is always required here — but the reason is
+// data-driven (amount over the autonomous release limit) rather than a bare
+// flag, and rides the existing envelope into the audit trail and lifecycle.
+func approvedReleaseApprovalPolicy(_ context.Context, actionCtx action.ActionContext) (action.ApprovalDecision, error) {
+	amount, err := int64Param(actionCtx.Parameters, "amount_cents")
+	if err == nil && amount > LowRiskLimitCents {
+		return action.ApprovalDecision{
+			Required: true,
+			Reason:   fmt.Sprintf("amount %d cents exceeds the %d autonomous release limit", amount, LowRiskLimitCents),
+		}, nil
+	}
+	return action.ApprovalDecision{Required: true, Reason: "payment was held for finance approval"}, nil
+}
+
+// ReviewPaymentApproval reviews a held payment release. The runtime enforces
+// reviewer authority (the finance manager's review permission) and segregation
+// of duties (the actor that requested the release cannot approve it) before
+// the approval changes.
+func ReviewPaymentApproval(ctx context.Context, rt *runtime.Runtime, approvalID string, reviewer actor.Actor, granted bool, reason string) (approval.Approval, error) {
+	if rt == nil {
+		return approval.Approval{}, errors.New("runtime is required")
+	}
+	status := approval.StatusDenied
+	if granted {
+		status = approval.StatusGranted
+	}
+	return rt.ReviewApprovalAs(ctx, approvalID, reviewer, runtime.ReviewRequirement{
+		Permission:            PermissionReviewPayment,
+		SeparateFromRequester: true,
+	}, status, reason)
 }
 
 func validatePaymentInstruction(instruction PaymentInstruction) error {

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/approval"
 	"github.com/kiff/kiff/pkg/kiff/audit"
 	"github.com/kiff/kiff/pkg/kiff/event"
 )
@@ -379,5 +380,49 @@ func TestCapstoneLifecycleViewReflectsGovernedHistory(t *testing.T) {
 	}
 	if len(lc.Decisions) == 0 {
 		t.Fatal("lifecycle should attach the proposal decisions")
+	}
+}
+
+// TestOnlyFinanceManagerCanReviewPaymentApproval covers the #65 governance the
+// capstone now enforces on the finance approval: reviewer authority and
+// segregation of duties, checked by the runtime through ReviewPaymentApproval.
+func TestOnlyFinanceManagerCanReviewPaymentApproval(t *testing.T) {
+	ctx := context.Background()
+	rt, err := NewRuntime(NewLedgerGateway())
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	c, err := contract(rt, ActionReleaseApprovedPayment)
+	if err != nil {
+		t.Fatalf("contract: %v", err)
+	}
+
+	// Requested by the agent; a non-authorized reviewer (the agent) is denied.
+	agentCtx := action.ActionContext{
+		ActionName:   ActionReleaseApprovedPayment,
+		EntityID:     "inv-review-1",
+		EntityType:   EntityInvoice,
+		CurrentState: StatePaymentHeld,
+		Actor:        APAgentActor,
+		ApprovalID:   "ap-review-1",
+		Parameters:   invoiceParams(1842000),
+	}
+	if _, err := rt.RequestApproval(ctx, agentCtx.ApprovalID, agentCtx, c, "high-value release"); err != nil {
+		t.Fatalf("request approval: %v", err)
+	}
+	if _, err := ReviewPaymentApproval(ctx, rt, agentCtx.ApprovalID, APAgentActor, true, "agent tried to approve"); !errors.Is(err, action.ErrPermissionDenied) {
+		t.Fatalf("expected permission denied, got %v", err)
+	}
+
+	// Requested by the finance manager; SoD stops them approving their own.
+	selfCtx := agentCtx
+	selfCtx.Actor = FinanceManagerActor
+	selfCtx.EntityID = "inv-review-2"
+	selfCtx.ApprovalID = "ap-review-2"
+	if _, err := rt.RequestApproval(ctx, selfCtx.ApprovalID, selfCtx, c, "self-requested"); err != nil {
+		t.Fatalf("request self approval: %v", err)
+	}
+	if _, err := ReviewPaymentApproval(ctx, rt, selfCtx.ApprovalID, FinanceManagerActor, true, "requester tried to self approve"); !errors.Is(err, approval.ErrSelfReview) {
+		t.Fatalf("expected self-review rejection, got %v", err)
 	}
 }

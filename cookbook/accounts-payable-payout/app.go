@@ -11,7 +11,6 @@ import (
 
 	"github.com/kiff/kiff/pkg/kiff/action"
 	"github.com/kiff/kiff/pkg/kiff/actor"
-	"github.com/kiff/kiff/pkg/kiff/approval"
 	"github.com/kiff/kiff/pkg/kiff/audit"
 	"github.com/kiff/kiff/pkg/kiff/decision"
 	"github.com/kiff/kiff/pkg/kiff/event"
@@ -153,13 +152,14 @@ func (a *InteractiveApp) ReviewHeld(ctx context.Context, granted bool) (Snapshot
 	}
 	held := a.held
 
-	status := approval.StatusDenied
 	reason := "finance manager denied payment release"
 	if granted {
-		status = approval.StatusGranted
 		reason = "finance manager approved payment release"
 	}
-	if _, err := a.rt.ReviewApproval(ctx, held.ApprovalID, FinanceManagerActor.ID, status, reason); err != nil {
+	// Runtime-enforced reviewer authority + segregation of duties (#65): the
+	// finance manager must hold the review permission and cannot be the actor
+	// that requested the release.
+	if _, err := ReviewPaymentApproval(ctx, a.rt, held.ApprovalID, FinanceManagerActor, granted, reason); err != nil {
 		return Snapshot{}, err
 	}
 

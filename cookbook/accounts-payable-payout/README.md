@@ -106,14 +106,22 @@ This recipe exercises:
   (amount bounds, currency enum, bank-fingerprint length) plus a
   `ValidateParameters` hook, so a malformed value is rejected as an invalid
   action before the executor runs.
+- **a dynamic approval policy** — `RELEASE_APPROVED_PAYMENT` decides its
+  approval requirement (and the reason) from the payment facts via an
+  `ApprovalPolicy`, instead of a static flag; the reason (amount over the
+  autonomous release limit) rides the approval-required error, audit, and
+  lifecycle view.
+- **reviewer authority with segregation of duties** — the finance approval
+  goes through `ReviewApprovalAs`: the reviewer must hold the review
+  permission and cannot be the actor that requested the release.
 - **the governed lifecycle view** — surfaced on the snapshot as above.
 
-Its sibling recipes go further on the other coordination primitives:
-`security-incident-response` and `procurement-purchase-order` demonstrate
-**dynamic approval policies**, **runtime idempotency**, and **reviewer
-authority with segregation of duties**. Together the recipes cover the full
-governed-action surface. The side-effect boundary and deployment topology are
-documented in `docs/side-effect-boundary.md`.
+Duplicate protection here is enforced at the ledger gateway (keyed by
+`idempotency_key`). The `security-incident-response` and
+`procurement-purchase-order` recipes instead rely on KIFF's **runtime
+idempotency**, so a retried action returns the prior result without the
+gateway needing its own dedup. The side-effect boundary and deployment
+topology are documented in `docs/side-effect-boundary.md`.
 
 ## What This Enables
 
