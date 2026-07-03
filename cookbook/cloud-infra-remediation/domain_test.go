@@ -8,6 +8,7 @@ import (
 
 	"github.com/kiff/kiff/pkg/kiff/action"
 	"github.com/kiff/kiff/pkg/kiff/actor"
+	"github.com/kiff/kiff/pkg/kiff/approval"
 	"github.com/kiff/kiff/pkg/kiff/audit"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
@@ -222,6 +223,33 @@ func TestOnlySRELeadCanReviewIsolationApproval(t *testing.T) {
 	}
 	if _, err := ReviewIsolationApproval(ctx, rt, actionCtx.ApprovalID, OpsAgentActor, true, "agent tried to approve"); !errors.Is(err, action.ErrPermissionDenied) {
 		t.Fatalf("expected permission denied, got %v", err)
+	}
+}
+
+func TestRequesterCannotReviewOwnIsolationApproval(t *testing.T) {
+	ctx := context.Background()
+	rt, err := NewRuntime(NewInMemoryCloudControl())
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	contract, err := Contract(rt, ActionIsolateInstance)
+	if err != nil {
+		t.Fatalf("contract: %v", err)
+	}
+	actionCtx := action.ActionContext{
+		ActionName:   ActionIsolateInstance,
+		EntityID:     "inc-self-review-5006",
+		EntityType:   EntityIncident,
+		CurrentState: StateReviewRequired,
+		Actor:        SRELeadActor,
+		ApprovalID:   "approval-inc-self-review-5006",
+		Parameters:   isolationParams("inc-self-review-5006", "billing-api", "i-0pqr678", "us-east-2", "instance"),
+	}
+	if _, err := rt.RequestApproval(ctx, actionCtx.ApprovalID, actionCtx, contract, "same actor has review authority but requested this approval"); err != nil {
+		t.Fatalf("request approval: %v", err)
+	}
+	if _, err := ReviewIsolationApproval(ctx, rt, actionCtx.ApprovalID, SRELeadActor, true, "requester tried to approve"); !errors.Is(err, approval.ErrSelfReview) {
+		t.Fatalf("expected self-review rejection, got %v", err)
 	}
 }
 
