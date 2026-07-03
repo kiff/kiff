@@ -57,7 +57,8 @@ ambiguous or denial-risk cases, idempotency, and replayable state.
 
 - Customer support refund agent
 - Vendor onboarding and bank-detail change agent
-- Cloud infrastructure remediation agent
+- Cloud infrastructure remediation agent: implemented in
+  [`cloud-infra-remediation`](./cloud-infra-remediation).
 - Legal contract intake agent
 - Security incident response agent
 - Loan application processing agent
