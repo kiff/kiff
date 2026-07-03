@@ -47,10 +47,11 @@ approval holds, and idempotent payout issuance.
 
 ### Healthcare Prior Authorization Coordinator
 
-Status: planned.
+Status: implemented in [`healthcare-prior-auth`](./healthcare-prior-auth).
 
-Should show evidence collection, policy criteria checks, missing clinical
-documentation requests, and human review for ambiguous or denial-risk cases.
+Shows evidence collection, payer criteria checks, missing clinical documentation
+requests, service-owned payer portal submission, clinician approval for
+ambiguous or denial-risk cases, idempotency, and replayable state.
 
 ## Later Recipe Candidates
 
