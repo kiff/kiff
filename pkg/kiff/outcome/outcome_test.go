@@ -20,6 +20,7 @@ func TestClassify(t *testing.T) {
 		{"state not allowed -> blocked", action.ErrStateNotAllowed, Blocked, ReasonStateNotAllowed},
 		{"permission denied -> blocked", action.ErrPermissionDenied, Blocked, ReasonPermissionDenied},
 		{"missing parameter -> invalid", action.ErrMissingParameter, Invalid, ReasonMissingParameter},
+		{"invalid parameter -> invalid", action.ErrInvalidParameter, Invalid, ReasonInvalidParameter},
 		{"executor missing -> invalid", action.ErrExecutorMissing, Invalid, ReasonExecutorMissing},
 		{"invalid contract -> invalid", action.ErrInvalidContract, Invalid, ReasonInvalidContract},
 		{"unknown error fails safe to blocked", errors.New("boom"), Blocked, ReasonError},
