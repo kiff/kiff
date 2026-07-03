@@ -39,17 +39,19 @@ unsafe follow-up actions after the line is already shut off.
 
 ### Insurance Claims Triage Agent
 
-Status: planned in [`insurance-claims-triage`](./insurance-claims-triage).
+Status: implemented in [`insurance-claims-triage`](./insurance-claims-triage).
 
-Should show claim intake, evidence requests, fraud/risk scoring, low-value
-payout preparation, and high-value or suspicious claim holds.
+Shows claim intake, evidence requests, coverage verification, fraud/risk
+scoring, low-value payout preparation, service-only payout execution, high-risk
+approval holds, and idempotent payout issuance.
 
 ### Healthcare Prior Authorization Coordinator
 
-Status: planned.
+Status: implemented in [`healthcare-prior-auth`](./healthcare-prior-auth).
 
-Should show evidence collection, policy criteria checks, missing clinical
-documentation requests, and human review for ambiguous or denial-risk cases.
+Shows evidence collection, payer criteria checks, missing clinical documentation
+requests, service-owned payer portal submission, clinician approval for
+ambiguous or denial-risk cases, idempotency, and replayable state.
 
 ## Later Recipe Candidates
 
