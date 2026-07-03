@@ -39,10 +39,11 @@ unsafe follow-up actions after the line is already shut off.
 
 ### Insurance Claims Triage Agent
 
-Status: planned in [`insurance-claims-triage`](./insurance-claims-triage).
+Status: implemented in [`insurance-claims-triage`](./insurance-claims-triage).
 
-Should show claim intake, evidence requests, fraud/risk scoring, low-value
-payout preparation, and high-value or suspicious claim holds.
+Shows claim intake, evidence requests, coverage verification, fraud/risk
+scoring, low-value payout preparation, service-only payout execution, high-risk
+approval holds, and idempotent payout issuance.
 
 ### Healthcare Prior Authorization Coordinator
 
