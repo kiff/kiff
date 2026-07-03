@@ -27,7 +27,8 @@ Each high-quality recipe should answer:
 
 Shows a Claude Haiku AP agent that verifies invoices and proposes payment
 release while KIFF keeps money movement behind state, typed parameters,
-permissions, approval, lifecycle reconstruction, and audit.
+permissions, a dynamic approval policy, reviewer authority with segregation of
+duties, lifecycle reconstruction, and audit.
 
 ### Insurance Claims Triage Agent
 
@@ -87,6 +88,7 @@ Start here when evaluating a capability:
   [`procurement-purchase-order`](./procurement-purchase-order),
   [`cloud-infra-remediation`](./cloud-infra-remediation)
 - **Dynamic approval policy and reviewer controls:**
+  [`accounts-payable-payout`](./accounts-payable-payout),
   [`security-incident-response`](./security-incident-response),
   [`procurement-purchase-order`](./procurement-purchase-order),
   [`cloud-infra-remediation`](./cloud-infra-remediation)
