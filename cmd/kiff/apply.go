@@ -63,6 +63,11 @@ func runApply(args []string) error {
 	timeout := fs.Duration("timeout", 30*time.Second, "HTTP timeout")
 	if err := fs.Parse(args); err != nil {
 		applyUsage()
+		if errors.Is(err, flag.ErrHelp) {
+			// `-h` / `-help` is a successful request for usage, not an
+			// error — exit 0.
+			return nil
+		}
 		return err
 	}
 
@@ -237,9 +242,14 @@ func applyHTTPError(status int, body []byte) error {
 }
 
 // domainExists lists the tenant's domains and reports whether one of
-// the given name (case-insensitive) is already present, so apply can
-// choose PUT (update in place) over POST (create).
+// the given name is already present, so apply can choose PUT (update
+// in place) over POST (create). It matches both on the display name
+// (case-insensitive) and on the derived slug, so it holds whether the
+// list endpoint returns the authored name (it does today) or the
+// URL-safe slug — a multi-word domain like "Refund Flow" resolves
+// either way rather than mis-firing a create on an existing domain.
 func domainExists(client *http.Client, base, token, name string) (bool, error) {
+	wantSlug := slugify(name)
 	req, err := http.NewRequest(http.MethodGet, base+"/v1/me/domains", nil) // #nosec G107
 	if err != nil {
 		return false, err
@@ -263,7 +273,8 @@ func domainExists(client *http.Client, base, token, name string) (bool, error) {
 		return false, fmt.Errorf("decode domains list: %w", err)
 	}
 	for _, d := range payload.Domains {
-		if strings.EqualFold(strings.TrimSpace(d.Name), name) {
+		listed := strings.TrimSpace(d.Name)
+		if strings.EqualFold(listed, name) || (wantSlug != "" && slugify(listed) == wantSlug) {
 			return true, nil
 		}
 	}

@@ -114,7 +114,10 @@ func TestDomainExists(t *testing.T) {
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"domains": []map[string]any{{"name": "prod-guardian"}, {"name": "refunds"}},
+			// "Refund Flow" is a multi-word display name; the slug-based
+			// match must still resolve it from a differently-separated
+			// file name.
+			"domains": []map[string]any{{"name": "prod-guardian"}, {"name": "Refund Flow"}},
 		})
 	}))
 	defer srv.Close()
@@ -122,6 +125,11 @@ func TestDomainExists(t *testing.T) {
 	client := srv.Client()
 	if ok, err := domainExists(client, srv.URL, "tok", "Prod-Guardian"); err != nil || !ok {
 		t.Fatalf("existing (case-insensitive): ok=%v err=%v", ok, err)
+	}
+	// Separator/case differences resolve via the derived slug:
+	// "Refund_Flow" -> "refund-flow" == slug of listed "Refund Flow".
+	if ok, err := domainExists(client, srv.URL, "tok", "Refund_Flow"); err != nil || !ok {
+		t.Fatalf("slug match: ok=%v err=%v", ok, err)
 	}
 	if ok, err := domainExists(client, srv.URL, "tok", "new-domain"); err != nil || ok {
 		t.Fatalf("absent: ok=%v err=%v", ok, err)
