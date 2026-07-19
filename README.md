@@ -81,11 +81,16 @@ Use `kiff new <module>` without `-scenario` for a smaller starter project.
 - state replay from stored events
 - `memory`, `file`, and `postgres` stores
 - an optional `net/http` API for external agents, services, and tools
-- CLI commands to scaffold and verify domains
+- CLI commands to scaffold and verify domains, and to apply and inspect them against a running KIFF cloud
 
 Use `kiff verify` to check a domain before shipping. Use `kiff scaffold` to
 generate a `domain/` package from a JSON descriptor. Building against a local
 checkout? Add `-replace-local /path/to/kiff`.
+
+Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
+use `kiff apply` to push a `kiff.yaml` domain contract, and the read-only
+operator commands — `kiff domains list`/`show`, `kiff runtimes`, `kiff usage`,
+`kiff keys list` — to inspect what a tenant is running.
 
 ## Documentation
 

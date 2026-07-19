@@ -21,7 +21,7 @@ type operateServer struct {
 
 func newOperateServer(t *testing.T) *operateServer {
 	t.Helper()
-	os := &operateServer{}
+	rig := &operateServer{}
 	mux := http.NewServeMux()
 	record := func(h http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -29,9 +29,9 @@ func newOperateServer(t *testing.T) *operateServer {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
-			os.mu.Lock()
-			os.seen = append(os.seen, r.URL.Path)
-			os.mu.Unlock()
+			rig.mu.Lock()
+			rig.seen = append(rig.seen, r.URL.Path)
+			rig.mu.Unlock()
 			h(w, r)
 		}
 	}
@@ -39,6 +39,12 @@ func newOperateServer(t *testing.T) *operateServer {
 		_, _ = io.WriteString(w, `{"domains":[{"name":"prod-guardian","entity":"Server","version":3,"status":"enforce","action_count":4}]}`)
 	}))
 	mux.HandleFunc("GET /v1/me/domains/{domain}", record(func(w http.ResponseWriter, r *http.Request) {
+		// refund-flow exists too, to prove multi-word names are slugged
+		// into the path ("Refund Flow" -> refund-flow).
+		if r.PathValue("domain") == "refund-flow" {
+			_, _ = io.WriteString(w, `{"name":"refund-flow","entity":"Invoice","version":1,"status":"enforce","actions":[],"lifecycle":{},"agents":{"status":"unavailable","agents":[]},"evidence":{}}`)
+			return
+		}
 		if r.PathValue("domain") != "prod-guardian" {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -61,9 +67,9 @@ func newOperateServer(t *testing.T) *operateServer {
 	mux.HandleFunc("GET /v1/keys", record(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = io.WriteString(w, `{"keys":[{"id":"key-1","label":"loader","roles":["ops_agent"],"created_at":"2026-01-01T00:00:00Z"}]}`)
 	}))
-	os.srv = httptest.NewServer(mux)
-	t.Cleanup(os.srv.Close)
-	return os
+	rig.srv = httptest.NewServer(mux)
+	t.Cleanup(rig.srv.Close)
+	return rig
 }
 
 func (o *operateServer) hit(path string) bool {
@@ -111,6 +117,20 @@ func TestRunDomainsShow(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("show output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestRunDomainsShow_SlugsName(t *testing.T) {
+	t.Parallel()
+	s := newOperateServer(t)
+	var buf bytes.Buffer
+	// A multi-word display name must be slugged into the path, matching
+	// how apply stores it — otherwise a multi-word domain 404s.
+	if err := runDomains(&buf, append([]string{"show", "Refund Flow"}, flags(s.srv.URL)...)); err != nil {
+		t.Fatalf("domains show multi-word: %v", err)
+	}
+	if !s.hit("/v1/me/domains/refund-flow") {
+		t.Errorf("multi-word name not slugged into the path; seen=%v", s.seen)
 	}
 }
 

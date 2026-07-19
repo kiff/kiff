@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -232,8 +233,12 @@ func domainsShow(out io.Writer, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Address the domain by its slug, matching how `apply` stores it
+	// (the cloud keys /v1/me/domains/{domain} by slug), so a
+	// multi-word name like "Refund Flow" resolves to "refund-flow"
+	// rather than 404ing on the raw name.
 	var d domainDetail
-	if err := cloudGet(client, base, token, "/v1/me/domains/"+url.PathEscape(name), &d); err != nil {
+	if err := cloudGet(client, base, token, "/v1/me/domains/"+url.PathEscape(slugify(name)), &d); err != nil {
 		return err
 	}
 	if *cf.jsonOut {
@@ -333,7 +338,9 @@ func runUsage(out io.Writer, args []string) error {
 	}
 	path := "/v1/me/usage"
 	if d := strings.TrimSpace(*domain); d != "" {
-		path = "/v1/me/domains/" + url.PathEscape(d) + "/usage"
+		// Slug, not the raw name — the per-domain usage route is
+		// slug-keyed like the other /v1/me/domains/{domain} routes.
+		path = "/v1/me/domains/" + url.PathEscape(slugify(d)) + "/usage"
 	}
 	var body struct {
 		Plan                 string            `json:"plan"`
@@ -362,10 +369,15 @@ func runUsage(out io.Writer, args []string) error {
 		fmt.Fprintln(out, "counters: (none)")
 		return nil
 	}
+	keys := make([]string, 0, len(body.Counters))
+	for k := range body.Counters {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // stable, diffable output; map order is random
 	tw := newTabWriter(out)
 	fmt.Fprintln(tw, "COUNTER\tVALUE")
-	for k, v := range body.Counters {
-		fmt.Fprintf(tw, "%s\t%d\n", k, v)
+	for _, k := range keys {
+		fmt.Fprintf(tw, "%s\t%d\n", k, body.Counters[k])
 	}
 	return tw.Flush()
 }
