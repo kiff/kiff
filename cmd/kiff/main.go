@@ -58,6 +58,26 @@ func main() {
 			fmt.Fprintf(os.Stderr, "kiff apply: %v\n", err)
 			os.Exit(1)
 		}
+	case "domains":
+		if err := runDomains(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff domains: %v\n", err)
+			os.Exit(1)
+		}
+	case "runtimes":
+		if err := runRuntimes(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff runtimes: %v\n", err)
+			os.Exit(1)
+		}
+	case "usage":
+		if err := runUsage(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff usage: %v\n", err)
+			os.Exit(1)
+		}
+	case "keys":
+		if err := runKeys(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff keys: %v\n", err)
+			os.Exit(1)
+		}
 	case "version":
 		fmt.Println(versionString())
 	case "help", "-h", "--help":
@@ -81,6 +101,10 @@ func usage(w *os.File) {
 	fmt.Fprintln(w, "                                   from a running httpapi server")
 	fmt.Fprintln(w, "  kiff apply [-f kiff.yaml]         Push a domain contract to a KIFF cloud")
 	fmt.Fprintln(w, "                                   (endpoint via -endpoint / KIFF_CLOUD_URL)")
+	fmt.Fprintln(w, "  kiff domains list | show <name>  Inspect the tenant's governed domains")
+	fmt.Fprintln(w, "  kiff runtimes                    List connected runtimes")
+	fmt.Fprintln(w, "  kiff usage [--domain <name>]     Show governed-operation counters")
+	fmt.Fprintln(w, "  kiff keys list                   List the tenant's active API keys")
 	fmt.Fprintln(w, "  kiff version                     Print CLI version")
 	fmt.Fprintln(w, "  kiff help                        Show this message")
 	fmt.Fprintln(w, "")
