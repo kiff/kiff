@@ -88,9 +88,10 @@ generate a `domain/` package from a JSON descriptor. Building against a local
 checkout? Add `-replace-local /path/to/kiff`.
 
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
-use `kiff apply` to push a `kiff.yaml` domain contract, and the read-only
-operator commands — `kiff domains list`/`show`, `kiff runtimes`, `kiff usage`,
-`kiff keys list` — to inspect what a tenant is running.
+sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
+domain contract, and the read-only operator commands — `kiff domains list`/`show`,
+`kiff runtimes`, `kiff usage`, `kiff keys list` — to inspect what a tenant is
+running. `kiff auth status` shows the current session; `kiff auth logout` revokes it.
 
 ## Documentation
 
