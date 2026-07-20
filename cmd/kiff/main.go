@@ -78,6 +78,11 @@ func main() {
 			fmt.Fprintf(os.Stderr, "kiff keys: %v\n", err)
 			os.Exit(1)
 		}
+	case "auth":
+		if err := runAuth(os.Stdout, os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "kiff auth: %v\n", err)
+			os.Exit(1)
+		}
 	case "version":
 		fmt.Println(versionString())
 	case "help", "-h", "--help":
@@ -105,6 +110,7 @@ func usage(w *os.File) {
 	fmt.Fprintln(w, "  kiff runtimes                    List connected runtimes")
 	fmt.Fprintln(w, "  kiff usage [--domain <name>]     Show governed-operation counters")
 	fmt.Fprintln(w, "  kiff keys list                   List the tenant's active API keys")
+	fmt.Fprintln(w, "  kiff auth login | status | logout  Sign in to a KIFF cloud (device flow)")
 	fmt.Fprintln(w, "  kiff version                     Print CLI version")
 	fmt.Fprintln(w, "  kiff help                        Show this message")
 	fmt.Fprintln(w, "")
