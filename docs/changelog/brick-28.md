@@ -35,5 +35,10 @@ The developer session is written to `~/.kiff/credentials` at mode 0600 — the s
 ## Limitations
 
 - Developer sessions are owner-plane: they can author domains and mint keys (behind the cloud's server-side gates). Treat the `~/.kiff/credentials` file accordingly.
-- `logout` revokes only this device's session; a "log out everywhere" is a follow-up.
 - Browser auto-open is best-effort; headless environments use the printed link.
+
+## Refinements
+
+- `kiff auth logout --all` revokes **every** session for the account (log out everywhere), not just this device — backed by the cloud's `?all=true` logout path. Plain `logout` still revokes only the current device.
+- `kiff auth status` checks the stored credential before the endpoint, so it reports "not signed in" (or "signed in, but no endpoint configured") rather than an endpoint error when nothing is set up yet.
+- `kiff auth login` preserves blank lines and comments when it writes the endpoint into `~/.kiff/config`, instead of compacting the file.

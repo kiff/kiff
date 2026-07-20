@@ -229,13 +229,16 @@ func authStatus(out io.Writer, args []string) error {
 		authUsage()
 		return helpOrErr(err)
 	}
-	base, err := resolveEndpoint(*endpoint)
-	if err != nil {
-		return err
-	}
+	// Check the credential before the endpoint: "not signed in" is the
+	// more useful answer than "no endpoint" when neither is set.
 	tok, err := resolveToken("")
 	if err != nil {
 		fmt.Fprintln(out, "not signed in — run `kiff auth login`")
+		return nil
+	}
+	base, err := resolveEndpoint(*endpoint)
+	if err != nil {
+		fmt.Fprintln(out, "signed in, but no endpoint is configured — pass -endpoint or set KIFF_CLOUD_URL")
 		return nil
 	}
 	client := &http.Client{Timeout: *timeout}
@@ -262,6 +265,7 @@ func authLogout(out io.Writer, args []string) error {
 	fs := flag.NewFlagSet("auth logout", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	endpoint := fs.String("endpoint", "", "Base URL of the KIFF cloud")
+	all := fs.Bool("all", false, "Revoke every session for this account (log out everywhere), not just this device")
 	timeout := fs.Duration("timeout", 30*time.Second, "HTTP timeout")
 	if err := fs.Parse(args); err != nil {
 		authUsage()
@@ -276,19 +280,27 @@ func authLogout(out io.Writer, args []string) error {
 	// the credential never lingers on disk.
 	if base, err := resolveEndpoint(*endpoint); err == nil {
 		client := &http.Client{Timeout: *timeout}
-		if err := deviceLogout(client, base, tok); err != nil {
+		if err := deviceLogout(client, base, tok, *all); err != nil {
 			fmt.Fprintf(out, "(note: server-side revoke failed: %v; forgetting the local credential anyway)\n", err)
 		}
 	}
 	if err := forgetKiffCredential(); err != nil {
 		return fmt.Errorf("forget credential: %w", err)
 	}
-	fmt.Fprintln(out, "signed out")
+	if *all {
+		fmt.Fprintln(out, "signed out everywhere")
+	} else {
+		fmt.Fprintln(out, "signed out")
+	}
 	return nil
 }
 
-func deviceLogout(client *http.Client, base, token string) error {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, base+"/v1/auth/device/logout", nil) // #nosec G107
+func deviceLogout(client *http.Client, base, token string, all bool) error {
+	url := base + "/v1/auth/device/logout"
+	if all {
+		url += "?all=true"
+	}
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, url, nil) // #nosec G107
 	if err != nil {
 		return err
 	}
@@ -334,17 +346,17 @@ func writeKiffConfigValue(key, value string) error {
 	lines := []string{}
 	replaced := false
 	if existing, err := os.ReadFile(path); err == nil {
-		for _, line := range strings.Split(string(existing), "\n") {
+		// TrimRight the trailing newline so the split doesn't yield a
+		// phantom empty element that would accumulate blank lines on
+		// each rewrite; internal blank lines and comments are preserved.
+		for _, line := range strings.Split(strings.TrimRight(string(existing), "\n"), "\n") {
 			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				continue
-			}
-			if sep := strings.IndexAny(trimmed, "=:"); sep >= 0 && strings.EqualFold(strings.TrimSpace(trimmed[:sep]), key) {
+			if sep := strings.IndexAny(trimmed, "=:"); trimmed != "" && sep >= 0 && strings.EqualFold(strings.TrimSpace(trimmed[:sep]), key) {
 				lines = append(lines, key+" = "+value)
 				replaced = true
 				continue
 			}
-			lines = append(lines, line)
+			lines = append(lines, line) // preserve blank lines + comments
 		}
 	}
 	if !replaced {
