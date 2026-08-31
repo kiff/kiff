@@ -1,0 +1,143 @@
+name: ci
+
+# The framework had no CI. Every claim in the README about the action
+# boundary — approvals cannot be self-granted, executors must be explicit,
+# replay reproduces materialized state — rests on the test suite, so the
+# suite needs to run somewhere other than a maintainer's laptop.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor is the go directive in go.mod. `stable` catches breakage
+        # from a new toolchain before adopters hit it.
+        go: ["1.23.x", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./... -count=1
+
+  vet:
+    name: vet and gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+      - name: go vet
+        run: go vet ./...
+      - name: gofmt
+        # AGENTS.md requires gofmt. `gofmt -l` prints offending files and
+        # exits 0, so the file list itself has to be the failure condition.
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt needed on:"
+            echo "$unformatted"
+            exit 1
+          fi
+          echo "all files gofmt-clean"
+
+  postgres:
+    name: postgres conformance
+    runs-on: ubuntu-latest
+    # The Postgres store is the production reference, and its conformance
+    # suite is env-gated so a plain `go test ./...` skips it. Without this
+    # job the production store is the one backend never exercised in CI.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kiff
+          POSTGRES_PASSWORD: kiff
+          POSTGRES_DB: kiff_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kiff -d kiff_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+      - name: Run the shared store suite against Postgres
+        env:
+          KIFF_POSTGRES_TEST_URL: postgres://kiff:kiff@localhost:5432/kiff_test?sslmode=disable
+        run: go test ./pkg/kiff/store/... -count=1 -v
+      - name: Fail if the suite skipped instead of running
+        # A misconfigured DSN would make the gated suite skip and the job pass
+        # green, which is worse than no job at all.
+        env:
+          KIFF_POSTGRES_TEST_URL: postgres://kiff:kiff@localhost:5432/kiff_test?sslmode=disable
+        run: |
+          out=$(go test ./pkg/kiff/store/postgres/... -count=1 -v 2>&1)
+          echo "$out" | tail -20
+          if echo "$out" | grep -q "set KIFF_POSTGRES_TEST_URL"; then
+            echo "::error::Postgres conformance suite skipped — the service container was not reachable"
+            exit 1
+          fi
+
+  cli:
+    name: cli scaffold golden path
+    runs-on: ubuntu-latest
+    # This is the adoption path from the README: install the CLI, scaffold a
+    # governed domain, and get a project that builds and passes its own tests
+    # with no edits. It is the first thing a new user does, so it is the first
+    # thing that should break the build when it regresses.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: Build the CLI
+        run: go build -o "$RUNNER_TEMP/kiff" ./cmd/kiff
+
+      - name: kiff new -scenario refund
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/kiff" new -scenario refund \
+            -replace-local "$GITHUB_WORKSPACE" \
+            github.com/acme/refunds
+
+      - name: Generated project builds, verifies, and passes its own tests
+        working-directory: ${{ runner.temp }}/refunds
+        run: |
+          go mod tidy
+          go build ./...
+          "$RUNNER_TEMP/kiff" verify
+          go test ./... -count=1
+
+      - name: kiff new (starter template, no scenario)
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$RUNNER_TEMP/kiff" new \
+            -replace-local "$GITHUB_WORKSPACE" \
+            github.com/acme/starter
+          cd starter
+          go mod tidy
+          go build ./...
