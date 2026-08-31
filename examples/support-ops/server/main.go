@@ -233,9 +233,9 @@ func (h *demoHandler) handleListTickets(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	type ticketView struct {
-		ID            string `json:"id"`
-		State         string `json:"state"`
-		RefundsCents  int64  `json:"refunds_cents"`
+		ID           string `json:"id"`
+		State        string `json:"state"`
+		RefundsCents int64  `json:"refunds_cents"`
 	}
 	out := []ticketView{}
 	for _, id := range []string{"ticket-1", "ticket-2", "ticket-3", "ticket-4", "ticket-5"} {

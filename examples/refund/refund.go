@@ -37,8 +37,8 @@ const (
 	StatePaid     = "PAID"
 	StateRefunded = "REFUNDED"
 
-	ActionMarkPaid     = "MARK_PAID"
-	ActionRefundOrder  = "REFUND_ORDER"
+	ActionMarkPaid    = "MARK_PAID"
+	ActionRefundOrder = "REFUND_ORDER"
 
 	PermMarkPaid    permission.Permission = "refund.mark_paid"
 	PermRefundOrder permission.Permission = "refund.refund_order"

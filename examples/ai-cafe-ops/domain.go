@@ -19,21 +19,21 @@
 //
 //   - START_SHIFT          no approval, agent permission. Moves NEW → OPEN.
 //   - AUTO_ORDER_INVENTORY no approval. Reached only when the order
-//                          stays under SingleOrderCeilingCents AND keeps
-//                          the running daily total under
-//                          DailyOrderCeilingCents.
+//     stays under SingleOrderCeilingCents AND keeps
+//     the running daily total under
+//     DailyOrderCeilingCents.
 //   - ORDER_INVENTORY      approval required. Reached when either ceiling
-//                          would be exceeded.
+//     would be exceeded.
 //   - REQUEST_SPECIALTY    custom validator on the contract: rejects
-//                          unless parameters.item_id is in the catalog.
-//                          The check runs BEFORE the approval gate so
-//                          out-of-catalog requests never reach human review.
+//     unless parameters.item_id is in the catalog.
+//     The check runs BEFORE the approval gate so
+//     out-of-catalog requests never reach human review.
 //   - SEND_STAFF_MESSAGE   custom validator on the contract: rejects
-//                          unless parameters.sent_at_local is inside the
-//                          working-hours window. The check runs BEFORE
-//                          approval for the same reason.
+//     unless parameters.sent_at_local is inside the
+//     working-hours window. The check runs BEFORE
+//     approval for the same reason.
 //   - ESCALATE_SUPPLIER    no approval. Always allowed in OPEN; parks the
-//                          shift in AWAITING_HUMAN.
+//     shift in AWAITING_HUMAN.
 //
 // The contracts use the public action.ActionContract surface plus a thin
 // wrapping technique: the executor runs additional, contract-specific
@@ -100,30 +100,30 @@ const (
 
 	EntityShift = "Shift"
 
-	EventShiftScheduled  = "SHIFT_SCHEDULED"
-	EventShiftStarted    = "SHIFT_STARTED"
-	EventInventoryOrdered = "INVENTORY_ORDERED"
+	EventShiftScheduled     = "SHIFT_SCHEDULED"
+	EventShiftStarted       = "SHIFT_STARTED"
+	EventInventoryOrdered   = "INVENTORY_ORDERED"
 	EventSpecialtyRequested = "SPECIALTY_REQUESTED"
-	EventStaffMessaged    = "STAFF_MESSAGED"
-	EventSupplierEscalated = "SUPPLIER_ESCALATED"
+	EventStaffMessaged      = "STAFF_MESSAGED"
+	EventSupplierEscalated  = "SUPPLIER_ESCALATED"
 
 	StateNew           = "NEW"
 	StateOpen          = "OPEN"
 	StateAwaitingHuman = "AWAITING_HUMAN"
 
-	ActionStartShift           = "START_SHIFT"
-	ActionAutoOrderInventory   = "AUTO_ORDER_INVENTORY"
-	ActionOrderInventory       = "ORDER_INVENTORY"
-	ActionRequestSpecialty     = "REQUEST_SPECIALTY"
-	ActionSendStaffMessage     = "SEND_STAFF_MESSAGE"
-	ActionEscalateSupplier     = "ESCALATE_SUPPLIER"
+	ActionStartShift         = "START_SHIFT"
+	ActionAutoOrderInventory = "AUTO_ORDER_INVENTORY"
+	ActionOrderInventory     = "ORDER_INVENTORY"
+	ActionRequestSpecialty   = "REQUEST_SPECIALTY"
+	ActionSendStaffMessage   = "SEND_STAFF_MESSAGE"
+	ActionEscalateSupplier   = "ESCALATE_SUPPLIER"
 
-	PermStart      permission.Permission = "aicafeops.start"
-	PermOrder      permission.Permission = "aicafeops.order"
-	PermSpecialty  permission.Permission = "aicafeops.specialty"
-	PermMessage    permission.Permission = "aicafeops.message"
-	PermEscalate   permission.Permission = "aicafeops.escalate"
-	PermApprove    permission.Permission = "aicafeops.approve"
+	PermStart     permission.Permission = "aicafeops.start"
+	PermOrder     permission.Permission = "aicafeops.order"
+	PermSpecialty permission.Permission = "aicafeops.specialty"
+	PermMessage   permission.Permission = "aicafeops.message"
+	PermEscalate  permission.Permission = "aicafeops.escalate"
+	PermApprove   permission.Permission = "aicafeops.approve"
 )
 
 // Demo actors.

@@ -59,10 +59,10 @@ func TestServer_AgentRefund_AutoExecutes(t *testing.T) {
 // TestServer_AgentRefund_ApprovalRequired_GrantedFlow covers the demo's
 // headline path:
 //
-//   1. agent posts a $999 refund
-//   2. server returns approval_required + opens a pending approval
-//   3. operator grants the approval through the kiff API
-//   4. agent retries; KIFF lets it through
+//  1. agent posts a $999 refund
+//  2. server returns approval_required + opens a pending approval
+//  3. operator grants the approval through the kiff API
+//  4. agent retries; KIFF lets it through
 //
 // Asserting on outcome strings keeps the test aligned with what the
 // Python agent observes.
