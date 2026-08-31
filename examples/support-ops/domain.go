@@ -12,14 +12,14 @@
 //
 //   - TRIAGE_TICKET     no approval, agent permission
 //   - ISSUE_REFUND      approval if amount_cents > 5000 OR cumulative_today
-//                       on the ticket exceeds 20000 (the runtime tracks the
-//                       running sum and enforces both via the contract's
-//                       custom validator hook)
+//     on the ticket exceeds 20000 (the runtime tracks the
+//     running sum and enforces both via the contract's
+//     custom validator hook)
 //   - WAIVE_FEE         approval always
 //   - SEND_OUTREACH     custom validator hook on the contract: rejects
-//                       unless parameters.consent_verified == true. This
-//                       check runs BEFORE the approval gate, so consent
-//                       failures never reach human review.
+//     unless parameters.consent_verified == true. This
+//     check runs BEFORE the approval gate, so consent
+//     failures never reach human review.
 //   - ESCALATE_TO_HUMAN no approval (escalation is always allowed)
 //   - CLOSE_TICKET      no approval, allowed only in RESOLVED
 //
@@ -75,28 +75,28 @@ const (
 
 	EntityTicket = "Ticket"
 
-	EventTicketOpened     = "TICKET_OPENED"
-	EventTicketTriaged    = "TICKET_TRIAGED"
-	EventRefundIssued     = "REFUND_ISSUED"
-	EventFeeWaived        = "FEE_WAIVED"
-	EventOutreachSent     = "OUTREACH_SENT"
-	EventEscalated        = "ESCALATED_TO_HUMAN"
-	EventTicketResolved   = "TICKET_RESOLVED"
-	EventTicketClosed     = "TICKET_CLOSED"
+	EventTicketOpened   = "TICKET_OPENED"
+	EventTicketTriaged  = "TICKET_TRIAGED"
+	EventRefundIssued   = "REFUND_ISSUED"
+	EventFeeWaived      = "FEE_WAIVED"
+	EventOutreachSent   = "OUTREACH_SENT"
+	EventEscalated      = "ESCALATED_TO_HUMAN"
+	EventTicketResolved = "TICKET_RESOLVED"
+	EventTicketClosed   = "TICKET_CLOSED"
 
-	StateNew            = "NEW"
-	StateTriaged        = "TRIAGED"
-	StateAwaitingHuman  = "AWAITING_HUMAN"
-	StateResolved       = "RESOLVED"
-	StateClosed         = "CLOSED"
+	StateNew           = "NEW"
+	StateTriaged       = "TRIAGED"
+	StateAwaitingHuman = "AWAITING_HUMAN"
+	StateResolved      = "RESOLVED"
+	StateClosed        = "CLOSED"
 
-	ActionTriageTicket     = "TRIAGE_TICKET"
-	ActionAutoRefund       = "AUTO_REFUND"
-	ActionIssueRefund      = "ISSUE_REFUND"
-	ActionWaiveFee         = "WAIVE_FEE"
-	ActionSendOutreach     = "SEND_OUTREACH"
-	ActionEscalate         = "ESCALATE_TO_HUMAN"
-	ActionCloseTicket      = "CLOSE_TICKET"
+	ActionTriageTicket = "TRIAGE_TICKET"
+	ActionAutoRefund   = "AUTO_REFUND"
+	ActionIssueRefund  = "ISSUE_REFUND"
+	ActionWaiveFee     = "WAIVE_FEE"
+	ActionSendOutreach = "SEND_OUTREACH"
+	ActionEscalate     = "ESCALATE_TO_HUMAN"
+	ActionCloseTicket  = "CLOSE_TICKET"
 
 	PermTriage   permission.Permission = "supportops.triage"
 	PermRefund   permission.Permission = "supportops.refund"
@@ -119,7 +119,7 @@ var (
 // remains self-contained without leaking back into pkg/kiff. One
 // Domain corresponds to one runtime.
 type Domain struct {
-	mu             sync.Mutex
+	mu              sync.Mutex
 	refundsByTicket map[string]int64 // running sum of REFUND_ISSUED amounts per ticket
 }
 
@@ -388,9 +388,9 @@ func (d *Domain) issueRefundContract() action.ActionContract {
 				Message:        fmt.Sprintf("issued %d cents refund (%s); running total %d", amount, reason, running),
 				EffectsSummary: "refund issued",
 				Output: map[string]any{
-					"amount_cents":      amount,
-					"running_cents":     running,
-					"reason":            reason,
+					"amount_cents":  amount,
+					"running_cents": running,
+					"reason":        reason,
 				},
 				FollowUpEvents: []event.Event{
 					ticketEvent(ctx.EntityID, EventRefundIssued, ctx.Actor.ID, map[string]any{

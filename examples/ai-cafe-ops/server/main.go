@@ -216,9 +216,9 @@ func (h *demoHandler) handleListShifts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type shiftView struct {
-		ID           string `json:"id"`
-		State        string `json:"state"`
-		OrdersCents  int64  `json:"orders_cents"`
+		ID          string `json:"id"`
+		State       string `json:"state"`
+		OrdersCents int64  `json:"orders_cents"`
 	}
 	out := []shiftView{}
 	for _, id := range []string{"shift-1", "shift-2", "shift-3", "shift-4", "shift-5"} {

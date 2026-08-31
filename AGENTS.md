@@ -112,16 +112,38 @@ The core packages should provide primitives and interfaces for coordination mech
 - Read `docs/vision.md` before making architectural changes.
 - Treat audit as part of the protocol, not as optional logging.
 - Do not let agent behavior bypass state, permissions, approvals, or validation.
-- Keep AI integrations outside the core until the framework primitives are stable.
+- Keep LLM and agent-framework integrations out of `pkg/kiff`. They belong in
+  `examples/`, `cookbook/`, or the guard SDK — never in a core package.
 - When adding examples, make the KIFF loop visible and easy to run.
 - When uncertain, choose the smallest idiomatic Go design that preserves explicit governance.
 
+## Where Things Live
+
+KIFF is several repositories. This one is the MIT framework; the rules above
+apply to it. Work that belongs elsewhere should go elsewhere rather than
+leaking into `pkg/kiff`.
+
+| Repository | Visibility | What it is |
+|---|---|---|
+| `kiff/kiff` (this repo) | public, MIT | The framework: the governed action boundary, stores, HTTP API, CLI |
+| [`kiff/kiff-guard`](https://github.com/kiff/kiff-guard) | public, MIT | Guard SDKs (`kiff-guard` on PyPI, `@kiff/kiff-guard` on npm) and per-framework adapters |
+| [`kiff/kiff-scan`](https://github.com/kiff/kiff-scan) | public | Static diagnostic for reachable consequential actions |
+| `kiff/kiff-cloud` | private | The hosted control plane at kiff.dev: tenancy, auth, billing, dashboard |
+
 ## Current Goal
 
-Build the open-source MIT framework core first.
+The framework core is at v0.7 and the action boundary is complete: approvals
+cannot be self-granted, executors must be explicit, and every validation and
+execution is recorded.
 
-Do not build KIFF Cloud.
-Do not build KIFF Studio.
-Do not integrate LLMs yet.
+Rules that still hold for this repository:
 
-Those are future layers. The immediate job is a clean local Go framework scaffold with tests and a runnable demo.
+- Cloud concerns — tenancy, authentication, billing, dashboards — stay in
+  `kiff-cloud`. They must not appear in the framework's public surface.
+- LLM and agent-framework code stays out of `pkg/kiff`.
+- When a cloud RFC needs a framework change, the framework PR lands here
+  first, then the cloud implementation follows.
+
+Current work is finishing what a self-hoster needs to run this framework
+honestly on its own: durable idempotency, a Postgres-backed state store, and
+an explicit trust boundary on the `httpapi` surface.

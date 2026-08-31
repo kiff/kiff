@@ -123,8 +123,8 @@ var errBroken = errors.New("broken")
 
 type brokenStore struct{}
 
-func (brokenStore) Append(context.Context, audit.Record) error            { return errBroken }
-func (brokenStore) List(context.Context, string) ([]audit.Record, error)  { return nil, errBroken }
+func (brokenStore) Append(context.Context, audit.Record) error           { return errBroken }
+func (brokenStore) List(context.Context, string) ([]audit.Record, error) { return nil, errBroken }
 func (brokenStore) Query(context.Context, audit.Filter) ([]audit.Record, error) {
 	return nil, errBroken
 }

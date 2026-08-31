@@ -4,11 +4,11 @@
 //
 //   - GET  /demo/orders                    list seeded orders + current state
 //   - POST /demo/agent/refund              the agent's "refund_order" tool
-//                                          surface; the server routes to
-//                                          AUTO_REFUND or REFUND_ORDER based
-//                                          on amount and returns a stable
-//                                          outcome string the agent can react
-//                                          to without seeing the runtime
+//     surface; the server routes to
+//     AUTO_REFUND or REFUND_ORDER based
+//     on amount and returns a stable
+//     outcome string the agent can react
+//     to without seeing the runtime
 //   - POST /demo/agent/waive               the same shape but for WAIVE_FEE
 //
 // The kiff routes (POST /events/raw, GET /entities/{id}/timeline,
@@ -17,9 +17,9 @@
 //
 // Three orders are seeded on startup:
 //
-//   order-1 paid 4200    cents (small refund will auto-execute)
-//   order-2 paid 99900   cents (large refund — KIFF will demand approval)
-//   order-3 paid 25000   cents (above ceiling; same approval gate)
+//	order-1 paid 4200    cents (small refund will auto-execute)
+//	order-2 paid 99900   cents (large refund — KIFF will demand approval)
+//	order-3 paid 25000   cents (above ceiling; same approval gate)
 package main
 
 import (
@@ -249,11 +249,11 @@ func (h *demoHandler) handleRebuild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"entity_id":      entityID,
-		"materialized":   materialized,
-		"replayed":       replay.State.Value,
+		"entity_id":       entityID,
+		"materialized":    materialized,
+		"replayed":        replay.State.Value,
 		"events_replayed": len(replay.Steps),
-		"matches":        materialized == replay.State.Value,
+		"matches":         materialized == replay.State.Value,
 	})
 }
 

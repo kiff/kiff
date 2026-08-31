@@ -5,6 +5,9 @@
 *.test
 *.out
 /bin/
+# The CLI built in place — `go build ./cmd/kiff` drops a `kiff` binary at the
+# repo root. CI builds it into a temp dir, but local builds land here.
+/kiff
 
 # Local Go scratch files
 /tmp/
@@ -32,3 +35,6 @@ coverage.html
 # day-of runbooks, etc. live here. Nothing in /launch/ is part of the
 # framework's public surface.
 /launch/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

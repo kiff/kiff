@@ -14,13 +14,13 @@ import (
 // The builder is a convenience layer. It does not introduce new behavior
 // beyond what state.TransitionMachine and action.Catalog already provide.
 type Builder struct {
-	name         string
-	entityTypes  []string
-	eventTypes   []string
-	transitions  []state.Transition
-	allowed      map[string][]string
-	contracts    []action.ActionContract
-	machine      state.StateMachine
+	name          string
+	entityTypes   []string
+	eventTypes    []string
+	transitions   []state.Transition
+	allowed       map[string][]string
+	contracts     []action.ActionContract
+	machine       state.StateMachine
 	customMachine bool
 }
 

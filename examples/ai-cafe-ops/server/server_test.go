@@ -249,9 +249,9 @@ func TestServer_Catalog(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	var body struct {
-		Catalog            []string `json:"catalog"`
-		WorkingHoursStart  int      `json:"working_hours_start"`
-		WorkingHoursEnd    int      `json:"working_hours_end"`
+		Catalog           []string `json:"catalog"`
+		WorkingHoursStart int      `json:"working_hours_start"`
+		WorkingHoursEnd   int      `json:"working_hours_end"`
 	}
 	mustDecode(t, resp, &body)
 	if len(body.Catalog) == 0 {

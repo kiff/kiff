@@ -159,11 +159,11 @@ func (s *ApprovalStore) IsGranted(ctx context.Context, id, entityID, actionName 
 // nullable columns and timestamps.
 func scanApproval(row pgx.Row) (approval.Approval, error) {
 	var (
-		a              approval.Approval
-		reviewedBy     *string
-		reason         *string
-		reviewedAt     *time.Time
-		statusStr      string
+		a          approval.Approval
+		reviewedBy *string
+		reason     *string
+		reviewedAt *time.Time
+		statusStr  string
 	)
 	err := row.Scan(
 		&a.ID, &a.EntityID, &a.EntityType, &a.ActionName, &a.RequestedBy,

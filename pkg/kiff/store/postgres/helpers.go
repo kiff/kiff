@@ -34,10 +34,10 @@ type rowsAdapter struct {
 	rows pgx.Rows
 }
 
-func (a rowsAdapter) Next() bool         { return a.rows.Next() }
+func (a rowsAdapter) Next() bool          { return a.rows.Next() }
 func (a rowsAdapter) Scan(v ...any) error { return a.rows.Scan(v...) }
-func (a rowsAdapter) Err() error         { return a.rows.Err() }
-func (a rowsAdapter) Close()             { a.rows.Close() }
+func (a rowsAdapter) Err() error          { return a.rows.Err() }
+func (a rowsAdapter) Close()              { a.rows.Close() }
 
 // marshalJSONOrEmpty marshals a value to JSON, returning an empty JSON object
 // when the value is nil. Postgres JSONB columns reject NULL on NOT NULL

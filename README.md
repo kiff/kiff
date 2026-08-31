@@ -1,5 +1,6 @@
 # KIFF
 
+[![CI](https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg)](https://github.com/kiff/kiff/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/kiff/kiff.svg)](https://pkg.go.dev/github.com/kiff/kiff)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
@@ -68,6 +69,42 @@ make demo
 That creates a runnable refund domain with an `Order`, a `MARK_PAID` action, an
 approval-gated `REFUND_ORDER` action, a headless HTTP API, and a demo script.
 Use `kiff new <module>` without `-scenario` for a smaller starter project.
+
+## Connect An Agent
+
+If you already have an agent and want KIFF deciding in front of its tool
+calls, you do not need to restructure it. The guard SDK sits on the
+pre-execution seam your framework already exposes:
+
+```bash
+pip install kiff-guard          # or: npm install @kiff/kiff-guard
+```
+
+```python
+from kiff_guard import Guard
+from kiff_guard.adapters.agno import agno_hook
+
+guard = Guard(mode="observe")   # observe records; enforce refuses before the call runs
+agent = Agent(model=..., tools=[refund_order], tool_hooks=[agno_hook(guard)])
+```
+
+Adapters ship for Agno, LangGraph/LangChain, OpenAI Agents SDK, Google ADK,
+Pydantic AI, Strands, Microsoft Agent Framework, Hermes, Haystack, and
+LlamaIndex. Custom stacks use the core over plain HTTP with no adapter. Source
+and per-framework docs: [kiff/kiff-guard](https://github.com/kiff/kiff-guard)
+(MIT).
+
+## Run It Yourself Or Hosted
+
+This framework is the whole boundary, and it is MIT. Self-host it with the
+`postgres` store and your own HTTP stack for as long as you like.
+
+If you would rather not operate the state, approvals, receipts, and retention
+yourself, [KIFF Cloud](https://kiff.dev) runs them as a hosted control plane
+with a free tier. The CLI talks to it directly — `kiff auth login`, then
+`kiff apply` to push a domain contract, and `kiff domains`, `kiff runtimes`,
+`kiff usage`, `kiff keys` to inspect a tenant. Nothing in this repository
+requires it.
 
 ## What You Get
 
