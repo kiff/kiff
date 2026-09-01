@@ -1,12 +1,18 @@
-# KIFF
+<p align="center">
+  <img src="./docs/assets/kiff-logo.png" alt="KIFF" width="176">
+</p>
 
-[![CI](https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg)](https://github.com/kiff/kiff/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/kiff/kiff.svg)](https://pkg.go.dev/github.com/kiff/kiff)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
-[![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
+<h1 align="center">KIFF</h1>
 
-**KIFF gives agents, humans, and services one operational truth.**
+<p align="center"><strong>One operational truth for agents, humans, and services.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/kiff/kiff/actions/workflows/ci.yml"><img src="https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://pkg.go.dev/github.com/kiff/kiff"><img src="https://pkg.go.dev/badge/github.com/kiff/kiff.svg" alt="Go Reference"></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
+  <a href="./go.mod"><img src="https://img.shields.io/github/go-mod/go-version/kiff/kiff" alt="Go version"></a>
+  <a href="https://github.com/kiff/kiff/releases"><img src="https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver" alt="Release"></a>
+</p>
 
 KIFF is a Go framework for building operational systems where many actors work
 on the same business process. Model events, state, actions, authority,
@@ -84,6 +90,22 @@ make demo
 That creates a runnable refund domain with an `Order`, a `MARK_PAID` action, an
 approval-gated `REFUND_ORDER` action, a headless HTTP API, and a demo script.
 Use `kiff new <module>` without `-scenario` for a smaller starter project.
+
+## One CLI, End to End
+
+The `kiff` CLI stays with the project from the first domain to a running
+system:
+
+| Workflow | What it gives you | Commands |
+| --- | --- | --- |
+| Start | A runnable KIFF project, with an optional working scenario | `kiff new` |
+| Generate | A typed Go domain from a JSON descriptor | `kiff scaffold` |
+| Validate | Structural domain checks and static analysis for unguarded Go tools | `kiff verify`, `kiff scan` |
+| Investigate | A readable action, approval, and outcome history for one entity | `kiff timeline` |
+| Publish | Authentication and domain contract deployment to KIFF Cloud | `kiff auth`, `kiff apply` |
+| Operate | Views of domains, runtimes, governed usage, and active API keys | `kiff domains`, `kiff runtimes`, `kiff usage`, `kiff keys` |
+
+Run `kiff help` for the full command list or `kiff <command> -h` for flags.
 
 ## Connect An Agent
 
