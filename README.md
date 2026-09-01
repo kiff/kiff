@@ -139,6 +139,27 @@ This is static analysis: a clean result means no supported path was found, not
 that the application is safe or that every framework-specific registration
 shape is understood.
 
+### Agent Assistants
+
+The repository includes a `kiff-governance` skill for Codex, Claude Code, and
+Kiro. It runs the installed `kiff` CLI, explains findings from the source, and
+helps move consequential calls behind a real KIFF decision boundary. The skill
+does not replace the scanner or runtime enforcement.
+
+For local use, clone this repository and load its root as a plugin:
+
+```bash
+claude --plugin-dir /path/to/kiff
+```
+
+Codex recognizes the `.codex-plugin/plugin.json` package, and Kiro can import
+the repository URL as a Power. Invoke `kiff-governance` or ask the assistant to
+scan a Go agent for ungoverned consequential actions. Install the CLI first:
+
+```bash
+go install github.com/kiff/kiff/cmd/kiff@latest
+```
+
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
 sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
 domain contract, and the read-only operator commands — `kiff domains list`/`show`,
