@@ -139,6 +139,15 @@ This is static analysis: a clean result means no supported path was found, not
 that the application is safe or that every framework-specific registration
 shape is understood.
 
+For Python agent repositories, use the separate
+[kiff-scan](https://github.com/kiff/kiff-scan) tool instead:
+
+```bash
+uvx kiff-scan scan .
+```
+
+It also ships a GitHub Action: `uses: kiff/kiff-scan@v0.1.1`.
+
 ### Agent Assistants
 
 The `kiff-governance` skill lets Codex, Claude Code, and Kiro run the scanner,

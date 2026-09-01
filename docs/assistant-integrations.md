@@ -1,16 +1,19 @@
 # Use KIFF with coding assistants
 
-The `kiff-governance` skill lets Codex, Claude Code, or Kiro scan a Go agent,
+The `kiff-governance` skill lets Codex, Claude Code, or Kiro scan agent code,
 explain what it finds, and help fix ungoverned actions.
 
-First, install the CLI:
+Choose the scanner for your repository:
 
 ```bash
-go install github.com/kiff/kiff/cmd/kiff@v0.8.0
-kiff scan -h
+go install github.com/kiff/kiff/cmd/kiff@v0.8.0  # Go
+uvx kiff-scan scan .                             # Python
 ```
 
-The skill needs `kiff` on your `PATH`. It does not bundle the binary.
+`kiff scan` analyzes Go. Python uses the separate
+[kiff-scan](https://github.com/kiff/kiff-scan) tool, which also provides the
+`kiff/kiff-scan@v0.1.1` GitHub Action. Install the scanner you need before
+asking the assistant to use it.
 
 ## Codex
 
@@ -58,10 +61,10 @@ To load the plugin automatically in future sessions, clone it into
 
 ## What happens next
 
-The assistant runs `kiff scan`, reads the reported source, and explains each
-finding. If you ask it to make changes, it adds a KIFF decision before the
-risky call, runs the relevant Go tests, and scans again. It can also add SARIF
-reporting and a CI failure threshold.
+The assistant runs the scanner for the repository language, reads the reported
+source, and explains each finding. If you ask it to make changes, it adds a
+KIFF decision before the risky call, runs the relevant tests, and scans again.
+It can also add SARIF reporting and a CI failure threshold.
 
 Try prompts such as:
 
@@ -71,10 +74,10 @@ Fix the high-severity findings, run the tests, and scan again.
 Add KIFF SARIF reporting to CI.
 ```
 
-`kiff scan` currently supports Go. A clean result means the scanner found no
-supported ungoverned path; it is not proof that the application is safe. The
-KIFF runtime, not the assistant, makes the final allow, block, or approval
-decision before an action runs.
+`kiff scan` supports Go and `kiff-scan` supports Python. A clean result means
+the scanner found no supported ungoverned path; it is not proof that the
+application is safe. The KIFF runtime, not the assistant, makes the final
+allow, block, or approval decision before an action runs.
 
 The integrations are available from GitHub but are not yet listed in public
 assistant marketplaces. See the platform docs for [Claude Code plugins](https://code.claude.com/docs/en/plugins)
