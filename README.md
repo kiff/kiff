@@ -21,15 +21,7 @@ Without a shared domain, each new actor recreates its own view of state, rules,
 and integrations. They slowly disagree about what is true and what can happen
 next.
 
-```mermaid
-flowchart LR
-    A[Support agent] --> A1[Its own state, rules, and integrations]
-    B[Finance agent] --> B1[Its own state, rules, and integrations]
-    C[Human application] --> C1[Its own state, rules, and integrations]
-    A1 --> X[Business systems]
-    B1 --> X
-    C1 --> X
-```
+![Without a shared domain, each actor rebuilds its own state, rules, and integrations.](./docs/diagrams/fragmented-operational-truth.svg)
 
 ## One Domain, Many Actors
 
@@ -37,15 +29,7 @@ KIFF makes the business process explicit once. Events establish what is true;
 typed actions describe what may happen; authority and approvals apply the same
 way to every actor; execution results return to the shared history.
 
-```mermaid
-flowchart LR
-    W[Existing systems] -->|events| D[KIFF domain<br/>events · state · actions · authority · audit]
-    A[Agents] -->|propose actions| D
-    H[Humans] -->|propose actions| D
-    S[Services] -->|propose actions| D
-    D -->|valid action| E[Your executor]
-    E -->|resulting events| D
-```
+![KIFF provides one domain for events, state, actions, authority, and audit.](./docs/diagrams/shared-operational-truth.svg)
 
 Keep your agent framework, HTTP stack, queue, cron job, and systems of record.
 KIFF does not replace them. It gives them a shared operational foundation, then
