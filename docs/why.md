@@ -1,89 +1,93 @@
 # Why KIFF
 
-## Most AI backends stop before the useful action
+The first agent is usually a feature. The next few need a system.
 
-If you have built a serious AI feature in production, you have probably had this conversation. The product team wants the agent to do something real: issue a refund, send a contract, transfer a balance, escalate a case, change a permission. The engineering team builds it. It works in the demo. Then it ships, and one of three things happens.
+An agent that drafts an answer or finds information can often live inside its
+own application. The architecture changes when agents, people, and services all
+need to work on the same order, case, invoice, account, or incident. That work
+already has a lifecycle, valid next steps, and people with different authority.
 
-The agent does the action it was supposed to do, but also five other things, and now you have to explain to a customer why their account got changed.
+Without a shared model, each new actor rebuilds those facts in its own prompts,
+tool handlers, and integrations. Over time, the rules drift, state fragments,
+and every new capability becomes another backend project.
 
-The agent gets confused, fails to act, and the human in the loop has no way to take over without bypassing the system.
+## One Operational Truth
 
-The agent does the right thing nine times out of ten, and the tenth time costs you a chargeback, a regulatory letter, or a customer.
-
-This is an architecture problem, not an alignment problem.
-
-Most AI applications start at the prompt. They wrap a model in a chat UI, expose a few tools, and trust the model's judgment to call them correctly. That works for demos. It collapses in production because the prompt is the wrong layer to decide whether a real side effect is allowed. The prompt does not know your state machine. The prompt cannot enforce permissions. The prompt cannot require a human signature. The prompt cannot reconstruct what happened later.
-
-The result is software that describes limits in instructions and leaves the tool call to hope.
-
-## The layer below the prompt
-
-Underneath every operational system, AI or not, there is a coordination protocol:
+KIFF gives all of those actors one domain to work against.
 
 ```text
-something happened → state changed → a decision was made →
-an action was proposed → it was validated → it was executed → the trail explains it
+events -> shared state -> actions -> execution -> audit
 ```
 
-Banks have it. Marketplaces have it. Hospitals have it. Air traffic control has it. The protocol is not new. What is new is that AI agents now want to act inside it, often without being invited.
+The domain is yours. You define what an order, claim, mission, or account means.
+KIFF supplies the mechanics that usually get rebuilt around it:
 
-The right place to make an agent shippable is not in the prompt. It is in this protocol. The agent's job ends at "I propose to refund $999." The system's job is to validate that proposal against the current state, the actor's permissions, the action's parameters, and the approval requirements before anything moves. If the agent is right, execution proceeds. If the action needs authority, the system holds it. If the state forbids it, the system says no with a reason.
+- events that record what happened
+- state derived from those events
+- typed action contracts with parameters, permissions, risk, and approvals
+- executors that perform valid side effects
+- decisions, execution results, and audit records that explain the outcome
 
-This is what KIFF gives you: the layer underneath, where the action has to pass through code instead of a prompt promise.
+This is not an integration hub that replaces your systems of record. Payment
+providers, warehouses, internal services, and agent frameworks keep doing their
+jobs. KIFF gives every participant the same answer to two operational questions:
+what is true now, and what may happen next?
 
-## What the boundary gets you
+## The Same Contract for Every Actor
 
-Once the protocol exists, four things become possible that were not possible before:
+An agent proposes an action. A human application proposes an action. A service
+or workflow proposes an action. They all meet the same action contract.
 
-**You can let agents act on real work.** Because the runtime is the gate, an agent can be wrong without every mistake becoming a side effect. Right proposals execute. Missing approvals pause. State-forbidden repeats return a typed reason. The conversation about agent reliability stops being existential.
+That matters when the result depends on live state rather than intent alone. A
+refund may be allowed while an order is paid, require approval above a threshold,
+and be refused once it has already been refunded. The rule belongs to the
+domain, not to one agent's prompt or a single integration's handler.
 
-**You can mix actors safely.** Humans, agents, services, and integrations all submit proposals to the same loop. The same contract answers each one. The question of "what happens if a human and an agent both try to refund this order" has an answer instead of a discussion.
+Governance is therefore part of the operational model, not a bolt-on control.
+KIFF evaluates the proposed action against current state, authority, parameters,
+and approvals before the executor runs. The result is recorded so the next
+actor starts from the same reality.
 
-**You can replay any incident.** Every event, decision, validation, approval, execution, and failure is in the trail. Six months from now, when someone asks why a refund was issued, you can rebuild the entity from events alone and show the chain. Trust becomes a function you can run rather than a story you tell.
+## Why a Framework
 
-**The boundary can speed you up.** This is the counterintuitive part. The point is not to add a review tax. The point is to remove the reason the agent was stuck in read-only mode. The time you save not debugging mysterious state, not unwinding bad agent actions, and not rewriting "just enough" action checks for the third time dwarfs the time you spend declaring the contract.
+Teams can assemble this themselves: a state machine, event store, permissions,
+approval tables, action validation, execution records, and a way to replay an
+entity later. They often do, then rebuild much of it when a second agent or a
+new integration arrives.
 
-## Where KIFF stops
+KIFF provides those primitives as an idiomatic Go framework. It standardizes
+the mechanics of coordination while leaving business semantics to the domain.
+You can use the agent framework, transport, queue, workflow engine, and
+database that fit your system.
 
-KIFF deliberately stays out of a few areas, and knowing them is the fastest way to understand what it is.
+## What KIFF Does Not Replace
 
-The conversation layer is yours. KIFF holds no opinion about chat UIs or prompts; it starts the moment a human, agent, or service wants to *do something* to your state. It ships no model SDK, prompt builder, or embeddings store either, which is why you can run it with no AI at all and it still earns its keep. The framework is agent-ready, not agent-coupled.
+KIFF is not a chatbot framework, model SDK, workflow engine, or generic web
+framework. It does not own your prompts, systems of record, or business
+vocabulary.
 
-Long-running tasks, retries, and scheduled jobs belong to a workflow engine. If you need Temporal, use Temporal; KIFF lives next to it. HTTP is optional too. The `httpapi` package exists because most people want it, but the runtime is a coordinator you can drive from a queue consumer, a CLI, a cron job, or a custom RPC.
+It starts when an actor wants to change shared operational state. A workflow
+engine can schedule the work; KIFF determines whether the named action is valid
+now. An executor performs the side effect; KIFF records the decision and result.
 
-Your events, states, actions, and permissions stay yours. KIFF normalizes the *mechanics* of coordination, not the meaning. An order, a mission, and a refund stay distinct, and KIFF never pretends otherwise.
+## Try It
 
-## The shape of the bet
-
-The bet KIFF makes is simple. The next decade of software is going to put AI agents inside operational systems, not next to them. The systems that survive will be the ones with a real action boundary between the agent and the state. The systems that fail will be the ones that tried to ship consequential actions with prompts alone.
-
-KIFF is the smallest, most idiomatic Go framework for building that layer. There are other ways to get there. You could roll it yourself. You could glue together a state machine library, an event log, an approval table, and an execution record, and you would have something close to KIFF after a quarter or two of work. Most teams will. Most teams should not have to.
-
-The protocol is what we are giving away. The whole point of the open-source MIT framework is that the skeleton is not the moat. The moat is the time you save not building it from scratch, the operational confidence you get from a tested core, and the shared language KIFF gives your team without arguing about every primitive.
-
-## How to read this repo
-
-If you have read this far and want to feel it instead of just read about it, run the tour:
+Run the tour to see one domain shared by an agent and a human:
 
 ```bash
 go run ./cmd/kiff-tour
 ```
 
-You will watch an agent mark an order paid, a high-risk refund pause until a human grants approval, and the full trail replay in about ninety seconds. That is the whole pitch in three minutes of terminal output.
-
-If you want to build something on top, scaffold a project:
+Or scaffold a runnable example:
 
 ```bash
 go install github.com/kiff/kiff/cmd/kiff@latest
-kiff new github.com/acme/orders
+kiff new -scenario refund github.com/acme/orders
+cd orders
+go mod tidy
+make demo
 ```
 
-Then read [`docs/conventions.md`](./conventions.md) and [`docs/build-a-domain.md`](./build-a-domain.md). The first explains the normal way. The second walks you through authoring your own domain end to end.
-
-If you want the philosophical version, [`docs/philosophy.md`](./philosophy.md) lists every choice we have made and why.
-
-## The sentence to remember
-
-> Make risky agent actions shippable without trusting the agent itself.
-
-That is the promise. The rest is plumbing.
+The refund is only an example. The reusable result is the domain: its events,
+state, actions, authority, execution boundary, and history are ready for every
+actor that follows.
