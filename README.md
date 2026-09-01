@@ -146,19 +146,9 @@ Kiro. It runs the installed `kiff` CLI, explains findings from the source, and
 helps move consequential calls behind a real KIFF decision boundary. The skill
 does not replace the scanner or runtime enforcement.
 
-For local use, clone this repository and load its root as a plugin:
-
-```bash
-claude --plugin-dir /path/to/kiff
-```
-
-Codex recognizes the `.codex-plugin/plugin.json` package, and Kiro can import
-the repository URL as a Power. Invoke `kiff-governance` or ask the assistant to
-scan a Go agent for ungoverned consequential actions. Install the CLI first:
-
-```bash
-go install github.com/kiff/kiff/cmd/kiff@latest
-```
+See [Coding assistant integrations](./docs/assistant-integrations.md) for the
+Codex skill setup, Claude Code plugin setup, Kiro Power import, example prompts,
+updates, and current limitations.
 
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
 sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
@@ -175,6 +165,7 @@ running. `kiff auth status` shows the current session; `kiff auth logout` revoke
 - [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end
 - [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON
 - [Govern over HTTP](./docs/governing-over-http.md) — drive KIFF from TypeScript, Python, or any stack
+- [Coding assistant integrations](./docs/assistant-integrations.md) — install and use the Codex, Claude Code, and Kiro skill
 - [Architecture & packages](./docs/architecture.md) — the package map and responsibilities
 - [Philosophy](./docs/philosophy.md) and [Comparisons](./docs/comparisons.md) — what KIFF is, and where it stops
 
