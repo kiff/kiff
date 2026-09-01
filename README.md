@@ -141,14 +141,10 @@ shape is understood.
 
 ### Agent Assistants
 
-The repository includes a `kiff-governance` skill for Codex, Claude Code, and
-Kiro. It runs the installed `kiff` CLI, explains findings from the source, and
-helps move consequential calls behind a real KIFF decision boundary. The skill
-does not replace the scanner or runtime enforcement.
-
-See [Coding assistant integrations](./docs/assistant-integrations.md) for the
-Codex skill setup, Claude Code plugin setup, Kiro Power import, example prompts,
-updates, and current limitations.
+The `kiff-governance` skill lets Codex, Claude Code, and Kiro run the scanner,
+explain findings, and help fix them. See
+[Coding assistant integrations](./docs/assistant-integrations.md) for setup and
+example prompts.
 
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
 sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
