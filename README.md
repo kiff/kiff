@@ -17,18 +17,19 @@ domain instead of each rebuilding it.
 
 The first agent is usually a feature. The next few need a system.
 
-In a conventional implementation, each new agent, application, or automation
-builds its own view of state, rules, and integrations. That works in isolation,
-then creates coordination work: decisions drift, integrations multiply, and it
-becomes harder to explain what happened.
+When three actors join the same process, the common pattern is three backend
+copies: each owns its interpretation of state, its rules, its actions, and a
+custom path into the same systems. That works in isolation, then creates
+coordination work as those copies drift and integrations multiply.
 
 ![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./docs/diagrams/traditional-operational-pattern.png)
 
 ## The KIFF Pattern
 
-KIFF makes the business process explicit once. Events establish what is true;
-named actions describe what may happen; authority and approvals apply the same
-way to every actor; execution results return to the shared history.
+The actors and systems do not change. KIFF replaces the repeated domain copies
+and adapters with one operational domain and one validated execution path.
+Events establish what is true; named actions describe what may happen;
+authority and approvals apply the same way to every actor.
 
 This does not replace your agent framework, HTTP stack, queue, cron job, or
 systems of record. It gives them a shared operational foundation and evaluates
