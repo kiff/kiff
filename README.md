@@ -103,10 +103,21 @@ guard = Guard(mode="observe")   # observe records; enforce refuses before the ca
 agent = Agent(model=..., tools=[refund_order], tool_hooks=[agno_hook(guard)])
 ```
 
-Adapters ship for Agno, LangGraph/LangChain, OpenAI Agents SDK, Google ADK,
-Pydantic AI, Strands, Microsoft Agent Framework, Hermes, Haystack, and
-LlamaIndex. Custom stacks use the core over plain HTTP with no adapter. Source
-and per-framework docs: [kiff/kiff-guard](https://github.com/kiff/kiff-guard)
+### Supported agent frameworks
+
+KIFF Guard ships 11 framework adapters across Python and TypeScript:
+
+| | | |
+|:---:|:---:|:---:|
+| **Agno**<br><sub>Python adapter</sub> | **LangGraph / LangChain**<br><sub>Python adapter</sub> | **OpenAI Agents SDK**<br><sub>Python adapter</sub> |
+| **Google ADK**<br><sub>Python adapter</sub> | **Pydantic AI**<br><sub>Python adapter</sub> | **Strands Agents**<br><sub>Python adapter</sub> |
+| **Microsoft Agent Framework**<br><sub>Python adapter</sub> | **Hermes**<br><sub>Python adapter</sub> | **Haystack Agents**<br><sub>Python adapter</sub> |
+| **LlamaIndex**<br><sub>Python adapter</sub> | **OpenClaw**<br><sub>TypeScript adapter</sub> | **Custom / no framework**<br><sub>No adapter required</sub> |
+
+The adapters are thin integrations at each framework's pre-tool-call boundary;
+KIFF's decision logic stays in the shared guard core. A custom stack can call
+that core directly or use plain HTTP without an adapter. See the
+[SDK quickstarts and adapter docs](https://github.com/kiff/kiff-guard#readme)
 (MIT).
 
 ## Run It Yourself Or Hosted
@@ -163,12 +174,18 @@ uvx kiff-scan scan .
 
 It also ships a GitHub Action: `uses: kiff/kiff-scan@v0.1.1`.
 
-### Agent Assistants
+### Coding Assistant Integrations
 
-The `kiff-governance` skill lets Codex, Claude Code, and Kiro run the scanner,
-explain findings, and help fix them. See
-[Coding assistant integrations](./docs/assistant-integrations.md) for setup and
-example prompts.
+These integrations help developers run KIFF's scanners, understand findings,
+and fix the code. They are development tools, not runtime agent adapters.
+
+| | | |
+|:---:|:---:|:---:|
+| **[Codex](./docs/assistant-integrations.md#codex)**<br><sub>Agent Skill</sub> | **[Claude Code](./docs/assistant-integrations.md#claude-code)**<br><sub>Plugin / skill</sub> | **[Kiro](./docs/assistant-integrations.md#kiro)**<br><sub>Power / Agent Plugin</sub> |
+
+All three use the same `kiff-governance` workflow. See the
+[installation guide](./docs/assistant-integrations.md) for setup and example
+prompts.
 
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
 sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
