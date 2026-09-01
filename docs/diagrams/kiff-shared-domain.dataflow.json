@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "The KIFF Shared Operational Domain",
+    "subtitle": "Events establish shared state; every actor proposes named actions through one decision boundary.",
+    "viewBox": [1080, 820],
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    { "label": "Sources and actors" },
+    { "label": "Shared operational domain" },
+    { "label": "Decision" },
+    { "label": "Execution" },
+    { "label": "Systems of record" }
+  ],
+  "nodes": [
+    { "id": "events", "type": "external", "label": "Existing systems", "sublabel": "events", "stage": 0, "row": 0, "tag": "source" },
+    { "id": "actors", "type": "frontend", "label": "Actors", "sublabel": "propose actions", "stage": 0, "row": 2, "tag": "agents + people" },
+    { "id": "event-log", "type": "messagebus", "label": "Event log", "sublabel": "facts", "stage": 1, "row": 0, "tag": "durable" },
+    { "id": "state", "type": "database", "label": "Current state", "sublabel": "derived", "stage": 1, "row": 1 },
+    { "id": "contracts", "type": "backend", "label": "Action contracts", "sublabel": "inputs", "stage": 1, "row": 2 },
+    { "id": "authority", "type": "security", "label": "Authority checks", "sublabel": "policy + approvals", "stage": 2, "row": 2 },
+    { "id": "decision", "type": "backend", "label": "Decision record", "sublabel": "allow / reject / hold", "stage": 2, "row": 1, "tag": "evaluated" },
+    { "id": "executor", "type": "cloud", "label": "Your executor", "sublabel": "side effects", "stage": 3, "row": 1 },
+    { "id": "records", "type": "external", "label": "Systems of record", "sublabel": "results", "stage": 4, "row": 1 }
+  ],
+  "flows": [
+    { "from": "events", "to": "event-log", "label": "events", "classification": "operational facts", "variant": "emphasis" },
+    { "from": "event-log", "to": "state", "label": "derive state", "classification": "current state", "variant": "emphasis", "labelDy": 24 },
+    { "from": "state", "to": "decision", "label": "current context", "classification": "state-aware", "variant": "emphasis" },
+    { "from": "actors", "to": "contracts", "label": "action proposal", "classification": "named action", "variant": "dashed", "labelDy": 53 },
+    { "from": "contracts", "to": "authority", "label": "validate", "classification": "contract inputs", "variant": "dashed", "labelDy": 24 },
+    { "from": "authority", "to": "decision", "label": "authority", "classification": "policy and approvals", "variant": "security", "route": "vertical-channel" },
+    { "from": "decision", "to": "executor", "label": "allowed action", "classification": "valid side effect", "variant": "emphasis" },
+    { "from": "executor", "to": "records", "label": "side effect", "classification": "application-owned", "variant": "emphasis" }
+  ]
+}

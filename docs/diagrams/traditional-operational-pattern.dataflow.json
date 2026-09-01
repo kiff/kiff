@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "The Pattern Without a Shared Operational Domain",
+    "subtitle": "Each new actor rebuilds coordination before it can act on the same business systems.",
+    "viewBox": [1080, 760],
+    "quality_profile": "showcase"
+  },
+  "stages": [
+    { "label": "Actors" },
+    { "label": "Local coordination" },
+    { "label": "Business systems" }
+  ],
+  "nodes": [
+    { "id": "support-agent", "type": "frontend", "label": "Support agent", "sublabel": "support", "stage": 0, "row": 0 },
+    { "id": "finance-agent", "type": "frontend", "label": "Finance agent", "sublabel": "finance", "stage": 0, "row": 1 },
+    { "id": "human-app", "type": "frontend", "label": "Human application", "sublabel": "operators", "stage": 0, "row": 2 },
+    { "id": "support-copy", "type": "backend", "label": "Local coordination", "sublabel": "state + rules", "stage": 1, "row": 0, "tag": "support-owned" },
+    { "id": "finance-copy", "type": "backend", "label": "Local coordination", "sublabel": "state + rules", "stage": 1, "row": 1, "tag": "finance-owned" },
+    { "id": "app-copy", "type": "backend", "label": "Local coordination", "sublabel": "state + rules", "stage": 1, "row": 2, "tag": "application-owned" },
+    { "id": "systems", "type": "external", "label": "Systems of record", "sublabel": "payments + inventory", "stage": 2, "row": 1, "width": 160 }
+  ],
+  "flows": [
+    { "from": "support-agent", "to": "support-copy", "label": "local decision path", "classification": "duplicated logic", "variant": "default" },
+    { "from": "finance-agent", "to": "finance-copy", "label": "local decision path", "classification": "duplicated logic", "variant": "default" },
+    { "from": "human-app", "to": "app-copy", "label": "local decision path", "classification": "duplicated logic", "variant": "default" },
+    { "from": "support-copy", "to": "systems", "label": "custom", "variant": "dashed", "route": "vertical-channel", "channelX": 392, "labelAt": [405, 230] },
+    { "from": "finance-copy", "to": "systems", "label": "custom", "variant": "dashed", "route": "vertical-channel", "channelX": 412, "labelAt": [458, 440] },
+    { "from": "app-copy", "to": "systems", "label": "custom", "variant": "dashed", "route": "vertical-channel", "channelX": 432, "labelAt": [415, 550] }
+  ]
+}

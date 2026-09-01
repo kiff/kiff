@@ -13,27 +13,35 @@ on the same business process. Model events, state, actions, authority,
 execution, and audit once; then let agents, people, and services use the same
 domain instead of each rebuilding it.
 
-## The Second-Agent Problem
+## The Pattern Without KIFF
 
 The first agent is usually a feature. The next few need a system.
 
-Without a shared domain, each new actor recreates its own view of state, rules,
-and integrations. They slowly disagree about what is true and what can happen
-next.
+In a conventional implementation, each new agent, application, or automation
+builds its own view of state, rules, and integrations. That works in isolation,
+then creates coordination work: decisions drift, integrations multiply, and it
+becomes harder to explain what happened.
 
-![Without a shared domain, each actor rebuilds its own state, rules, and integrations.](./docs/diagrams/fragmented-operational-truth.svg)
+![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./docs/diagrams/traditional-operational-pattern.png)
 
-## One Domain, Many Actors
+## The KIFF Pattern
 
 KIFF makes the business process explicit once. Events establish what is true;
-typed actions describe what may happen; authority and approvals apply the same
+named actions describe what may happen; authority and approvals apply the same
 way to every actor; execution results return to the shared history.
 
-![KIFF provides one domain for events, state, actions, authority, and audit.](./docs/diagrams/shared-operational-truth.svg)
+This does not replace your agent framework, HTTP stack, queue, cron job, or
+systems of record. It gives them a shared operational foundation and evaluates
+proposed actions against current state before your executor runs.
 
-Keep your agent framework, HTTP stack, queue, cron job, and systems of record.
-KIFF does not replace them. It gives them a shared operational foundation, then
-validates each proposed action against current state before your executor runs.
+![KIFF provides one domain for events, state, actions, authority, and execution.](./docs/diagrams/kiff-shared-domain.png)
+
+| Without a shared domain | With KIFF | Practical effect |
+| --- | --- | --- |
+| Each actor carries local state and rules. | Events and derived state are shared. | Less state and policy drift. |
+| Every new actor builds another integration path. | Actors propose the same named actions. | Add capabilities without rebuilding coordination. |
+| Decisions live in application code, prompts, and tool handlers. | One authority boundary evaluates every proposal. | Consistent approvals and refusals. |
+| Logs are scattered across services. | Events, decisions, and results form one history. | Replay and explain an operational outcome. |
 
 ## A Concrete Example
 
