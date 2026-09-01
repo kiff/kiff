@@ -124,6 +124,21 @@ Use `kiff verify` to check a domain before shipping. Use `kiff scaffold` to
 generate a `domain/` package from a JSON descriptor. Building against a local
 checkout? Add `-replace-local /path/to/kiff`.
 
+Use `kiff scan .` inside a Go agent repository to find explicit agent tools
+that can reach consequential operations without a recognized decision earlier
+in the function. Mark a handler with `//kiff:tool`, pass it to a common tool
+registration call, or identify it with `-tool FunctionName`. The initial Go
+scanner emits terminal, JSON, and SARIF reports and can enforce a CI threshold:
+
+```bash
+kiff scan .
+kiff scan -format sarif -output kiff-scan.sarif -fail-on high .
+```
+
+This is static analysis: a clean result means no supported path was found, not
+that the application is safe or that every framework-specific registration
+shape is understood.
+
 Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
 sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
 domain contract, and the read-only operator commands — `kiff domains list`/`show`,
