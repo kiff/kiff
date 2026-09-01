@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "kiff-governance",
+  "displayName": "KIFF Governance",
+  "version": "0.1.0",
+  "description": "Scan Go agent code and help place consequential actions behind KIFF governance.",
+  "author": {
+    "name": "KIFF",
+    "url": "https://github.com/kiff"
+  },
+  "homepage": "https://github.com/kiff/kiff",
+  "repository": "https://github.com/kiff/kiff",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "governance",
+    "go",
+    "security",
+    "static-analysis"
+  ]
+}

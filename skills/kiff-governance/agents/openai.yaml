@@ -1,0 +1,4 @@
+interface:
+  display_name: "KIFF Governance"
+  short_description: "Scan and govern consequential agent actions"
+  default_prompt: "Use $kiff-governance to scan this project and explain any unguarded consequential agent actions."

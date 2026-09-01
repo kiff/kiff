@@ -1,0 +1,23 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "kiff-governance",
+  "version": "0.1.0",
+  "description": "Scan Go agent code and help place consequential actions behind KIFF governance.",
+  "author": {
+    "name": "KIFF",
+    "url": "https://github.com/kiff"
+  },
+  "keywords": [
+    "agents",
+    "agent tools",
+    "governance",
+    "kiff",
+    "go",
+    "security",
+    "static analysis",
+    "sarif"
+  ],
+  "homepage": "https://github.com/kiff/kiff",
+  "repository": "https://github.com/kiff/kiff",
+  "license": "MIT"
+}

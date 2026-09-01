@@ -1,0 +1,38 @@
+{
+  "name": "kiff-governance",
+  "version": "0.1.0",
+  "description": "Scan Go agent code and help place consequential actions behind KIFF governance.",
+  "author": {
+    "name": "KIFF",
+    "url": "https://github.com/kiff"
+  },
+  "homepage": "https://github.com/kiff/kiff",
+  "repository": "https://github.com/kiff/kiff",
+  "license": "MIT",
+  "keywords": [
+    "agents",
+    "governance",
+    "go",
+    "security",
+    "static-analysis"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "KIFF Governance",
+    "shortDescription": "Scan and govern consequential agent actions",
+    "longDescription": "Use the KIFF CLI to find consequential Go agent actions that lack a recognized governance decision, explain the findings, and help route those actions through a real KIFF boundary.",
+    "developerName": "KIFF",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/kiff/kiff",
+    "defaultPrompt": [
+      "Scan this Go agent for ungoverned actions.",
+      "Help me govern these KIFF scan findings.",
+      "Add KIFF scanning to this project's CI."
+    ],
+    "brandColor": "#176B5B"
+  }
+}
