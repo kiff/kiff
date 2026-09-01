@@ -218,12 +218,12 @@ happen?"
 
 ## Status
 
-KIFF is at v0.7. The core action boundary is complete and tested: approvals
-cannot be self-granted, executors must be explicit, and every validation and
-execution is recorded. The cookbook now includes launch-grade recipes across
-finance, insurance, healthcare, infrastructure, security, and procurement. The
-[Postgres store](./pkg/kiff/store/postgres) is the production reference; the
-file-backed JSONL stores are for demos and local development.
+KIFF is at v0.8. The release adds the cloud-facing CLI loop, native Go source
+scanning, and a portable governance skill for coding assistants. The core
+action boundary remains complete and tested: approvals cannot be self-granted,
+executors must be explicit, and every validation and execution is recorded.
+The [Postgres store](./pkg/kiff/store/postgres) is the production reference;
+the file-backed JSONL stores are for demos and local development.
 
 ## License
 
