@@ -12,22 +12,26 @@ taxonomy or infer a clean result from source inspection alone.
 
 1. Confirm the target path and inspect its language and existing agent/tool
    registration shape.
-2. Check that `kiff scan -h` is available. If it is missing, explain the
-   installation requirement; do not install software without authorization.
-3. Run the initial scan without making the command fail on findings:
+2. Choose the scanner for the repository language:
+   - Python: use `kiff-scan`, not the native CLI. Check `kiff-scan -h` or
+     `uvx kiff-scan -h`, then run `kiff-scan scan .` or `uvx kiff-scan scan .`.
+   - Go: check that `kiff scan -h` is available, then run the initial scan
+     without making the command fail on findings:
 
    ```bash
    kiff scan -format json -fail-on none .
    ```
 
-4. Ground every explanation in the reported tool, consequential call, file,
+   If the required scanner is missing, explain the installation requirement; do
+   not install software without authorization.
+3. Ground every explanation in the reported tool, consequential call, file,
    and line. Inspect the surrounding source before proposing a change.
-5. State the scanner's limit: a clean result means no supported path was found,
+4. State the scanner's limit: a clean result means no supported path was found,
    not that the application is safe or externally unreachable.
 
-Use `-tool FunctionName` when the project's framework registration shape is not
-recognized. Adding `//kiff:tool` is another explicit entry-point marker, not a
-security control.
+For Go, use `-tool FunctionName` when the project's framework registration
+shape is not recognized. Adding `//kiff:tool` is another explicit entry-point
+marker, not a security control.
 
 ## Govern
 
@@ -44,7 +48,7 @@ Only modify code when the user asks for a fix or integration.
 - Keep credentials in the executor/runtime boundary, not in agent-controlled
   code or generated policy.
 
-After a change, run the relevant Go tests and repeat the scan. Report which
+After a change, run the relevant test suite and repeat the scan. Report which
 finding disappeared and what decision now dominates the consequential call.
 
 ## CI
