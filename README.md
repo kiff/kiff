@@ -4,7 +4,7 @@
 
 <h1 align="center">KIFF</h1>
 
-<p align="center"><strong>One operational truth for agents, humans, and services.</strong></p>
+<p align="center"><strong>Your agents can have different memories. They cannot have different realities.</strong></p>
 
 <p align="center">
   <a href="https://github.com/kiff/kiff/actions/workflows/ci.yml"><img src="https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -14,45 +14,68 @@
   <a href="https://github.com/kiff/kiff/releases"><img src="https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
-KIFF is a Go framework for building operational systems where many actors work
-on the same business process. Model events, state, actions, authority,
-execution, and audit once; then let agents, people, and services use the same
-domain instead of each rebuilding it.
+KIFF is the reality layer for agentic systems. It gives every agent, human, and
+service the same answer to what happened, what is true now, what can happen
+next, and who may make it happen.
 
-## The Pattern Without KIFF
+In KIFF, that executable model is an **operational domain**. Events establish
+state. State determines which named actions are valid. Permissions and
+approvals determine who has authority. Execution results return to the same
+history, so the operation can be explained and replayed.
+
+KIFF does not replace your databases or systems of record. It turns their
+events into shared operational state and governs actions back into them. The
+open-source Go framework provides the domain model, runtime, stores, HTTP API,
+and CLI needed to run that layer yourself.
+
+## From Memory to Reality
+
+Memory belongs to an agent. It can be private, incomplete, or different from
+one agent to the next. Operational reality belongs to the system. Every actor
+must be able to answer the same questions:
+
+| Question every actor must answer | KIFF's answer |
+| --- | --- |
+| What happened? | Recorded events and execution outcomes |
+| What is true now? | State derived from those events |
+| What can happen next? | Named actions and valid transitions |
+| Who may do it? | Permissions, risk policies, and approvals |
+| Why did it happen? | One decision and audit history |
+
+## When Every Agent Builds Its Own Reality
 
 The first agent is usually a feature. The next few need a system.
 
 When three actors join the same process, the common pattern is three backend
-copies: each owns its interpretation of state, its rules, its actions, and a
-custom path into the same systems. That works in isolation, then creates
-coordination work as those copies drift and integrations multiply.
+copies. Each owns an interpretation of state, rules, actions, and a custom path
+into the same systems. That works in isolation. Together, those copies drift,
+disagree, and multiply the coordination work.
 
 ![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./docs/diagrams/traditional-operational-pattern.png)
 
-## The KIFF Pattern
+## One Reality, Many Actors
 
 The actors and systems do not change. KIFF replaces the repeated domain copies
-and adapters with one operational domain and one validated execution path.
-Events establish what is true; named actions describe what may happen;
-authority and approvals apply the same way to every actor.
+with one operational domain and one validated execution path. Every actor sees
+the same state, proposes the same named actions, and meets the same authority
+and approval rules.
 
 This does not replace your agent framework, HTTP stack, queue, cron job, or
-systems of record. It gives them a shared operational foundation and evaluates
-proposed actions against current state before your executor runs.
+systems of record. It gives them a shared reality and evaluates proposed
+actions against current state before your executor runs.
 
 ![KIFF provides one domain for events, state, actions, authority, and execution.](./docs/diagrams/kiff-shared-domain.png)
 
-| Without a shared domain | With KIFF | Practical effect |
+| Without a reality layer | With KIFF | Practical effect |
 | --- | --- | --- |
-| Each actor carries local state and rules. | Events and derived state are shared. | Less state and policy drift. |
-| Every new actor builds another integration path. | Actors propose the same named actions. | Add capabilities without rebuilding coordination. |
+| Each actor carries its own version of state and rules. | Events and derived state are shared. | Actors stop disagreeing about what is true. |
+| Every new actor builds another operational backend. | Actors propose the same named actions. | Add agents without rebuilding the operation. |
 | Decisions live in application code, prompts, and tool handlers. | One authority boundary evaluates every proposal. | Consistent approvals and refusals. |
 | Logs are scattered across services. | Events, decisions, and results form one history. | Replay and explain an operational outcome. |
 
 ## A Concrete Example
 
-One domain, one refund:
+One operational reality, one refund:
 
 ```text
 order-2 is PAID
@@ -107,11 +130,11 @@ system:
 
 Run `kiff help` for the full command list or `kiff <command> -h` for flags.
 
-## Connect An Agent
+## Connect an Agent
 
-If you already have an agent and want KIFF deciding in front of its tool
-calls, you do not need to restructure it. The guard SDK sits on the
-pre-execution seam your framework already exposes:
+If you already have an agent, you can bring its tool calls into the same
+operational reality without restructuring it. The guard SDK connects KIFF to
+the pre-execution seam your framework already exposes:
 
 ```bash
 pip install kiff-guard          # or: npm install @kiff/kiff-guard
@@ -142,35 +165,30 @@ that core directly or use plain HTTP without an adapter. See the
 [SDK quickstarts and adapter docs](https://github.com/kiff/kiff-guard#readme)
 (MIT).
 
-## Run It Yourself Or Hosted
+## Run It Yourself or Hosted
 
-The framework is MIT. Self-host the shared domain with the `postgres` store and
-your own HTTP stack for as long as you like.
+The framework and guard SDK are MIT. Self-host your operational domain with the
+`postgres` store and your own HTTP stack for as long as you like.
 
 If you would rather not operate the state, approvals, receipts, and retention
 yourself, [KIFF Cloud](https://kiff.dev) runs them as a hosted control plane
-with a free tier. The CLI talks to it directly — `kiff auth login`, then
+with a free tier. The CLI talks to it directly: `kiff auth login`, then
 `kiff apply` to push a domain contract, and `kiff domains`, `kiff runtimes`,
 `kiff usage`, `kiff keys` to inspect a tenant. Nothing in this repository
 requires it.
 
-## What You Get
+## Executable Reality
 
-- domain definitions for events, states, transitions, and action contracts
-- validation against state, typed parameters, permissions, risk, and approvals
-- dynamic approval policies for actions whose risk depends on runtime facts
-- reviewer authority and segregation-of-duties checks for human approvals
-- idempotency protection for consequential executor retries
-- lifecycle views that assemble proposals, approvals, execution, and outcomes
-- approval records and audit records as protocol data, not optional logs
-- state replay from stored events
-- `memory`, `file`, and `postgres` stores
-- an optional `net/http` API for external agents, services, and tools
-- CLI commands to scaffold and verify domains, and to apply and inspect them against a running KIFF cloud
+| Capability | What KIFF provides |
+| --- | --- |
+| Shared state | Events, state transitions, replay, and `memory`, `file`, or `postgres` stores |
+| Named actions | Typed parameters, allowed states, required permissions, risk, and explicit executors |
+| Human authority | Dynamic approvals, reviewer permissions, and segregation-of-duties checks |
+| Reliable execution | Validation before side effects and idempotency protection for consequential retries |
+| Explainable history | Proposals, decisions, approvals, execution results, and failures as protocol data |
+| Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI |
 
-Use `kiff verify` to check a domain before shipping. Use `kiff scaffold` to
-generate a `domain/` package from a JSON descriptor. Building against a local
-checkout? Add `-replace-local /path/to/kiff`.
+## Check the Agent Boundary
 
 Use `kiff scan .` inside a Go agent repository to find explicit agent tools
 that can reach consequential operations without a recognized decision earlier
@@ -209,15 +227,9 @@ All three use the same `kiff-governance` workflow. See the
 [installation guide](./docs/assistant-integrations.md) for setup and example
 prompts.
 
-Against a running KIFF cloud (endpoint via `-endpoint` or `KIFF_CLOUD_URL`),
-sign in with `kiff auth login`, then use `kiff apply` to push a `kiff.yaml`
-domain contract, and the read-only operator commands — `kiff domains list`/`show`,
-`kiff runtimes`, `kiff usage`, `kiff keys list` — to inspect what a tenant is
-running. `kiff auth status` shows the current session; `kiff auth logout` revokes it.
-
 ## Documentation
 
-- [Why KIFF](./docs/why.md) — why the second agent needs a shared operational system
+- [Why KIFF](./docs/why.md) — why multiple actors need the same operational reality
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
 - [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
 - [Cookbook guide](./docs/cookbook-guide.md) — choose, evaluate, and adapt a governed agent recipe
@@ -262,9 +274,9 @@ work while KIFF owns the consequential action boundary.
 
 If your app is simple CRUD, or direct LLM tool calls with no consequential
 state, KIFF is too much structure — ship something smaller. KIFF earns its keep
-when multiple actors touch the same state, what's allowed depends on lifecycle,
-some actions need a human sign-off, and someone eventually asks "why did this
-happen?"
+when multiple actors must share operational reality, what they may do depends
+on current state, some actions need a human sign-off, and someone eventually
+asks "why did this happen?"
 
 ## Status
 
