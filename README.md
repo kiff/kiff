@@ -6,32 +6,54 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/kiff/kiff)](./go.mod)
 [![Release](https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver)](https://github.com/kiff/kiff/releases)
 
-**KIFF is a Go framework for building governed agentic backends.**
+**KIFF gives agents, humans, and services one operational truth.**
 
-Use KIFF when AI agents, humans, and software need to coordinate safely around
-shared operational state. It helps developers model events, state, decisions,
-action contracts, permissions, approvals, evidence, and audit trails before an
-agent or automation changes data.
+KIFF is a Go framework for building operational systems where many actors work
+on the same business process. Model events, state, actions, authority,
+execution, and audit once; then let agents, people, and services use the same
+domain instead of each rebuilding it.
 
-Domains define their own business vocabulary: events, states, actions,
-permissions, approvals, evidence, and rules. KIFF provides the reusable
-coordination mechanics around them: validation, execution records, replay, and
-audit.
+## The Second-Agent Problem
 
-KIFF is not a chatbot framework, a generic web framework, or an LLM wrapper. Use
-any agent, workflow engine, HTTP stack, queue, cron job, or deterministic
-service. KIFF starts when something proposes an action against shared state.
+The first agent is usually a feature. The next few need a system.
 
-```text
-Event ingested -> State changed -> Decision recorded -> Action validated -> Execution audited
+Without a shared domain, each new actor recreates its own view of state, rules,
+and integrations. They slowly disagree about what is true and what can happen
+next.
+
+```mermaid
+flowchart LR
+    A[Support agent] --> A1[Its own state, rules, and integrations]
+    B[Finance agent] --> B1[Its own state, rules, and integrations]
+    C[Human application] --> C1[Its own state, rules, and integrations]
+    A1 --> X[Business systems]
+    B1 --> X
+    C1 --> X
 ```
 
-Agents may propose actions. KIFF validates them against current state,
-permissions, parameters, and approval requirements before your executor runs.
+## One Domain, Many Actors
 
-## See It
+KIFF makes the business process explicit once. Events establish what is true;
+typed actions describe what may happen; authority and approvals apply the same
+way to every actor; execution results return to the shared history.
 
-One agent, one refund, read at your own pace:
+```mermaid
+flowchart LR
+    W[Existing systems] -->|events| D[KIFF domain<br/>events · state · actions · authority · audit]
+    A[Agents] -->|propose actions| D
+    H[Humans] -->|propose actions| D
+    S[Services] -->|propose actions| D
+    D -->|valid action| E[Your executor]
+    E -->|resulting events| D
+```
+
+Keep your agent framework, HTTP stack, queue, cron job, and systems of record.
+KIFF does not replace them. It gives them a shared operational foundation, then
+validates each proposed action against current state before your executor runs.
+
+## A Concrete Example
+
+One domain, one refund:
 
 ```text
 order-2 is PAID
@@ -96,8 +118,8 @@ and per-framework docs: [kiff/kiff-guard](https://github.com/kiff/kiff-guard)
 
 ## Run It Yourself Or Hosted
 
-This framework is the whole boundary, and it is MIT. Self-host it with the
-`postgres` store and your own HTTP stack for as long as you like.
+The framework is MIT. Self-host the shared domain with the `postgres` store and
+your own HTTP stack for as long as you like.
 
 If you would rather not operate the state, approvals, receipts, and retention
 yourself, [KIFF Cloud](https://kiff.dev) runs them as a hosted control plane
@@ -163,7 +185,7 @@ running. `kiff auth status` shows the current session; `kiff auth logout` revoke
 
 ## Documentation
 
-- [Why KIFF](./docs/why.md) — why risky agent actions need a boundary outside the prompt
+- [Why KIFF](./docs/why.md) — why the second agent needs a shared operational system
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
 - [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
 - [Cookbook guide](./docs/cookbook-guide.md) — choose, evaluate, and adapt a governed agent recipe
