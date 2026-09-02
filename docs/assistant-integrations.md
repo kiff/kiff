@@ -130,6 +130,21 @@ If the target is third-party code you do not own, the skill stops.
 
 ### What you get back
 
+Two artifacts, from one set of findings:
+
+- **`AUDIT-<target>.md`** — the working report, following
+  [`report-template.md`](../skills/kiff-audit/report-template.md). Precise,
+  diffable, and what gets pasted into an issue tracker.
+- **An audit page** — a single self-contained HTML page for whoever
+  commissioned the work. Verdict above the fold, attack transcripts before
+  prose, severity table scannable, and "what held" given equal weight so the
+  failures read as credible rather than as a hit piece.
+  [`deliverable.md`](../skills/kiff-audit/deliverable.md) covers what the page
+  must do, and which honesty rules design pressure tends to erode.
+
+The Markdown is written first on purpose: it forces the findings to be precise
+before any design decision can dress up a weak one.
+
 The report follows [`report-template.md`](../skills/kiff-audit/report-template.md).
 The parts that matter most:
 
