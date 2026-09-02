@@ -272,7 +272,7 @@ func newMissionHandler(t *testing.T) *Handler {
 	if err != nil {
 		t.Fatalf("new mission runtime: %v", err)
 	}
-	return NewHandler(rt)
+	return NewUnauthenticatedHandler(rt)
 }
 
 func ingestMissionSubmitted(t *testing.T, handler *Handler) {

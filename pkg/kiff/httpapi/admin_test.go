@@ -64,7 +64,7 @@ func TestAdmin_IndexShowsEntitiesAndPendingApprovals(t *testing.T) {
 		t.Fatalf("RequestApproval: %v", err)
 	}
 
-	h := NewHandler(rt)
+	h := NewUnauthenticatedHandler(rt)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/admin", nil)
 	h.ServeHTTP(rec, req)
@@ -114,7 +114,7 @@ func TestAdmin_EntityShowsTimeline(t *testing.T) {
 		t.Fatalf("ExecuteAction(MarkPaid): %v", err)
 	}
 
-	h := NewHandler(rt)
+	h := NewUnauthenticatedHandler(rt)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/admin/entities/order-B", nil)
 	h.ServeHTTP(rec, req)

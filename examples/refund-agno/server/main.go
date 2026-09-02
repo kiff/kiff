@@ -145,7 +145,7 @@ func buildRuntime(dataDir string) (*runtime.Runtime, func(), error) {
 // buildMux composes the kiff httpapi handler with the demo routes that the
 // agent talks to.
 func buildMux(rt *runtime.Runtime) http.Handler {
-	kiffHandler := httpapi.NewHandler(rt)
+	kiffHandler := httpapi.NewUnauthenticatedHandler(rt)
 	demo := newDemoHandler(rt)
 
 	mux := http.NewServeMux()

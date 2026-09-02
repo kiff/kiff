@@ -127,7 +127,7 @@ func buildMux(rt *runtime.Runtime) http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	mux.Handle("/", httpapi.NewHandler(rt))
+	mux.Handle("/", httpapi.NewUnauthenticatedHandler(rt))
 	return mux
 }
 

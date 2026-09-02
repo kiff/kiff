@@ -207,7 +207,7 @@ func buildMuxWithLedger(rt *runtime.Runtime, l *ledger) http.Handler {
 	mux.HandleFunc("/demo/unguarded/refund", d.handleUnguardedRefund)
 	mux.HandleFunc("/demo/ledger", d.handleLedger)
 	mux.HandleFunc("/demo/rebuild", d.handleRebuild)
-	mux.Handle("/", httpapi.NewHandler(rt))
+	mux.Handle("/", httpapi.NewUnauthenticatedHandler(rt))
 	return mux
 }
 
