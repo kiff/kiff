@@ -220,6 +220,14 @@ attacks ship is evidence, and it becomes the regression test for the fix.
 
 ## 8. Report
 
+Produce **two** artifacts from one set of findings: the Markdown working report
+for the engineers who will fix things, and a self-contained HTML page for
+whoever commissioned the audit and whoever they forward it to. Write the
+Markdown first — it forces the findings to be precise before any design decision
+can dress up a weak one — then build the page from it. See `deliverable.md` in
+this skill directory for what the page must do and the honesty rules that
+survive the design pass.
+
 Use `report-template.md` in this skill directory. Lead with the executive verdict
 and the guarantees tested; put attack transcripts before prose analysis. Score
 conservatively — an inflated score makes every other number unreliable.
