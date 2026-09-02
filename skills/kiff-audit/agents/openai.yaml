@@ -1,0 +1,4 @@
+interface:
+  display_name: "KIFF Governance Audit"
+  short_description: "Adversarially audit a system's governance guarantees"
+  default_prompt: "Use $kiff-audit to audit this repository: extract the guarantees it claims, try to break them, and report what held."

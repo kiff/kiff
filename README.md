@@ -223,9 +223,23 @@ and fix the code. They are development tools, not runtime agent adapters.
 |:---:|:---:|:---:|
 | **[Codex](./docs/assistant-integrations.md#codex)**<br><sub>Agent Skill</sub> | **[Claude Code](./docs/assistant-integrations.md#claude-code)**<br><sub>Plugin / skill</sub> | **[Kiro](./docs/assistant-integrations.md#kiro)**<br><sub>Power / Agent Plugin</sub> |
 
-All three use the same `kiff-governance` workflow. See the
+All three ship the same two skills. See the
 [installation guide](./docs/assistant-integrations.md) for setup and example
 prompts.
+
+- **`kiff-governance`** — run the scanners, explain findings, and route
+  consequential actions through a real decision boundary. Development workflow.
+- **`kiff-audit`** — an adversarial governance audit: extract the guarantees a
+  codebase claims, map its trust boundary, construct and execute attacks against
+  those guarantees, run the language's test and vulnerability tooling, and
+  produce an evidence-backed report with P0/P1 findings and a verdict.
+
+`kiff-audit` is deliberately not a linter. It treats a claimed guarantee as false
+until an attack against it has failed, and it reports what it could not establish
+as `not assessable` rather than as a pass. The
+[reference audit](./skills/kiff-audit/examples/kiff-framework-audit.md) is a real
+engagement against this repository in which three of four attacks on the
+self-approval boundary succeeded.
 
 ## Documentation
 
