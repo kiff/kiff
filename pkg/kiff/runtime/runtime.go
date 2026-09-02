@@ -494,6 +494,17 @@ func (r *Runtime) EvaluateAction(ctx context.Context, actionCtx action.ActionCon
 // ValidateAction validates an action and appends the corresponding audit record.
 func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) error {
 	var err error
+	actionCtx, err = r.resolveState(ctx, actionCtx)
+	if err != nil {
+		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validation failed", map[string]any{
+			"action": contract.Name,
+			"error":  err.Error(),
+		})
+		if auditErr != nil {
+			return auditErr
+		}
+		return err
+	}
 	actionCtx, err = r.applyApproval(ctx, actionCtx, contract)
 	if err != nil {
 		return err
@@ -711,6 +722,51 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 		}
 	}
 	return result, nil
+}
+
+// resolveState makes the state machine authoritative for the state an action
+// is validated against.
+//
+// ActionContext.CurrentState is supplied by the caller, and the caller may be
+// the same agent proposing the action. The thesis of this runtime is that a
+// state-dependent action can only be refused by a decision evaluated against
+// live state, so the runtime derives that state rather than trusting the
+// assertion: an agent that could name its own current state could authorize a
+// rollback, refund, or failover by claiming a favourable one.
+//
+// Three cases:
+//
+//   - No state machine wired: nothing to derive from, so the caller's value
+//     stands and behavior is unchanged.
+//   - The store knows this entity: the stored value wins. A caller that
+//     asserted a different one is refused with ErrStateMismatch rather than
+//     silently corrected, because the disagreement is the signal.
+//   - The store has no state for this entity: the caller's value stands. This
+//     is the bootstrap case — seeding an entity, or an action that runs before
+//     any event has been ingested for it — and refusing here would make a
+//     state machine impossible to start.
+func (r *Runtime) resolveState(ctx context.Context, actionCtx action.ActionContext) (action.ActionContext, error) {
+	if r.States == nil || actionCtx.EntityID == "" {
+		return actionCtx, nil
+	}
+	current, ok, err := r.States.Current(ctx, actionCtx.EntityID)
+	if err != nil {
+		return actionCtx, fmt.Errorf("state store error: %w", err)
+	}
+	if !ok {
+		return actionCtx, nil
+	}
+	if actionCtx.CurrentState != "" && actionCtx.CurrentState != current.Value {
+		return actionCtx, fmt.Errorf(
+			"%w: caller asserted %q, stored state is %q",
+			action.ErrStateMismatch, actionCtx.CurrentState, current.Value,
+		)
+	}
+	actionCtx.CurrentState = current.Value
+	if actionCtx.EntityType == "" {
+		actionCtx.EntityType = current.EntityType
+	}
+	return actionCtx, nil
 }
 
 func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) (action.ActionContext, error) {
