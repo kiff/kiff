@@ -89,7 +89,7 @@ func TestBodyActorCannotOverrideTheAuthenticatedPrincipal(t *testing.T) {
 	body := `{"actor":{"id":"ops-human","roles":["ops_operator"]},"reason":"self-granted"}`
 	if err := rt.RecordApproval(context.Background(), approval.Approval{
 		ID: "appr-1", EntityID: "order-1", EntityType: "Order",
-		ActionName: "REFUND_ORDER", RequestedBy: "support-agent",
+		ActionName: "REFUND_ORDER", RequestedBy: "ops-human",
 		Status: approval.StatusPending, CreatedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatalf("seed approval: %v", err)
@@ -111,6 +111,33 @@ func TestBodyActorCannotOverrideTheAuthenticatedPrincipal(t *testing.T) {
 	}
 	if resp.Approval.ReviewedBy != "support-agent" {
 		t.Errorf("reviewed_by = %q, want the token's principal support-agent", resp.Approval.ReviewedBy)
+	}
+}
+
+// Authentication fixes who you are; segregation of duties fixes what that
+// identity may do. Together they close the original attack from both ends:
+// the agent cannot claim to be the operator, and even holding the operator's
+// own token it could not approve what that identity requested.
+func TestRequesterCannotReviewItsOwnApproval(t *testing.T) {
+	rt := newTestRuntime(t)
+	h := authedHandler(t, rt)
+
+	if err := rt.RecordApproval(context.Background(), approval.Approval{
+		ID: "appr-self", EntityID: "order-1", EntityType: "Order",
+		ActionName: "REFUND_ORDER", RequestedBy: "ops-human",
+		Status: approval.StatusPending, CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		t.Fatalf("seed approval: %v", err)
+	}
+
+	// The operator's own token — a legitimate identity, illegitimate action.
+	w := post(t, h, "operator-token", "/approvals/appr-self/grant", `{"reason":"me again"}`)
+
+	if w.Code == http.StatusOK {
+		t.Fatal("SELF-REVIEW: the requester granted its own approval")
+	}
+	if !strings.Contains(strings.ToLower(w.Body.String()), "requested") {
+		t.Errorf("the refusal should name self-review, got %q", w.Body.String())
 	}
 }
 

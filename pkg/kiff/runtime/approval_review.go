@@ -15,10 +15,12 @@ import (
 // ReviewRequirement declares the authority and segregation-of-duties
 // constraints a reviewer must satisfy to review an approval.
 //
-// The zero value imposes no constraints, so the plain-string ReviewApproval
-// path stays backward compatible. Populate it and use ReviewApprovalAs when an
-// approval is part of the trust boundary — payments, refunds, shutdowns,
-// access grants, data deletion — and a granted record alone is not enough.
+// The zero value imposes no constraints. It is how a caller deliberately
+// waives segregation of duties for a workflow where one principal legitimately
+// requests and reviews; the default ReviewApproval path enforces separation
+// instead. Populate Permission and use ReviewApprovalAs when an approval is
+// part of the trust boundary — payments, refunds, shutdowns, access grants,
+// data deletion — and a granted record alone is not enough.
 type ReviewRequirement struct {
 	// Permission, when non-empty, must be held by the reviewer. It is
 	// resolved through the runtime's permission.Policy by actor ID — the same

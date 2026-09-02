@@ -430,12 +430,19 @@ func (r *Runtime) RequestApproval(ctx context.Context, approvalID string, action
 
 // ReviewApproval grants or denies an existing pending approval by reviewer id.
 //
-// This is the simple path: it performs no reviewer-authority or
-// segregation-of-duties check, so it stays usable for low-complexity demos.
-// For high-risk workflows that must verify the reviewer holds authority and
-// is not the requester, use ReviewApprovalAs.
+// Segregation of duties is enforced: the actor that requested the approval
+// cannot review it. That default is the point of an approval — a sign-off the
+// proposer can grant itself is a formality, and one that produces an audit
+// record reading as a real two-party review is worse than none at all.
+//
+// This path deliberately checks no *authority*, because the framework cannot
+// know which permission a given domain considers sufficient. To require the
+// reviewer hold a permission, or to waive segregation of duties for a workflow
+// where one principal legitimately does both, use ReviewApprovalAs with an
+// explicit ReviewRequirement.
 func (r *Runtime) ReviewApproval(ctx context.Context, approvalID string, reviewedBy string, status approval.Status, reason string) (approval.Approval, error) {
-	return r.reviewApproval(ctx, approvalID, actor.Actor{ID: reviewedBy}, ReviewRequirement{}, status, reason)
+	return r.reviewApproval(ctx, approvalID, actor.Actor{ID: reviewedBy},
+		ReviewRequirement{SeparateFromRequester: true}, status, reason)
 }
 
 // RecordApproval stores and audits an approval record.
