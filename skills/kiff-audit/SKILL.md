@@ -124,7 +124,11 @@ Deterministic evidence, per language. Capture exact commands and real output.
   and the race/concurrency checker if one exists
 
 Report coverage per package, not just the total — an untested module on the
-enforcement path is a finding regardless of the headline number. A vulnerability
+enforcement path is a finding regardless of the headline number. But **a skipped
+test reports as 0.0%, identically to an unwritten one.** Before calling a package
+untested, check whether its suite is gated on an environment variable, a build
+tag, or a service dependency, and read the CI configuration. A package with no
+local coverage may be fully covered in CI against a real backing service. A vulnerability
 is only a finding when it is **reachable**; prefer tools that prove reachability
 and quote the call trace.
 
@@ -146,7 +150,13 @@ Every finding is exactly one of:
   gap in evidence into a pass.
 
 Also record **what held**. An audit that lists only failures reads as hostile and
-gets dismissed. When an attack fails, say the boundary held and why.
+gets dismissed. When an attack fails, say the boundary held and why. Read the CI
+configuration specifically looking for controls the target already has — crediting
+them is what makes the criticisms land.
+
+When you find you were wrong mid-audit, **publish the correction in the report**
+rather than quietly deleting the finding. A reader who can see the audit correct
+itself trusts the findings that survived.
 
 Severity: **P0** launch blocker — any bypass of a stated enforcement guarantee,
 or a remotely exploitable vulnerability. **P1** high leverage before a public

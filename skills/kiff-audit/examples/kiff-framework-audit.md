@@ -67,7 +67,6 @@ below.
 | P1 | Runtime never reads its own state store when deciding | The core thesis | `runtime.go:495-697` | Read `States.Current` in `ValidateAction` | M |
 | P1 | No TOCTOU protection: no lease, version, or CAS | Two concurrent proposals both validate stale | `runtime.go:557-697` | Entity version checked in-transaction | M |
 | P1 | Audit records have no integrity mechanism | "Append-only" is a comment | §5 | Hash chain + `kiff verify --audit` | M |
-| P1 | Postgres store — "the production reference" — 0.0% coverage | Only recommended store is the untested one | §5 | Run `storetest` against PG in CI | S |
 
 ## 4. Attacks executed
 
@@ -194,7 +193,7 @@ $ go vet ./...          silent
 $ go test -race -cover ./...    all packages pass
     pkg/kiff/action     87.0%      pkg/kiff/runtime    80.4%
     pkg/kiff/httpapi    64.8%      pkg/kiff/state      50.0%
-    pkg/kiff/store/postgres   0.0%   ← the "production reference"
+    pkg/kiff/store/postgres   0.0%   ← see the correction below
 $ govulncheck ./...
     10 reachable vulnerabilities. GO-2026-5004: SQL injection in pgx,
     trace: postgres.ApprovalStore.IsGranted → pgxpool.Pool.QueryRow
@@ -203,8 +202,30 @@ Integrity search across `pkg/kiff/audit` and `pkg/kiff/store` for
 `hash|sha256|hmac|signature|prev_hash|chain|merkle`: only the phrase
 "append-only" in six doc comments. No mechanism, no key.
 
-**Tools that could not run:** `gosec` — installation failed, disk full
-(407 MiB available). Its findings are unknown, not clean.
+**Correction — the 0.0% Postgres reading was a measurement artifact.** It was
+first reported as "the production reference store is untested". It is not. The
+suite is env-gated (`conformance_test.go:69` skips without
+`KIFF_POSTGRES_TEST_URL`), and CI runs it against a Postgres 16 service
+container — with a second step that fails the job if the suite *skipped* rather
+than ran, guarding the exact mistake this audit made:
+
+```yaml
+- name: Fail if the suite skipped instead of running
+  # A misconfigured DSN would make the gated suite skip and the job pass
+  # green, which is worse than no job at all.
+```
+
+**A skipped test reports as 0.0%, identically to an unwritten one.** Before
+reporting a package as untested, check for env gating and read CI. See §6.
+
+**`gosec`** could not run initially (disk full, 407 MiB). Re-run after freeing
+space: 23 issues across 102 files, of which **zero are material**. The single
+HIGH (G703 path traversal, `cmd/kiff/auth.go:365`) is a false positive — a CLI
+joining its own config directory and writing `0600`. The rest are `0o644` port
+files in demo scaffolding, plus two genuine but minor hardening items
+(G112/G114: example servers set no `ReadHeaderTimeout`). Reported because a
+clean-enough result is evidence too: the reachable `govulncheck` findings were
+the real ones.
 
 ## 6. What already works
 
@@ -224,6 +245,10 @@ Integrity search across `pkg/kiff/audit` and `pkg/kiff/store` for
   ledger. Under 10 seconds from `kiff new` to first refusal.
 - **Error taxonomy** (`allowed/blocked/approval_required/invalid`) is consistent
   across HTTP, CLI, and docs.
+- **CI is stronger than the audit initially credited**: a Postgres conformance
+  job against a real service container, a guard against that suite silently
+  skipping, a `vet and gofmt` job, and a CLI scaffold golden-path job that builds
+  the generated project and runs its tests.
 
 ## 7. Governance maturity by dimension
 
@@ -235,6 +260,9 @@ Integrity search across `pkg/kiff/audit` and `pkg/kiff/store` for
 | State integrity & freshness | **not evidenced** | Caller-asserted state; no TOCTOU control |
 | Record integrity & auditability | **partial** | Records are durable and complete; no tamper-evidence |
 | Recoverability & replay | **evidenced** | Deterministic replay demonstrated; no schema versioning (P2) |
+
+Note that two dimensions moved *up* after correcting audit errors. Publishing
+those corrections is part of the deliverable, not an embarrassment to hide.
 
 ## 8. Fixes verified
 
