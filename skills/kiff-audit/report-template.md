@@ -20,6 +20,23 @@
 Scores 1–10, conservative: product value · enforcement soundness · technical
 quality · UX/DX · differentiation · launch readiness.
 
+Anchor every score against this scale, and state the anchor you used. Scores
+without a shared rubric are noise, and an inflated one makes every other number
+in the report unreliable:
+
+| Score | Meaning |
+| --- | --- |
+| 1–2 | Actively harmful. Emits false assurance, or a claimed guarantee is trivially broken. |
+| 3–4 | A real gap a competent reviewer finds in an hour. Not shippable as claimed. |
+| 5–6 | Works as documented in the common case; known gaps under adversarial or edge conditions. |
+| 7–8 | Solid. Gaps are known, documented, and deliberately scoped rather than accidental. |
+| 9–10 | Best in category. Survived attack, and the evidence is public and reproducible. |
+
+**Enforcement soundness is capped at 3 while any stated guarantee is broken**,
+regardless of how good the rest is — that axis measures whether the central
+claim holds, not how much effort went in. A single working bypass of the
+headline claim is a 2 or 3, not a 6 offset by good engineering elsewhere.
+
 One paragraph answering the question the client actually asked (ship it? trust
 it? buy it?). Lead with the single most consequential finding.
 
@@ -39,7 +56,10 @@ with its verdict. No claim may be missing a verdict.
 
 ## 4. Attacks executed
 
-One subsection per attack. Always include the baseline first.
+One subsection per attack. Always include the baseline first. Name the path to
+the saved attack harness so every result here can be re-run:
+
+**Harness:** `<path>` — `<how to run it>`
 
 ### 4.0 Baseline — no bypass
 **Position:** `<external module / separate package / unauthenticated HTTP>`
@@ -96,8 +116,12 @@ absent evidence into a pass.
 ## 8. Fixes verified
 
 For each P0 fixed during the engagement: the diffstat, the re-run attack result,
-and the full-suite regression result. State where the patch lives and whether it
-is committed.
+**the re-run baseline result** (a fix that refuses everything also stops the
+attack — only the baseline catches that), and the full-suite regression result.
+State where the patch lives and whether it is committed.
+
+If the fix required changing a test that asserted the defective behaviour, quote
+the old assertion. A suite that encoded the bug is part of the finding.
 
 ## 9. Remediation plan
 

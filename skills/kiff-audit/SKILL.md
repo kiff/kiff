@@ -87,16 +87,33 @@ For each claim from §1, write the specific way it could fail. Standard families
 | Record integrity | Can the record be rewritten? Hash-chained? Signed? By what key? |
 | Replay | Is the log the source of truth? Deterministic? Schema-versioned? |
 | Fail-open | On timeout, error, or misconfiguration, does it allow or refuse? |
+| **Never invoked** | **Can the call reach its side effect without the boundary being consulted at all?** |
+
+The last family is the one most often missed, because every other row assumes a
+decision happened and was then subverted. Ask it separately and concretely: which
+calls are *not* on the enforced path, what happens to a tool/route/handler that
+nobody registered, and — critically — **what does the record say about those?** A
+system that synthesises an approval for a call it never evaluated is emitting a
+false clearance, which is worse than a refusal and worse than silence. Look for
+defaults on the unregistered path: an `else` branch, a `None`/`nil` binding, an
+unmatched route, a missing config key.
 
 ## 4. Construct attacks from an external position
 
 This is the step that separates an audit from a code review.
 
 - Attack from **outside the trust boundary**: a separate module, package, or
-  process that consumes the target the way a third party would. In Go, a
-  separate module with a `replace` directive. In Python, a separate package
-  importing the installed distribution. Never a same-package test — that proves
-  nothing about an external caller.
+  process that consumes the target the way a third party would.
+  - **Go**: a separate module with a `replace` directive.
+  - **Python**: a separate directory with its own virtualenv, installing the
+    **built artifact** (`python -m build` then `pip install dist/*.whl`).
+    `pip install -e .` from inside the repo is *not* external — it is the
+    project's own development install, and the repo's existing venv usually
+    already is one. If you attack from there you have proven nothing.
+  - **JavaScript/TypeScript**: `npm pack`, then install the tarball in a
+    separate package.
+  Never a same-package test: it can reach internals no third party can, so it
+  proves nothing about an external caller either way.
 - Include a **baseline** attack with no bypass, asserting the boundary refuses
   normally. If the baseline does not refuse, the harness is wrong, not the target.
 - Attack the smallest thing that matters. One forged bit that makes a
@@ -116,12 +133,27 @@ users will run.
 Deterministic evidence, per language. Capture exact commands and real output.
 
 - **Go**: `go build ./...`, `go vet ./...`, `go test -race -cover ./...`,
-  `govulncheck ./...`, `gosec ./...`, and `kiff scan -format json -fail-on none .`
-- **Python**: `pytest`, `pip-audit`, `ruff`, and the separately published
-  `kiff-scan` package for agent-tool analysis
-- **JavaScript/TypeScript**: `npm audit`, the project's test and lint scripts
-- **Any language**: dependency vulnerability scan, test suite with coverage,
-  and the race/concurrency checker if one exists
+  `govulncheck ./...` (reachability-aware — prefer it), `gosec ./...`, and
+  `kiff scan -format json -fail-on none .`
+- **Python**: `pytest` (or the project's runner), `pip-audit`, and `bandit` or
+  `semgrep` for static security analysis. `kiff-scan evidence . --format json`
+  when that package is installable — it is a separate PyPI distribution, so
+  treat it as optional and say so if you could not obtain it. There is no
+  Python equivalent of `-race`; note the absence rather than implying coverage.
+- **JavaScript/TypeScript**: `npm audit --omit=dev` (**always pass
+  `--omit=dev`** — a bare `npm audit` reports build-tool vulnerabilities that
+  never ship, and filing one of those as critical against a library is a
+  credibility-destroying false positive), plus the project's test, typecheck,
+  and build scripts.
+- **Any language**: dependency vulnerability scan, the test suite with coverage,
+  a static security analyser, and a concurrency checker where the language has
+  one.
+
+**Run the linter the project runs, not the linter you know.** Read CI first. A
+bare `ruff`/`eslint` against a project with no configuration for it produces
+hundreds of findings the maintainers never opted into; reporting them is noise
+that buries the real findings. If CI does not run a linter, say that — it is
+itself a small finding — and do not substitute your own defaults for theirs.
 
 Report coverage per package, not just the total — an untested module on the
 enforcement path is a finding regardless of the headline number. But **a skipped
@@ -168,18 +200,37 @@ closes the gap, files involved, complexity S/M/L, and before-launch YES/NO.
 
 ## 7. Verify the fix
 
-For each P0, implement the smallest fix, re-run the attack, and re-run the full
-suite. A fix that closes the attack but breaks the suite is not a fix. Report the
-diffstat and the regression result. A P0 with a verified patch is worth far more
-than a P0 with a suggestion.
+For each P0, implement the smallest fix, then re-run **both** the attack and the
+baseline — a fix that refuses everything also "closes" the attack, and only the
+baseline catches that. Then re-run the full suite and report the diffstat.
 
-Leave the patch uncommitted unless asked, and say plainly where it is.
+**A failing test is not always a broken fix.** If the suite encoded the defect as
+correct behaviour — a test asserting the very thing you just stopped — then
+inverting that test is part of the fix, not a regression. Say so explicitly in
+the report and quote the old assertion: *a passing suite was part of why this
+survived* is one of the most useful sentences an audit can contain. Distinguish
+that case carefully from a fix that genuinely broke unrelated behaviour.
+
+A P0 with a verified patch is worth far more than a P0 with a suggestion. Leave
+the patch uncommitted unless asked, and say plainly where it is.
+
+**Keep the attack harness.** Save it somewhere the reader can run it and name the
+path in the report. An audit whose attacks cannot be re-run is a claim; one whose
+attacks ship is evidence, and it becomes the regression test for the fix.
 
 ## 8. Report
 
 Use `report-template.md` in this skill directory. Lead with the executive verdict
 and the guarantees tested; put attack transcripts before prose analysis. Score
 conservatively — an inflated score makes every other number unreliable.
+
+**Polyglot targets.** When one repository ships the same product in several
+languages, audit each implementation separately and expect them to differ — a
+defect fixed in one is routinely still live in the other, and that gap is itself
+a finding. Say which language each finding applies to, never assume parity, and
+if the complete fix spans two languages say which half you verified. Where the
+languages disagree on a documented guarantee, the README that ships with each
+package governs that package.
 
 `examples/kiff-framework-audit.md` is the reference audit: a real engagement
 against `github.com/kiff/kiff` in which three of four attacks on the central
