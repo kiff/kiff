@@ -2,20 +2,23 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kiff-governance",
   "version": "0.1.0",
-  "description": "Scan Go agent code and help place consequential actions behind KIFF governance.",
+  "description": "Scan Go agent code, place consequential actions behind KIFF governance, and adversarially audit governance guarantees.",
   "author": {
     "name": "KIFF",
     "url": "https://github.com/kiff"
   },
   "keywords": [
-    "agents",
+    "adversarial testing",
     "agent tools",
+    "agents",
+    "assurance",
+    "audit",
+    "go",
     "governance",
     "kiff",
-    "go",
+    "sarif",
     "security",
-    "static analysis",
-    "sarif"
+    "static analysis"
   ],
   "homepage": "https://github.com/kiff/kiff",
   "repository": "https://github.com/kiff/kiff",

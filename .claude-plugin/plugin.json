@@ -3,7 +3,7 @@
   "name": "kiff-governance",
   "displayName": "KIFF Governance",
   "version": "0.1.0",
-  "description": "Scan Go agent code and help place consequential actions behind KIFF governance.",
+  "description": "Scan Go agent code, place consequential actions behind KIFF governance, and adversarially audit governance guarantees.",
   "author": {
     "name": "KIFF",
     "url": "https://github.com/kiff"
@@ -13,8 +13,10 @@
   "license": "MIT",
   "keywords": [
     "agents",
-    "governance",
+    "assurance",
+    "audit",
     "go",
+    "governance",
     "security",
     "static-analysis"
   ]
