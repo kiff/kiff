@@ -186,7 +186,7 @@ requires it.
 | Human authority | Dynamic approvals, reviewer permissions, and segregation-of-duties checks |
 | Reliable execution | Validation before side effects and idempotency protection for consequential retries |
 | Explainable history | Proposals, decisions, approvals, execution results, and failures as protocol data |
-| Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI |
+| Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI. The API authenticates through a pluggable `Authenticator`, and the principal it establishes overrides any actor in the request body |
 
 ## Check the Agent Boundary
 
