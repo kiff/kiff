@@ -2,52 +2,120 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/kiff/kiff/skills/kiff-audit/evidence-schema.json",
   "title": "KIFF audit evidence contract",
-  "description": "Language-neutral shape that deterministic evidence collectors emit for an audit to consume. Go: `kiff scan -format json`. Python: the separately published kiff-scan package. Other languages: any collector that conforms. The audit skill treats this as evidence, never as a verdict.",
+  "description": "Language-neutral shape that deterministic evidence collectors emit for an audit to consume. Python: `kiff-scan scan --format json` (the reference implementation, whose taxonomy this contract adopts). Go: `kiff scan -format json`. Other languages: any collector that conforms. The audit skill treats this as evidence, never as a verdict: a finding is an unreviewed signal, and the absence of findings is not a pass.",
   "type": "object",
-  "required": ["schema_version", "collector", "target", "findings"],
+  "required": [
+    "schema_version",
+    "collector",
+    "target",
+    "findings"
+  ],
   "properties": {
-    "schema_version": { "type": "string", "const": "1" },
+    "schema_version": {
+      "type": "string",
+      "const": "1"
+    },
     "collector": {
       "type": "object",
-      "required": ["name", "version", "language"],
+      "required": [
+        "name",
+        "version",
+        "language"
+      ],
       "properties": {
-        "name": { "type": "string", "examples": ["kiff scan", "kiff-scan"] },
-        "version": { "type": "string" },
-        "language": { "type": "string", "examples": ["go", "python", "typescript"] }
+        "name": {
+          "type": "string",
+          "examples": [
+            "kiff scan",
+            "kiff-scan"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "language": {
+          "type": "string",
+          "examples": [
+            "python",
+            "go",
+            "typescript"
+          ]
+        }
       }
     },
     "target": {
       "type": "object",
-      "required": ["path"],
+      "required": [
+        "path"
+      ],
       "properties": {
-        "path": { "type": "string" },
-        "revision": { "type": "string", "description": "Commit sha or `git describe` output. Required for a reproducible audit." }
+        "path": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string",
+          "description": "Commit sha or `git describe` output. Required for a reproducible audit."
+        }
       }
     },
     "findings": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["rule_id", "severity", "category", "file", "line"],
+        "required": [
+          "rule_id",
+          "severity",
+          "category",
+          "file",
+          "line"
+        ],
         "properties": {
-          "rule_id": { "type": "string" },
-          "severity": { "enum": ["low", "medium", "high"] },
-          "category": {
-            "description": "Shared sink taxonomy. Collectors in every language MUST use these values so findings are comparable across a polyglot repository.",
+          "rule_id": {
+            "type": "string"
+          },
+          "severity": {
             "enum": [
-              "money movement",
-              "data loss",
-              "access control",
-              "code execution",
-              "infrastructure",
-              "external communication"
+              "low",
+              "medium",
+              "high"
             ]
           },
-          "file": { "type": "string" },
-          "line": { "type": "integer", "minimum": 1 },
-          "tool": { "type": "string", "description": "Model-reachable entry point that reaches the sink." },
-          "call": { "type": "string", "description": "The consequential call itself." },
-          "governed": { "type": "boolean", "description": "Whether a recognized decision boundary was found on the path. Absence of a boundary is not proof of exploitability." }
+          "category": {
+            "description": "Consequence category. Canonical IDs are the kiff-scan taxonomy (src/kiff_scan/taxonomy.py), which every collector MUST emit so findings are comparable across a polyglot repository. Each carries a fixed default severity and a state_dependent flag: a state-dependent consequence is one whose safety cannot be decided from the call alone, which is exactly the class a governance runtime exists to gate.",
+            "enum": [
+              "MONEY",
+              "DATA_LOSS",
+              "DATABASE",
+              "IDENTITY",
+              "COMPUTE",
+              "DEPLOYMENT",
+              "NETWORK",
+              "EXECUTION"
+            ]
+          },
+          "file": {
+            "type": "string"
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tool": {
+            "type": "string",
+            "description": "Model-reachable entry point that reaches the sink."
+          },
+          "call": {
+            "type": "string",
+            "description": "The consequential call itself."
+          },
+          "governed": {
+            "type": "boolean",
+            "description": "Whether a recognized decision boundary was found on the path. Absence of a boundary is not proof of exploitability."
+          },
+          "state_dependent": {
+            "type": "boolean",
+            "description": "Whether this consequence's safety depends on live state rather than on the call alone."
+          }
         }
       }
     },
@@ -55,9 +123,21 @@
       "type": "object",
       "description": "What the collector could and could not analyze. The audit reports these as `not assessable` rather than as passes.",
       "properties": {
-        "files_scanned": { "type": "integer" },
-        "unsupported_paths": { "type": "array", "items": { "type": "string" } },
-        "limits": { "type": "array", "items": { "type": "string" } }
+        "files_scanned": {
+          "type": "integer"
+        },
+        "unsupported_paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "limits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     }
   }
