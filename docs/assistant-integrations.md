@@ -175,3 +175,14 @@ project's own tooling elsewhere. Collectors target the shared contract in
 [`skills/kiff-audit/evidence-schema.json`](../skills/kiff-audit/evidence-schema.json),
 which fixes one sink taxonomy across languages so findings are comparable in a
 polyglot repository. Nothing in the Go framework depends on the Python package.
+
+The canonical category IDs are `MONEY`, `DATA_LOSS`, `DATABASE`, `IDENTITY`,
+`COMPUTE`, `DEPLOYMENT`, `NETWORK`, and `EXECUTION`, adopted from `kiff-scan`,
+which is the more mature implementation. Each carries a `state_dependent` flag —
+a consequence whose safety cannot be decided from the call alone is exactly the
+class a governance runtime exists to gate.
+
+**Known gap:** `kiff scan` currently emits display strings (`"money movement"`,
+`"data loss"`) rather than these IDs, and collapses `COMPUTE` and `DEPLOYMENT`
+into a single `"infrastructure"` value. Until it migrates, an audit spanning
+both languages should normalise Go findings before comparing them.
