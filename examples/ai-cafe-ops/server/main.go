@@ -123,7 +123,7 @@ func buildRuntime(dataDir string) (*aicafeops.Domain, *runtime.Runtime, func(), 
 }
 
 func buildMux(d *aicafeops.Domain, rt *runtime.Runtime) http.Handler {
-	kiffHandler := httpapi.NewHandler(rt)
+	kiffHandler := httpapi.NewUnauthenticatedHandler(rt)
 	demo := newDemoHandler(d, rt)
 
 	mux := http.NewServeMux()

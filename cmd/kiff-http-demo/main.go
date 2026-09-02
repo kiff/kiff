@@ -54,7 +54,7 @@ func main() {
 	fmt.Println("- see docs/changelog/brick-14.md for curl examples")
 
 	server := &http.Server{
-		Handler: httpapi.NewHandler(rt),
+		Handler: httpapi.NewUnauthenticatedHandler(rt),
 	}
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		fmt.Fprintf(os.Stderr, "kiff http demo failed: %v\n", err)

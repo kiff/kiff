@@ -59,7 +59,7 @@ func main() {
 	fmt.Println("  POST /approvals/{approvalID}/deny")
 	fmt.Println("  GET  /entities/{entityID}/timeline")
 
-	server := &http.Server{Handler: httpapi.NewHandler(rt)}
+	server := &http.Server{Handler: httpapi.NewUnauthenticatedHandler(rt)}
 	if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
 		fmt.Fprintf(os.Stderr, "server failed: %v\n", err)
 		os.Exit(1)

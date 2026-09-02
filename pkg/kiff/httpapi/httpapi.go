@@ -19,6 +19,22 @@ import (
 // Handler exposes a small HTTP surface over a KIFF runtime.
 type Handler struct {
 	Runtime *runtime.Runtime
+
+	// Authenticator establishes the principal for each request. When set, the
+	// authenticated identity overwrites the actor in the request body before
+	// any permission check or audit write, so a caller cannot act as — or
+	// approve as — someone else by editing JSON.
+	Authenticator Authenticator
+
+	// AllowUnauthenticated serves requests with no Authenticator, taking the
+	// actor from the request body on trust.
+	//
+	// This is off by default and must be set deliberately. Two legitimate
+	// uses: a local demo, and a deployment where an upstream layer already
+	// authenticates and rewrites the actor before delegating here (which is
+	// what KIFF Cloud does). Anything else is an open door — the actor is the
+	// only thing standing between a caller and approving their own action.
+	AllowUnauthenticated bool
 }
 
 type actionContractResponse struct {
@@ -43,15 +59,51 @@ type approvalReviewRequest struct {
 	Reason string      `json:"reason,omitempty"`
 }
 
-// NewHandler creates an HTTP handler for a runtime.
-func NewHandler(rt *runtime.Runtime) *Handler {
-	return &Handler{Runtime: rt}
+// NewHandler creates an authenticated HTTP handler for a runtime.
+//
+// Every request must present a principal the Authenticator accepts; requests
+// that do not are refused with 401 before any routing happens. To run without
+// authentication — a local demo, or behind a layer that already authenticates
+// — use NewUnauthenticatedHandler, which names what it is doing.
+func NewHandler(rt *runtime.Runtime, auth Authenticator) *Handler {
+	return &Handler{Runtime: rt, Authenticator: auth}
+}
+
+// NewUnauthenticatedHandler creates a handler that serves every request with
+// the actor taken from the request body on trust.
+//
+// The name is deliberately blunt. Anyone who can reach this handler is any
+// principal: they can propose an action as one identity and approve it as
+// another, and the audit trail will record both as legitimate. Use it for a
+// local demo, or where an upstream layer authenticates and rewrites the actor
+// before delegating.
+func NewUnauthenticatedHandler(rt *runtime.Runtime) *Handler {
+	return &Handler{Runtime: rt, AllowUnauthenticated: true}
 }
 
 // ServeHTTP routes KIFF HTTP API requests.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.Runtime == nil {
 		writeError(w, http.StatusInternalServerError, "runtime is not configured")
+		return
+	}
+
+	// Authenticate before routing. A handler with neither an Authenticator nor
+	// an explicit opt-out is a misconfiguration, not an open server: refusing
+	// is the only safe reading of "the operator has not decided yet".
+	switch {
+	case h.Authenticator != nil:
+		principal, err := h.Authenticator.Authenticate(r)
+		if err != nil || principal.ActorID == "" {
+			w.Header().Set("WWW-Authenticate", "Bearer")
+			writeError(w, http.StatusUnauthorized, "unauthenticated")
+			return
+		}
+		r = r.WithContext(withPrincipal(r.Context(), principal))
+	case !h.AllowUnauthenticated:
+		writeError(w, http.StatusInternalServerError,
+			"handler has no Authenticator; construct it with NewHandler(rt, auth), "+
+				"or NewUnauthenticatedHandler(rt) if this deployment authenticates upstream")
 		return
 	}
 
@@ -92,6 +144,13 @@ func (h *Handler) handleIngestRaw(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
+	}
+	// Ingestion is identity-bearing too: RawInput.ActorID lands in the event,
+	// events drive state transitions, and state is what actions are judged
+	// against. An unrewritten actor here would let an authenticated caller
+	// attribute a state change to anyone.
+	if principal, ok := PrincipalFrom(r.Context()); ok {
+		input.ActorID = principal.ActorID
 	}
 
 	ev, err := h.Runtime.IngestRaw(r.Context(), input)
@@ -228,12 +287,13 @@ func (h *Handler) handleReviewApproval(w http.ResponseWriter, r *http.Request, s
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return
 	}
-	if request.Actor.ID == "" {
+	reviewer := resolveActor(r.Context(), request.Actor)
+	if reviewer.ID == "" {
 		writeError(w, http.StatusBadRequest, "actor id is required")
 		return
 	}
 
-	reviewed, err := h.Runtime.ReviewApproval(r.Context(), approvalID, request.Actor.ID, status, request.Reason)
+	reviewed, err := h.Runtime.ReviewApproval(r.Context(), approvalID, reviewer.ID, status, request.Reason)
 	if err != nil {
 		writeRuntimeError(w, err)
 		return
@@ -257,6 +317,8 @@ func (h *Handler) actionContextFromRequest(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid json body")
 		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
 	}
+	// The authenticated principal replaces whatever actor the body claimed.
+	request.Actor = resolveActor(r.Context(), request.Actor)
 	if request.Actor.ID == "" {
 		writeError(w, http.StatusBadRequest, "actor id is required")
 		return action.ActionContext{}, action.ActionContract{}, actionRequest{}, false
