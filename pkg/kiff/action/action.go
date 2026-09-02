@@ -13,7 +13,13 @@ import (
 )
 
 var (
-	ErrStateNotAllowed  = errors.New("action state not allowed")
+	ErrStateNotAllowed = errors.New("action state not allowed")
+	// ErrStateMismatch means the caller asserted a CurrentState that does not
+	// match the state machine's stored state for the entity. The runtime
+	// derives state rather than trusting it: a proposer that could name its
+	// own current state could authorize a state-dependent action by asserting
+	// a favourable one.
+	ErrStateMismatch    = errors.New("action state does not match stored state")
 	ErrMissingParameter = errors.New("action required parameter missing")
 	ErrInvalidParameter = errors.New("action parameter invalid")
 	ErrPermissionDenied = errors.New("action permission denied")

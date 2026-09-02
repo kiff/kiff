@@ -93,6 +93,8 @@ func Classify(err error) (Outcome, Reason) {
 		return Blocked, ReasonApprovalPolicy
 	case errors.Is(err, action.ErrApprovalRequired):
 		return ApprovalRequired, ReasonApprovalRequired
+	case errors.Is(err, action.ErrStateMismatch):
+		return Blocked, ReasonStateNotAllowed
 	case errors.Is(err, action.ErrStateNotAllowed):
 		return Blocked, ReasonStateNotAllowed
 	case errors.Is(err, action.ErrPermissionDenied):
