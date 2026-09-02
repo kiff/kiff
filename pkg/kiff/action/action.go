@@ -132,8 +132,19 @@ func (c ActionContext) IsApproved() bool {
 // type is un-nameable outside the module — so it cannot self-approve.
 // The runtime calls this only after the approval store confirms a real,
 // granted approval for the action.
-func (c *ActionContext) GrantApproval(trust.Grant) {
+func (c *ActionContext) GrantApproval(g trust.Grant) {
+	if !g.Valid() {
+		return
+	}
 	c.approved = true
+}
+
+// ClearApproval resets the approved bit. The runtime calls this on every
+// inbound context before it consults the approval store, so an approved bit
+// forged by a caller — via reflection or unsafe, neither of which a
+// compile-time boundary can prevent — is discarded rather than trusted.
+func (c *ActionContext) ClearApproval(trust.Grant) {
+	c.approved = false
 }
 
 // ActionResult records the execution outcome.

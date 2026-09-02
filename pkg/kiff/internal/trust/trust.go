@@ -27,3 +27,10 @@ type Grant struct {
 func NewGrant() Grant {
 	return Grant{ok: true}
 }
+
+// Valid reports whether this Grant was actually minted by NewGrant. A
+// zero Grant — which reflection can synthesise from outside the module via
+// reflect.Zero on the method's parameter type — is not valid.
+func (g Grant) Valid() bool {
+	return g.ok
+}

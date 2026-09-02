@@ -517,6 +517,23 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 		}
 		return validationErr
 	}
+	// Non-overridable approval backstop. Validator is a pluggable interface,
+	// so a permissive implementation must not be able to waive a human
+	// sign-off. The approved bit here was re-derived from the approval store
+	// by applyApproval above, so this check is authoritative.
+	if required, _, reqErr := contract.RequiresApproval(ctx, actionCtx); reqErr != nil {
+		return reqErr
+	} else if required && !actionCtx.IsApproved() {
+		auditErr := r.appendAudit(ctx, audit.KindApprovalRequired, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "approval required", map[string]any{
+			"action":      contract.Name,
+			"approval_id": actionCtx.ApprovalID,
+			"error":       action.ErrApprovalRequired.Error(),
+		})
+		if auditErr != nil {
+			return auditErr
+		}
+		return action.ErrApprovalRequired
+	}
 	if err := r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
 		"action":            contract.Name,
 		"approval_id":       actionCtx.ApprovalID,
@@ -697,7 +714,11 @@ func (r *Runtime) ExecuteAction(ctx context.Context, actionCtx action.ActionCont
 }
 
 func (r *Runtime) applyApproval(ctx context.Context, actionCtx action.ActionContext, contract action.ActionContract) (action.ActionContext, error) {
-	if actionCtx.IsApproved() || actionCtx.ApprovalID == "" || r.Approvals == nil {
+	// Never trust an inbound approved bit. The compile-time boundary stops a
+	// caller naming the field or the Grant type, but not reflection/unsafe,
+	// so the bit is unconditionally discarded and re-derived from the store.
+	actionCtx.ClearApproval(trust.NewGrant())
+	if actionCtx.ApprovalID == "" || r.Approvals == nil {
 		return actionCtx, nil
 	}
 	required, _, err := contract.RequiresApproval(ctx, actionCtx)
