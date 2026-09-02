@@ -183,9 +183,9 @@ requires it.
 | --- | --- |
 | Shared state | Events, state transitions, replay, and `memory`, `file`, or `postgres` stores |
 | Named actions | Typed parameters, allowed states, required permissions, risk, and explicit executors |
-| Human authority | Dynamic approvals, reviewer permissions, and segregation-of-duties checks |
+| Human authority | Dynamic approvals, and segregation of duties enforced by default — the actor that requested an approval cannot review it. Reviewer permissions are opt-in per contract, because only the domain knows which permission is sufficient |
 | Reliable execution | Validation before side effects and idempotency protection for consequential retries |
-| Explainable history | Proposals, decisions, approvals, execution results, and failures as protocol data |
+| Explainable history | Proposals, decisions, approvals, execution results, and failures as durable protocol data. Records are append-only by construction; tamper-evidence (hash-chained, signed receipts) is a [KIFF Cloud](https://kiff.dev) feature, not a property of the OSS stores |
 | Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI. The API authenticates through a pluggable `Authenticator`, and the principal it establishes overrides any actor in the request body |
 
 ## Check the Agent Boundary
@@ -296,8 +296,19 @@ asks "why did this happen?"
 
 KIFF is at v0.8. The release adds the cloud-facing CLI loop, native Go source
 scanning, and a portable governance skill for coding assistants. The core
-action boundary remains complete and tested: approvals cannot be self-granted,
-executors must be explicit, and every validation and execution is recorded.
+action boundary is complete and adversarially tested: the approved bit cannot
+be forged from outside the module — including by reflection or `unsafe`, which
+a compile-time boundary cannot prevent — a pluggable validator cannot waive a
+required approval, the state machine is authoritative for validation rather
+than the caller, the HTTP API authenticates and the principal overrides any
+actor in the request body, and the actor that requested an approval cannot
+review it. Those attacks ship as conformance tests that fail the build if the
+boundary regresses.
+
+Known gaps, stated plainly: audit records are durable and append-only but not
+tamper-evident in the OSS stores, and there is no lease or version check
+between a decision and the executor, so a decision can in principle be acted on
+against state that has since moved.
 The [Postgres store](./pkg/kiff/store/postgres) is the production reference;
 the file-backed JSONL stores are for demos and local development.
 
