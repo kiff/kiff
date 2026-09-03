@@ -167,7 +167,8 @@ _, err := rt.RequestApproval(ctx, "approval-1", actionCtx, contract, "refund nee
 _, err = rt.ReviewApproval(ctx, "approval-1", "human-supervisor", approval.StatusGranted, "approved after review")
 
 // Execution now succeeds because the runtime resolves the granted approval
-// from the approval store. Callers cannot self-approve.
+// from the approval store. The runtime clears any inbound approved bit
+// and re-derives it, so callers cannot self-approve.
 result, err := rt.ExecuteAction(ctx, actionCtxWithApprovalID, contract)
 ```
 

@@ -53,13 +53,70 @@ order — and answers with an HTTP status you branch on:
 > a role on the actor it submits (#19), just as it cannot set the approval bit
 > (the self-approval boundary). Both refuse caller self-assertion.
 >
-> The caveat for an HTTP deployment is therefore about **identity, not roles**:
-> authority keys on `Actor.ID`, and this handler reads `Actor.ID` from the
-> request body, so a raw framework deployment must **authenticate the caller's
-> identity** in front of `httpapi`. The hosted runtime resolves identity from
-> the authenticated session/key for you. And note the approval boundary is a
+> Identity is established by the transport, not the body. `httpapi.Handler`
+> requires an `Authenticator`, and the principal it returns **overwrites** the
+> actor the caller sent — see [Authentication](#authentication) below. And note
+> the approval boundary is a
 > compile-time property of KIFF's own Go runtime — an HTTP caller gets an
 > API-level decision, not compile-time safety in their own code.
+
+
+## Authentication
+
+Every route requires an authenticated principal. The handler resolves it before
+routing, and the principal **overwrites** whatever actor the request body
+claimed — on `execute`, on `validate`, on approval review, and on `/events/raw`,
+since ingested events drive state transitions and state is what actions are
+judged against.
+
+```go
+auth := httpapi.NewStaticTokenAuthenticator(map[string]httpapi.Principal{
+    "tok_agent":    {ActorID: "support-agent", Roles: []string{"support_agent"}},
+    "tok_operator": {ActorID: "ops-human", Roles: []string{"ops_operator"}},
+})
+mux.Handle("/", httpapi.NewHandler(rt, auth))
+```
+
+```bash
+curl -X POST $KIFF/entities/order-2/actions/REFUND_ORDER/execute \
+  -H 'Authorization: Bearer tok_agent' \
+  -H 'Content-Type: application/json' \
+  -d '{"parameters":{"amount_cents":99900,"reason":"damaged"}}'
+```
+
+An `actor` in the body is ignored when the request is authenticated. That is the
+point: it means a caller cannot act as, or approve as, someone else by editing
+JSON. Roles from the principal are audit metadata — authority still resolves
+through the `permission.Policy` by actor ID.
+
+`StaticTokenAuthenticator` is a working default for a single trusted service.
+For anything larger, implement the one-method interface against your identity
+provider:
+
+```go
+type Authenticator interface {
+    Authenticate(*http.Request) (Principal, error)
+}
+```
+
+Implementations must not read the request body — the body is what the caller
+controls, and the purpose of the interface is to establish identity from
+something they do not.
+
+### Running without authentication
+
+A handler with neither an `Authenticator` nor an explicit opt-out **refuses to
+serve**, because an undecided handler is a misconfiguration rather than an open
+server. Two cases legitimately opt out — a local demo, and a deployment where an
+upstream layer already authenticates and rewrites the actor before delegating,
+which is what KIFF Cloud does:
+
+```go
+mux.Handle("/", httpapi.NewUnauthenticatedHandler(rt))
+```
+
+The name is blunt on purpose. Anyone who can reach that handler is any
+principal.
 
 ## Observe vs enforce
 
@@ -153,7 +210,9 @@ three calls, all plain HTTP:
    resolves the granted approval and the action now passes.
 
 The caller can request approval but cannot grant its own — granting is a
-separate, authenticated step.
+separate, authenticated step, and the runtime enforces segregation of duties:
+the actor that requested an approval cannot review it, so presenting the
+reviewer's own credentials is not enough either.
 
 ## Inspecting what happened
 

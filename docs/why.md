@@ -45,7 +45,13 @@ domain, not to one agent's prompt or a single integration's handler.
 
 Governance is therefore part of the operational model, not a bolt-on control.
 KIFF evaluates the proposed action against current state, authority, parameters,
-and approvals before the executor runs. The result is recorded so the next
+and approvals before the executor runs. Each of those is derived rather than
+believed: state comes from the state machine and a caller that asserts a
+different one is refused, authority resolves through the permission policy
+rather than roles on the submitted actor, the approved bit is cleared and
+re-read from the approval store, and the reviewer must differ from the
+requester. That distinction — derived, not asserted — is the whole difference
+between a gate and a suggestion. The result is recorded so the next
 actor starts from the same reality.
 
 ## Why a Framework

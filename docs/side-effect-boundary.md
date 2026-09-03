@@ -85,13 +85,15 @@ agent.** The agent's most powerful move is to *ask*.
 
 This isn't a promise on a slide — it's enforced and tested in-repo:
 
-- **Self-approval is a compile error, from outside the module.**
-  `pkg/kiff/action/approval_boundary_compile_test.go` runs `go build` against
-  external-module fixtures and asserts they fail to compile:
-  `action.ActionContext{approved: true}` fails (`approved` is unexported), and
-  `ctx.GrantApproval(trust.Grant{})` fails (the capability type lives in an
-  `internal` package a caller can't import). An agent's SDK literally cannot
-  express a self-approval.
+- **Self-approval fails to grant, from outside the module.**
+  Two suites, because the first is not sufficient on its own.
+  `approval_boundary_compile_test.go` asserts an external module cannot name the
+  field or import the capability package. `approval_boundary_runtime_test.go`
+  goes further: three fixtures in `testdata/self_approval/` build and *run* from
+  a separate module against an empty approval store — reflection synthesising
+  the un-nameable capability, `unsafe` writing the field, and a permissive
+  `Validator` — and each must report refusal. Compile-time rules do not bind
+  reflection; the runtime clearing and re-deriving the bit does.
 - **The executor never runs on a non-allowed path.**
   `pkg/kiff/runtime/boundary_test.go` proves a spy executor stays uncalled on
   wrong-state, missing-parameter, permission-denied, approval-not-granted, and
