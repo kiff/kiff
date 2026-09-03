@@ -21,7 +21,19 @@ type ActionContext struct {
 }
 ```
 
-A caller can construct an `ActionContext` with any values they want, including an `ApprovalID` that points at any approval record in the world. What they cannot do is set `approved: true`. The lower-case field name is the entire enforcement.
+A caller can construct an `ActionContext` with any values they want, including an `ApprovalID` that points at any approval record in the world. Setting `approved: true` in a struct literal does not compile.
+
+**That is not the enforcement, and an earlier version of this document said it was.** The lower-case field name is a compile-time rule; so is the `internal/` package that gates the `GrantApproval` capability. Reflection runs after the compiler has finished, and `reflect` exists precisely to reach values you cannot name:
+
+```go
+// From a separate module. No unsafe, four lines.
+m := reflect.ValueOf(&ctx).MethodByName("GrantApproval")
+m.Call([]reflect.Value{reflect.Zero(m.Type().In(0))})
+```
+
+`m.Type().In(0)` recovers the un-nameable capability type from the method's own signature, and `reflect.Zero` builds a value of it. An adversarial audit of this framework used exactly that, plus an `unsafe` variant, to run an approval-required action against an **empty approval store** — and the audit trail recorded both as `action_validated` and `action_executed`.
+
+The real enforcement is that **the runtime does not believe the bit.**
 
 When `runtime.ExecuteAction` runs, it calls `applyApproval`, which:
 
@@ -29,7 +41,9 @@ When `runtime.ExecuteAction` runs, it calls `applyApproval`, which:
 2. Verifies it is not nil, has matching entity and action, and has status `granted`.
 3. Calls `actionCtx.GrantApproval()` (a method on `*ActionContext`) to flip the private bit.
 
-Only after this private bit is set does the validator accept the action. There is no public way to fake the bit. A caller cannot pass `&action.ActionContext{approved: true}` because the field is unexported.
+Crucially, `applyApproval` **clears the bit before it consults the store**. Whatever a caller managed to put there — by reflection, by `unsafe`, by any means a compile-time rule cannot prevent — is discarded and re-derived from the approval record. Forging it accomplishes nothing, because the value is overwritten before anything reads it.
+
+A second check sits above the pluggable `Validator`. Approval is the one decision an embedder must not be able to replace, so `runtime.Config.ActionValidator` can add requirements but cannot waive this one.
 
 ## What this prevents
 
@@ -38,9 +52,10 @@ The most common attempt to bypass governance, with or without intent:
 ```go
 // This compiles, but it does NOT execute the action.
 //
-// approved is unexported. The literal sets ApprovalID, which the runtime
-// will look up in the approval store. If no granted approval matches,
-// validation returns ErrApprovalRequired.
+// The literal sets ApprovalID, which the runtime looks up in the approval
+// store. If no granted approval matches, validation returns
+// ErrApprovalRequired — and the same is true if the caller reaches the
+// unexported bit by reflection, because the runtime clears it first.
 ctx := action.ActionContext{
     ActionName: "REFUND_ORDER",
     ApprovalID: "i-made-this-up",
@@ -70,23 +85,38 @@ _, err = rt.ReviewApproval(ctx, "approval-1", "human-supervisor",
 result, err := rt.ExecuteAction(ctx, actionCtx, contract)
 ```
 
-The agent did not approve itself. The agent could not approve itself. A human had to act, and the human's identity and reasoning are now in the audit trail forever.
+The agent did not approve itself, and could not have. A human had to act, and their identity and reasoning are in the audit trail.
+
+Since v0.8 the reviewer must also differ from the requester: `ReviewApproval` enforces segregation of duties by default. An approval the proposer can grant itself is a formality, and one that produces a record reading as a real two-party review is worse than no approval at all.
 
 ## What this looks like in tests
 
-The trust boundary is testable, and KIFF tests it:
+The boundary is testable at two levels, and both matter because the first is
+not sufficient on its own.
 
-```go
-// pkg/kiff/action — the field is unexported.
-ctx := action.ActionContext{
-    // approved: true   ← does not compile
-}
+**Compile-time**, in `pkg/kiff/action/approval_boundary_compile_test.go`: an
+external module cannot name the field or import the capability package. Useful,
+and never the property that mattered.
 
-// pkg/kiff/runtime — only applyApproval can flip the bit.
-// Direct callers of GrantApproval() exist for the runtime's internal use,
-// but the validator only sees an approved context after the runtime
-// resolves a granted approval from the store.
+**Runtime**, in `pkg/kiff/action/approval_boundary_runtime_test.go`: three
+fixtures in `testdata/self_approval/` build and *run* from a separate module
+against an empty approval store, and must report refusal.
+
 ```
+reflect_grant       reflect.Zero on the un-nameable capability type
+unsafe_field        unsafe writes the unexported bit directly
+hostile_validator   a permissive Validator via the public Config
+```
+
+Each fails without the fix and passes with it, so CI breaks if the boundary
+regresses. Run them yourself:
+
+```bash
+go test ./pkg/kiff/action/ -run TestExternalCallerCannotGrantApprovalAtRuntime -v
+```
+
+A claim backed by a test that runs on every push is worth more than a stronger
+claim backed by prose.
 
 Your domain tests should include a denied-approval case (see [`examples/refund/refund_test.go`](../../examples/refund/refund_test.go)). It is the test that proves your governance boundary actually works.
 

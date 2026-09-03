@@ -10,6 +10,10 @@ Code referenced is part of the open-source MIT framework at
 
 ---
 
+> **As of v0.8.** Version-specific claims in this document are stated
+> once, here. The trust-boundary section was materially revised after an
+> adversarial audit of this framework; §3 says what changed and why.
+
 ## Abstract
 
 Operational software increasingly involves multiple actors — humans,
@@ -25,7 +29,7 @@ validation, approval, execution, failure — is appended to an immutable
 audit trail with trace correlation. State can be replayed from events.
 
 This document describes the protocol, the trust boundary it enforces,
-and the artifacts that prove the design is real: a working v0.3 framework,
+and the artifacts that prove the design is real: a working framework,
 two end-to-end demos with real LLM proposals, a Postgres backend, a shared
 conformance test suite, and a CLI that inspects any KIFF server.
 
@@ -205,21 +209,65 @@ type ActionContext struct {
 }
 ```
 
+An earlier version of this section stopped here, and it was wrong.
+
 The unexported field closes the front door (a struct literal). The side
-door — a setter — is closed by a capability: `GrantApproval` requires a
+door — a setter — is guarded by a capability: `GrantApproval` takes a
 value of a type that lives in an `internal/` package, so only code inside
-the framework's own module can mint it. A caller that merely imports the
-`action` package cannot name the type, let alone construct it. The
-runtime mints the capability in a single method, `applyApproval`, which
-runs only after looking up an approval record by ID, verifying the record
-matches the entity and action, and confirming its status is `granted`. If
-any check fails, the bit stays false. If the approval store returns an
+the module can mint one. A caller that merely imports the `action`
+package cannot name that type, let alone construct it.
+
+Both of those are **compiler rules**, and reflection runs after the
+compiler has finished. You do not need to name a type to obtain one — the
+method's own signature carries it:
+
+```go
+// From a separate module. No unsafe, four lines.
+m := reflect.ValueOf(&ctx).MethodByName("GrantApproval")
+m.Call([]reflect.Value{reflect.Zero(m.Type().In(0))})
+```
+
+An adversarial audit of this framework used exactly that, plus an
+`unsafe` variant, to execute an approval-required action against an
+**empty approval store** — and the audit trail recorded both attempts as
+`action_validated` and `action_executed`. A governance layer that emits a
+clean receipt for a bypass is worse than none, because the receipt is
+what someone trusts months later.
+
+So the boundary does not rest on unreachability. It rests on the runtime
+**refusing to believe the bit**:
+
+- `applyApproval` **clears any inbound approved value** and re-derives it
+  from the approval store, after looking the record up by ID, verifying
+  it matches the entity and action, and confirming its status is
+  `granted`. A forged bit is overwritten before anything reads it, so
+  forging it accomplishes nothing.
+- The capability is checked: a zero `trust.Grant` is not a grant.
+- A **non-overridable approval check** runs above the pluggable
+  `Validator`. Approval is the one decision an embedder must not be able
+  to replace — an earlier design left it inside that seam, which meant
+  twelve lines of ordinary Go could waive it.
+
+If any check fails the bit stays false. If the approval store returns an
 error, the runtime propagates it; it does not silently treat a missing
 approval as not-required.
 
-This is testable. The conformance suite confirms that neither a struct
-literal (`ActionContext{approved: true}`) nor a setter call from outside
-the framework compiles, and that calling `ExecuteAction` with an invented
+The same discipline now covers the state an action is judged against.
+`CurrentState` was a caller-supplied string the runtime never verified,
+which meant a proposer could authorize a state-dependent action by
+naming a favourable state. The state machine is now authoritative:
+`ValidateAction` reads the stored state and refuses a disagreeing
+assertion with `ErrStateMismatch`.
+
+This is testable at two levels, and the first is not sufficient alone.
+The compile-time suite confirms that neither a struct literal
+(`ActionContext{approved: true}`) nor a setter call from outside the
+framework compiles. The runtime suite goes further: three fixtures build
+and *run* from a separate module against an empty approval store —
+reflection, `unsafe`, and a permissive validator — and each must report
+refusal. They fail without the fix and pass with it, so CI breaks if the
+boundary regresses. A separate test confirms that calling `ExecuteAction`
+with an invented
 approval ID returns `action.ErrApprovalRequired` rather than running the
 executor. The test exists because the boundary is the framework's most
 important property.
@@ -309,7 +357,7 @@ The mechanics generalize. The vocabulary does not.
 
 ## 5. Evidence: what we built
 
-The framework is at v0.3. The artifacts in the repository are the
+The artifacts in the repository are the
 evidence the design is real, not aspirational.
 
 ### 5.1 The framework
@@ -423,7 +471,10 @@ having the answer to "why is this entity in this state?".
 
 It proves the protocol can be implemented small (six primitives, seventeen
 packages, one external dependency). It proves the trust boundary is
-testable (the unexported field plus the conformance suite). It proves
+testable, and that testing it changes it: the compile-time suite passed
+throughout while the boundary was breakable, and the runtime suite —
+attacks that build and run from outside the module — is what now holds
+it. `docs/why.md` states the thesis; §3 states what enforces it. It proves
 the persistence interface is real (three backends pass the same suite).
 It proves the agent integration story works in two demos with real LLM
 proposals.
@@ -441,7 +492,7 @@ the protocol breaks down. We expect both.
 
 ## 6. Honest limits
 
-The framework v0.3 does not handle the following. These are design
+The framework does not handle the following. These are design
 boundaries, not missing features — each one has a composition story
 with a tool that already solves it.
 
@@ -453,14 +504,15 @@ replace it. The workflow handles durability; KIFF handles whether each
 step is allowed.
 
 **Multi-tenant identity.** KIFF has actors and permissions but no
-notion of organizations, projects, or scopes. Production deployments
-add their own auth layer in front of the HTTP API. The framework does
-not impose a tenant model because the model varies too much across
-adopters.
+notion of organizations, projects, or scopes. The HTTP API authenticates
+— it requires an `Authenticator`, and the principal it establishes
+overrides any actor in the request body — but authentication is not
+tenancy. The framework does not impose a tenant model because the model
+varies too much across adopters.
 
 **Distributed state.** State today is centralized. The runtime assumes
 a single source of truth per entity. Distributed state (replicated,
-eventually consistent, or sharded across regions) is not part of v0.3.
+eventually consistent, or sharded across regions) is out of scope.
 Most adopters do not need it; the ones who do should compose KIFF with
 a state backend that handles the replication.
 
@@ -476,11 +528,20 @@ spans, no metrics histograms. Production deployments instrument their
 own observability layer; KIFF gives them the audit records to
 instrument from.
 
-**A managed runtime.** KIFF Cloud is mentioned in the project's vision
-as a future commercial layer. It does not exist yet. Adopting KIFF
-today means embedding it as a library and running it yourself.
+**Tamper-evident audit.** Records are durable and append-only by
+construction, and that is all. There is no hash chain, no signature, and
+no key, so an operator with store access can rewrite history. Signed,
+verifiable receipts are a [KIFF Cloud](https://kiff.dev) feature, not a
+property of the open-source stores. This is the most significant open
+gap in the framework.
 
-These are not bugs. They are explicit non-goals for v0.3. Each has a
+**Time-of-check to time-of-use.** There is no lease, version, or
+compare-and-swap between a decision and the executor. Idempotency covers
+a retried identical request; it does not cover two different proposals
+racing against one entity. The window is as wide as the executor's
+slowest call.
+
+These are not bugs. They are explicit non-goals. Each has a
 real design reason; each has a composition story with the tools that
 already solve it. The protocol's value depends on staying small.
 
@@ -507,15 +568,17 @@ clinical-workflow domain (a tiny EHR ingest path with active-state
 checks). The choice depends on which adopter pulls hardest in the
 launch period.
 
-**A managed runtime.** "KIFF Cloud" — hosted runtime, multi-tenant
-admin UI, audit retention, compliance exports — is the eventual
-commercial product. It is not a v0.3 deliverable. It exists in this
-document only as a footnote so the reader knows it is planned.
+**A managed runtime.** [KIFF Cloud](https://kiff.dev) — hosted runtime,
+multi-tenant admin UI, audit retention, signed receipts, compliance
+exports — is the commercial product. Nothing in this document requires
+it: the framework is MIT and self-hosts on Postgres. The division is
+that tamper-evident receipts and retention are operated there, and the
+action boundary described here is operated by whoever runs the runtime.
 
 **Specification work.** The current type signatures are the spec. A
 proper protocol document, language-independent, that other
-implementations can read against, is on the roadmap once the v0.3 API
-is stable. The Markdown for that document already exists in fragmented
+implementations can read against, is on the roadmap once the API is
+stable. The Markdown for that document already exists in fragmented
 form across `docs/architecture.md`, `docs/conventions.md`, and this
 whitepaper.
 

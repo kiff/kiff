@@ -85,19 +85,45 @@ This boundary is a local framework guarantee. It applies to consequential calls
 that route through the KIFF runtime; KIFF does not claim to control a side
 effect reached through a path that bypasses the runtime entirely.
 
-## Compile-time self-approval boundary
+## The self-approval boundary
 
-The authority boundary is not only a runtime check — the "no self-approval"
-guarantee is enforced by the Go type system. External code using KIFF's public
-API cannot grant itself runtime approval, and cannot compile a path that does:
+The "no self-approval" guarantee has two layers, and the second is the one that
+carries it.
 
-- `ActionContext.approved` is unexported, so external modules cannot set it via
-  a struct literal (`action.ActionContext{approved: true}` fails to compile).
-- `GrantApproval` requires a capability value from an `internal` package that
-  external modules cannot import (`ctx.GrantApproval(trust.Grant{})` fails to
-  compile). The approval bit is minted only inside the framework's trust
-  boundary, after the runtime verifies a granted approval exists in the store.
+**Compile-time** raises the cost. `ActionContext.approved` is unexported, so a
+struct literal fails to compile, and `GrantApproval` takes a capability type
+from an `internal` package an external module cannot import. The conformance
+suite asserts both by running `go build` against external-module fixtures.
 
-The conformance suite proves exactly these two boundaries by running `go build`
-against external-module fixtures and asserting both fail to compile for the
-expected access-control reason.
+**These are compiler rules, and reflection runs after the compiler.** A caller
+can recover the un-nameable capability type from the method's own signature
+(`m.Type().In(0)`) and synthesise a value with `reflect.Zero`; `unsafe` can
+write the field directly. Neither is exotic, and an adversarial audit used both
+to execute an approval-required action against an empty approval store.
+
+**Runtime is the real boundary.** The runtime never trusts an inbound approved
+bit:
+
+- `applyApproval` **clears the bit unconditionally** and re-derives it from the
+  approval store, so a forged value is overwritten before anything reads it.
+- The capability is checked — a zero `trust.Grant` is not a grant.
+- A **non-overridable approval check** runs above the pluggable `Validator`,
+  after it returns. A custom validator may add requirements; it cannot remove
+  this one.
+
+The three attacks ship as runtime fixtures in
+`pkg/kiff/action/testdata/self_approval/`. They build and run from a separate
+module against an empty approval store and assert refusal — failing without the
+fix, passing with it, so CI breaks if the boundary regresses.
+
+## The state boundary
+
+An approval bit is not the only thing a caller could assert. `CurrentState` is
+a plain string on `ActionContext`, and a proposer that could name its own state
+could authorize a rollback, refund, or failover by claiming a favourable one.
+
+Since v0.8 the state machine is authoritative. When a runtime has one wired,
+`ValidateAction` reads the stored state and refuses a mismatch with
+`ErrStateMismatch` rather than silently correcting it — the disagreement is the
+signal. A caller's value stands only where the store has no state for that
+entity yet, which is the bootstrap case.

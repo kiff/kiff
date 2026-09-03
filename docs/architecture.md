@@ -142,19 +142,25 @@ It defines:
 
 The example exposes a mission domain definition, uses an action catalog and an approval record, and shows how risky execution is proposed, reviewed, validated, executed, and audited. It is not part of the framework core.
 
-## Trust Boundary (v0.3)
+## Trust Boundary
 
 The runtime enforces governance constraints that callers cannot bypass:
 
-1. **Approval is runtime-controlled.** The `approved` field on `ActionContext` is private. Only the runtime's `applyApproval` method can set it after verifying a granted approval exists in the approval store. Callers, agents, and HTTP clients cannot self-approve.
+1. **Approval is runtime-controlled.** The `approved` field on `ActionContext` is unexported, but that is a compile-time rule and reflection is not bound by it. The enforcement is that `applyApproval` **clears any inbound bit** and re-derives it from the approval store, so a forged value is discarded before it is read. A non-overridable check above the pluggable `Validator` means a custom validator cannot waive a required approval either. Three attacks — reflection, `unsafe`, and a permissive validator — ship as runtime conformance fixtures that fail the build on regression.
 
-2. **Execution requires an executor.** `ExecuteAction` returns `ErrExecutorMissing` for contracts without an `Executor` function. This prevents silent no-op successes from being confused with real execution.
+2. **State is derived, not asserted.** `ValidateAction` reads the entity's state from the state machine when one is wired, and refuses a caller-supplied `CurrentState` that disagrees with `ErrStateMismatch`. A proposer cannot authorize a state-dependent action by naming a favourable state.
 
-3. **Store errors are surfaced.** If the approval store returns an error during approval resolution, the runtime propagates it rather than silently downgrading to `ErrApprovalRequired`.
+3. **The reviewer is not the requester.** `ReviewApproval` enforces segregation of duties by default. `ReviewApprovalAs` is how a domain adds a required reviewer permission, or deliberately waives separation.
 
-4. **Audit IDs are collision-resistant.** Each audit record ID combines an atomic counter with random bytes, eliminating nanosecond-collision risk under concurrent writes.
+4. **The HTTP principal is established by the transport.** `httpapi.Handler` requires an `Authenticator`, and the principal it returns overwrites any actor in the request body — on execution, on approval review, and on event ingestion, since events drive state. A handler with neither an authenticator nor an explicit `NewUnauthenticatedHandler` opt-out refuses to serve.
 
-5. **Domain validation is mandatory.** `runtime.New` validates `Config.Domain` when provided, matching the behavior of `NewForDomain`.
+5. **Execution requires an executor.** `ExecuteAction` returns `ErrExecutorMissing` for contracts without an `Executor` function. This prevents silent no-op successes from being confused with real execution.
+
+6. **Store errors are surfaced.** If the approval store returns an error during approval resolution, the runtime propagates it rather than silently downgrading to `ErrApprovalRequired`.
+
+7. **Audit IDs are collision-resistant.** Each audit record ID combines an atomic counter with random bytes, eliminating nanosecond-collision risk under concurrent writes.
+
+8. **Domain validation is mandatory.** `runtime.New` validates `Config.Domain` when provided, matching the behavior of `NewForDomain`.
 
 ## Context Threading and JSON Tags (Brick 16)
 
