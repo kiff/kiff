@@ -64,6 +64,24 @@ The permission package answers whether an actor is allowed to perform an action.
 
 Brick 1 includes a simple in-memory policy that can grant permissions directly to actors or to actor roles.
 
+### `pkg/kiff/limit`
+
+The limit package bounds what an actor may do **in total**, as distinct from
+whether one action is allowed.
+
+Every other package here answers a question about a single action. This one
+answers the question none of them can: what has this actor already done in the
+window, and is that enough. It is a ledger rather than a predicate, because a
+bound on a sequence has to live where the sequence is visible.
+
+Two rules that look like details and are not. A limit constrains and never
+confers, so an actor with no limit is unaffected. And a revoked limit refuses
+rather than disappearing — filtering to the limits in force and reading the
+empty set as "nothing applies, so allow" would make revocation the act that
+removes the bound.
+
+`MemoryLedger` is correct for one process. See [Limits](./limits.md).
+
 ### `pkg/kiff/audit`
 
 The audit package records important operational facts: event ingestion, state changes, decisions, action validation, approval requirements, execution results, and failures.

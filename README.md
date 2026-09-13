@@ -91,8 +91,69 @@ order-2 is PAID
   replay from events alone → REFUNDED          materialized == replayed
 ```
 
-The useful action runs. The risky one waits for a human. The duplicate is
-refused. The path rebuilds from the event log.
+The useful action runs. The risky one waits for a human. The path rebuilds
+from the event log.
+
+Be clear about that third line, because it is the one most likely to be
+oversold. Refusing a repeat on an already-refunded order is table stakes: a
+unique constraint does it, and whatever framework handed your agent the refund
+tool very likely does it too. It is shown here because it is the boundary
+reading state, not because it is a reason to adopt one.
+
+## The Check No Per-Call Check Can Make
+
+Your agent is probably already bounded. Whatever gave it the refund tool scoped
+what it may call, from which state, with which parameters — and it is right
+every time it runs. It runs once per call, so ten correct refunds is ten correct
+decisions.
+
+```text
+a limit: refund-agent may refund €1,100 per calendar day
+
+  agent → AUTO_REFUND  €42     ✓ ALLOWED   €1,058 left
+  agent → AUTO_REFUND  €990    ✓ ALLOWED   €68 left
+  agent → AUTO_REFUND  €88     ✗ REFUSED   limit_reached
+
+the third is in the right state, with the right permission, valid
+parameters, under the approval threshold, and smaller than the two that
+just went through. Nothing is wrong with it. The day is spent.
+```
+
+That refusal cannot come from checking one call, because no single call can see
+the other two. [`pkg/kiff/limit`](./pkg/kiff/limit) holds the ledger that can.
+
+```go
+rt, err := runtime.New(runtime.Config{
+    Domain: &definition,
+    Limits: runtime.StaticLimits{{
+        ID:      "refund-agent-daily",
+        Subject: "refund-agent",
+        Actions: []string{"AUTO_REFUND"},
+        Aggregates: []limit.Aggregate{{
+            Quantity: limit.Quantity{Parameter: "amount"},
+            Max:      110000, // minor units
+            Window:   limit.WindowCalendarDay,
+        }},
+    }},
+    LimitLedger: limit.NewMemoryLedger(),
+})
+```
+
+Four properties are worth knowing before you rely on it:
+
+- **A limit constrains; it never confers.** An actor with no limit is
+  unaffected, so a first limit cannot break a running system.
+- **A revoked limit refuses.** It does not vanish and leave the actor
+  unbounded. The obvious implementation filters to the limits in force and
+  reads the empty set as "nothing applies, so allow" — which makes revoking a
+  limit the act that removes the bound.
+- **An unreadable ledger refuses.** Allowing on an unknown balance is the thing
+  a limit exists to prevent.
+- **`MemoryLedger` is correct for one process, and only that.** Two replicas
+  each hold their own ledger and each enforces the full ceiling, so the real
+  total is the sum. Implement `limit.Ledger` against shared storage when you
+  run more than one — a bound on a sequence has to live where the whole
+  sequence is visible.
 
 Run the live tour:
 
@@ -246,6 +307,7 @@ self-approval boundary succeeded.
 - [Why KIFF](./docs/why.md) — why multiple actors need the same operational reality
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
 - [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
+- [Limits](./docs/limits.md) — what an actor may do in total, and why no per-call check can answer it
 - [Cookbook guide](./docs/cookbook-guide.md) — choose, evaluate, and adapt a governed agent recipe
 - [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end
 - [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON

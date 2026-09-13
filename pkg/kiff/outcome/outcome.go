@@ -19,6 +19,7 @@ import (
 	"errors"
 
 	"github.com/kiff/kiff/pkg/kiff/action"
+	"github.com/kiff/kiff/pkg/kiff/limit"
 )
 
 // Outcome is the top-level result of evaluating or executing an action. It has
@@ -55,6 +56,19 @@ const (
 	ReasonExecutorMissing  Reason = "executor_missing"
 	ReasonInvalidContract  Reason = "invalid_contract"
 	ReasonUnknownAction    Reason = "unknown_action"
+
+	// ReasonLimitReached is an action correct in every other way,
+	// refused because the subject's authority for the window is spent.
+	// It has its own reason because a limit doing its job must not read
+	// as a failure: on a dashboard, "error" and "working as designed"
+	// should never be the same word.
+	ReasonLimitReached Reason = "limit_reached"
+
+	// ReasonLimitExpired is an action refused because a limit covering
+	// it is revoked or outside its validity window. Distinct from
+	// ReasonLimitReached so "you are out of budget" and "your authority
+	// has lapsed" are not the same message.
+	ReasonLimitExpired Reason = "limit_expired"
 	// ReasonError is a fail-safe reason for an unclassified failure. The
 	// outcome for an unclassified failure is Blocked, never Allowed.
 	ReasonError Reason = "error"
@@ -87,6 +101,14 @@ func Classify(err error) (Outcome, Reason) {
 	switch {
 	case err == nil:
 		return Allowed, ReasonNone
+	case errors.Is(err, limit.ErrLimitReached):
+		return Blocked, ReasonLimitReached
+	case errors.Is(err, limit.ErrExpired):
+		return Blocked, ReasonLimitExpired
+	case errors.Is(err, limit.ErrUsageUnavailable):
+		// The ledger could not be read. Blocked, deliberately: allowing
+		// here means acting on authority nobody could confirm.
+		return Blocked, ReasonLimitExpired
 	case errors.Is(err, action.ErrApprovalPolicy):
 		// A policy that cannot decide fails safe: the action is stopped, not
 		// allowed and not treated as merely awaiting a human.

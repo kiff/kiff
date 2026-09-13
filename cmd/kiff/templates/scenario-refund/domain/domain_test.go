@@ -9,6 +9,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/action"
 	"github.com/kiff/kiff/pkg/kiff/adapter"
 	"github.com/kiff/kiff/pkg/kiff/approval"
+	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 )
 
@@ -205,5 +206,51 @@ func TestReplayMatchesState(t *testing.T) {
 	}
 	if got := f.state(t, "order-replay"); got != replay.State.Value {
 		t.Fatalf("materialized %s != replayed %s", got, replay.State.Value)
+	}
+}
+
+// The aggregate beat, pinned in the scaffold that ships to readers.
+//
+// Every per-call check passes on the third refund — right state, right
+// permission, valid parameters, no approval needed — and it is smaller
+// than the two before it. It is refused because the day is spent, which
+// is the one refusal none of the other checks can produce.
+func TestTheThirdRefundIsRefusedOnTheDailyTotal(t *testing.T) {
+	rt, err := NewRuntime()
+	if err != nil {
+		t.Fatalf("runtime: %v", err)
+	}
+	ctx := context.Background()
+
+	refund := func(orderID string, cents int64) outcome.Decision {
+		t.Helper()
+		return rt.EvaluateAction(ctx, action.ActionContext{
+			ActionName:   ActionAutoRefund,
+			EntityID:     orderID,
+			EntityType:   EntityOrder,
+			CurrentState: StatePaid,
+			Actor:        AgentActor,
+			Parameters:   map[string]any{"amount_cents": cents, "reason": "test"},
+		}, autoRefundContract())
+	}
+
+	if d := refund("order-1", 4200); d.Outcome != outcome.Allowed {
+		t.Fatalf("first refund: %s %s", d.Outcome, d.Message)
+	}
+	if d := refund("order-2", 99900); d.Outcome != outcome.Allowed {
+		t.Fatalf("second refund: %s %s", d.Outcome, d.Message)
+	}
+
+	d := refund("order-3", 8800)
+	if d.Outcome == outcome.Allowed {
+		t.Fatal("the third refund was allowed; 4200+99900+8800 exceeds the 110000 daily ceiling")
+	}
+	if d.Reason != outcome.ReasonLimitReached {
+		t.Errorf("reason = %q, want limit_reached", d.Reason)
+	}
+	// The order is still PAID. If this ever reads REFUNDED the demo has
+	// become a state refusal again, which is the thing it exists not to be.
+	if d.CurrentState != StatePaid {
+		t.Errorf("state = %q, want PAID: the refusal must be the total, not the state", d.CurrentState)
 	}
 }

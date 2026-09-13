@@ -148,6 +148,11 @@ var seededOrders = []struct {
 }{
 	{"order-1", 4200},
 	{"order-2", 99900},
+	// A third order so the demo has something left to refund once the
+	// first two have spent most of the day's ceiling. The aggregate
+	// beat needs more than one order, because an order that has been
+	// refunded has left PAID and the state check refuses it anyway.
+	{"order-3", 8800},
 }
 
 // seedOrders makes each demo order exist in PAID. With a persistent store it

@@ -23,6 +23,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/adapter"
 	kiffdomain "github.com/kiff/kiff/pkg/kiff/domain"
 	"github.com/kiff/kiff/pkg/kiff/event"
+	"github.com/kiff/kiff/pkg/kiff/limit"
 	"github.com/kiff/kiff/pkg/kiff/permission"
 	"github.com/kiff/kiff/pkg/kiff/runtime"
 	"github.com/kiff/kiff/pkg/kiff/state"
@@ -43,6 +44,7 @@ const (
 	StateRefunded = "REFUNDED"
 
 	ActionMarkPaid    = "MARK_PAID"
+	ActionAutoRefund  = "AUTO_REFUND"
 	ActionRefundOrder = "REFUND_ORDER"
 
 	PermMarkPaid    permission.Permission = "refund.mark_paid"
@@ -65,7 +67,7 @@ func NewStateMachine() *state.TransitionMachine {
 		state.Transition{EventType: EventOrderRefunded, From: StatePaid, To: StateRefunded},
 	)
 	machine.SetAllowedActions(StateCreated, []string{ActionMarkPaid})
-	machine.SetAllowedActions(StatePaid, []string{ActionRefundOrder})
+	machine.SetAllowedActions(StatePaid, []string{ActionRefundOrder, ActionAutoRefund})
 	return machine
 }
 
@@ -85,7 +87,7 @@ func NewPermissionPolicy() *permission.SimplePolicy {
 
 // Contracts returns the domain's action contracts.
 func Contracts() []action.ActionContract {
-	return []action.ActionContract{markPaidContract(), refundOrderContract()}
+	return []action.ActionContract{markPaidContract(), autoRefundContract(), refundOrderContract()}
 }
 
 func markPaidContract() action.ActionContract {
@@ -107,6 +109,46 @@ func markPaidContract() action.ActionContract {
 				EffectsSummary: "marked order paid",
 				FollowUpEvents: []event.Event{
 					orderEvent(ctx.EntityID, EventOrderPaid, ctx.Actor.ID, map[string]any{"payment_id": paymentID}),
+				},
+				ExecutedAt: time.Now().UTC(),
+			}, nil
+		},
+	}
+}
+
+// autoRefundContract is the low-value refund an agent issues without a
+// human. It exists so this scaffold can show the refusal that matters:
+// every check on this action passes, every time, and the total is still
+// worth bounding. Without an auto-approved path there is nothing to
+// accumulate, and a demo where a human approves each refund has no
+// aggregate to speak of.
+func autoRefundContract() action.ActionContract {
+	return action.ActionContract{
+		Name:                ActionAutoRefund,
+		AllowedStates:       []string{StatePaid},
+		RequiredParameters:  []string{"amount_cents", "reason"},
+		RequiredPermissions: []permission.Permission{PermRefundOrder},
+		Risk:                action.RiskMedium,
+		ApprovalRequirement: action.ApprovalNever,
+		Executor: func(_ context.Context, ctx action.ActionContext) (action.ActionResult, error) {
+			amount, err := ReadIntCents(ctx.Parameters, "amount_cents")
+			if err != nil {
+				return action.ActionResult{}, err
+			}
+			reason, _ := ctx.Parameters["reason"].(string)
+			return action.ActionResult{
+				ActionName:     ActionAutoRefund,
+				EntityID:       ctx.EntityID,
+				Status:         action.ExecutionSucceeded,
+				Executed:       true,
+				Message:        fmt.Sprintf("auto refund of %d cents issued: %s", amount, reason),
+				EffectsSummary: "refund processed without a human",
+				Output:         map[string]any{"amount_cents": amount, "reason": reason},
+				FollowUpEvents: []event.Event{
+					orderEvent(ctx.EntityID, EventOrderRefunded, ctx.Actor.ID, map[string]any{
+						"amount_cents": amount,
+						"reason":       reason,
+					}),
 				},
 				ExecutedAt: time.Now().UTC(),
 			}, nil
@@ -159,7 +201,8 @@ func NewDefinition() (kiffdomain.Definition, error) {
 		Transition(EventOrderPaid, StateCreated, StatePaid).
 		Transition(EventOrderRefunded, StatePaid, StateRefunded).
 		Allow(StateCreated, ActionMarkPaid).
-		Allow(StatePaid, ActionRefundOrder)
+		Allow(StatePaid, ActionRefundOrder).
+		Allow(StatePaid, ActionAutoRefund)
 	for _, contract := range Contracts() {
 		b = b.Action(contract)
 	}
@@ -191,7 +234,39 @@ func NewRuntimeWithStores(stores *store.Bundle) (*runtime.Runtime, error) {
 		PermissionPolicy: NewPermissionPolicy(),
 		Adapters:         []adapter.Adapter{in},
 		Stores:           stores,
+		Limits:           DailyLimits(),
+		LimitLedger:      limit.NewMemoryLedger(),
 	})
+}
+
+// DailyLimits bounds what the agent may refund in total.
+//
+// Every other check in this domain answers a question about one action:
+// the state allows it, the actor holds the permission, the parameters
+// are there, and a high-value refund waits for a human. All of them are
+// right every time they run, and none of them can answer what the agent
+// has already refunded today.
+//
+// That gap is structural, not an oversight. A per-call check sees one
+// call, so ten correct refunds is ten correct decisions. The bound on
+// the sequence has to live where the sequence is visible.
+//
+// The ledger below is in-process, which is correct for this scaffold
+// and for a single replica. Running more than one means each holds its
+// own ledger and each enforces the full ceiling, so the real total is
+// the sum — implement limit.Ledger against shared storage before you
+// scale out. See docs/limits.md.
+func DailyLimits() runtime.StaticLimits {
+	return runtime.StaticLimits{{
+		ID:      "refund-agent-daily",
+		Subject: AgentActor.ID,
+		Actions: []string{ActionAutoRefund, ActionRefundOrder},
+		Aggregates: []limit.Aggregate{{
+			Quantity: limit.Quantity{Parameter: "amount_cents"},
+			Max:      110000,
+			Window:   limit.WindowCalendarDay,
+		}},
+	}}
 }
 
 func orderEvent(orderID, eventType, actorID string, payload map[string]any) event.Event {
