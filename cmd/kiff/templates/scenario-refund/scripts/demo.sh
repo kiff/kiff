@@ -2,10 +2,17 @@
 # Refund scenario demo — pure curl, no agent framework, no Python.
 #
 # It shows the enablement story and the boundary that makes it shippable:
-#   1. Unguarded path double-refunds an order (the danger).
+#   1. Unguarded path double-refunds an order.
 #   2. Guarded path issues the refund once a human approves,
 #      then refuses the repeat because the state moved on.
-#   3. Replay proves the final state from events alone.
+#   3. The aggregate: a refund correct in every way, refused because the
+#      day's ceiling is spent. This is the one a per-call check cannot
+#      make, and the reason the rest is worth wiring.
+#   4. Replay proves the final state from events alone.
+#
+# Step 2's repeat refusal is table stakes — a unique constraint does it,
+# and so does most tool code. It is here to show the boundary reading
+# state, not as a reason to adopt one. Step 3 is the reason.
 set -euo pipefail
 
 : "${SERVER_BIN:?SERVER_BIN must be set}"
@@ -61,11 +68,23 @@ echo "-- repeat is REFUSED: the order already moved to REFUNDED --"
 post /api/tools/refund_order '{"entity_id":"order-2","parameters":{"amount_cents":99900,"reason":"double refund attempt"}}'
 
 echo
-echo "== 3) the app's tool manifest, generated from the domain =="
+echo "== 3) THE AGGREGATE: every check passes, and the refund is still refused =="
+echo "-- the agent auto-refunds order-1, no human involved --"
+post /api/tools/auto_refund '{"entity_id":"order-1","parameters":{"amount_cents":4200,"reason":"damaged"}}'
+echo "-- order-2 already took 99900 through the approved path --"
+echo "-- so order-3 is REFUSED, and nothing is wrong with it --"
+post /api/tools/auto_refund '{"entity_id":"order-3","parameters":{"amount_cents":8800,"reason":"late delivery"}}'
+echo "   right state, right permission, valid parameters, no approval needed,"
+echo "   and smaller than the two that just went through. The day is spent."
+echo "   4200 + 99900 + 8800 > 110000, the daily ceiling in domain.DailyLimits()."
+echo "   No per-call check can produce that refusal: none of them sees the other two."
+
+echo
+echo "== 4) the tool manifest, generated from the domain =="
 get /api/tools/manifest.json
 
 echo
-echo "== 4) replay proves order-2's state from events alone =="
+echo "== 5) replay proves the state of order-2 from events alone =="
 get '/demo/rebuild?entity=order-2'
 
 echo

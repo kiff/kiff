@@ -21,6 +21,7 @@ import (
 	"github.com/kiff/kiff/pkg/kiff/idempotency"
 	"github.com/kiff/kiff/pkg/kiff/internal/trust"
 	"github.com/kiff/kiff/pkg/kiff/lifecycle"
+	"github.com/kiff/kiff/pkg/kiff/limit"
 	"github.com/kiff/kiff/pkg/kiff/outcome"
 	"github.com/kiff/kiff/pkg/kiff/permission"
 	"github.com/kiff/kiff/pkg/kiff/proposal"
@@ -50,6 +51,22 @@ type Config struct {
 	// successful operational path. The runtime defaults to
 	// NoopMetrics when this is nil; existing wiring is unaffected.
 	Metrics MetricsRecorder
+
+	// Limits and LimitLedger enable the aggregate check: what an actor
+	// may do in total, as distinct from whether one action is allowed.
+	// Both nil disables it entirely and the runtime behaves exactly as
+	// before, so a limit is something a domain opts into.
+	//
+	// Wiring one without the other is a configuration error rather than
+	// a half-enabled check, and New rejects it: a limits source with no
+	// ledger cannot tell what has been drawn, and would allow every
+	// action while appearing to bound them.
+	Limits      Limits
+	LimitLedger limit.Ledger
+
+	// Now overrides the clock, for tests and for deterministic
+	// window boundaries. Defaults to time.Now().UTC().
+	Now func() time.Time
 }
 
 // Runtime coordinates event ingestion, decisions, action validation, execution, and audit.
@@ -65,6 +82,13 @@ type Runtime struct {
 	Validator   action.Validator
 	Actions     *action.Catalog
 	Adapters    map[string]adapter.Adapter
+
+	// Limits and LimitLedger hold the aggregate check. Nil disables it.
+	Limits      Limits
+	LimitLedger limit.Ledger
+
+	// Now is the clock the window boundaries resolve against.
+	Now func() time.Time
 
 	// metrics receives counter increments on the successful path.
 	// Set from Config.Metrics; defaults to NoopMetrics so existing
@@ -100,6 +124,11 @@ func New(config Config) (*Runtime, error) {
 			return nil, err
 		}
 	}
+	if (config.Limits == nil) != (config.LimitLedger == nil) {
+		return nil, errors.New("runtime: Limits and LimitLedger must be set together; " +
+			"a limits source with no ledger cannot tell what has been drawn and would allow " +
+			"every action while appearing to bound them")
+	}
 	rt := &Runtime{
 		Domain:      config.Domain,
 		Events:      config.EventStore,
@@ -111,6 +140,9 @@ func New(config Config) (*Runtime, error) {
 		Idempotency: config.IdempotencyStore,
 		Validator:   config.ActionValidator,
 		Actions:     config.ActionCatalog,
+		Limits:      config.Limits,
+		LimitLedger: config.LimitLedger,
+		Now:         config.Now,
 		Adapters:    map[string]adapter.Adapter{},
 		metrics:     config.Metrics,
 		trace:       map[string]traceContext{},
@@ -495,6 +527,11 @@ func (r *Runtime) EvaluateAction(ctx context.Context, actionCtx action.ActionCon
 	if _, err := r.Validator.Validate(ctx, resolved, contract, r.Permissions); err != nil {
 		return outcome.FromError(err, name, resolved.EntityID, resolved.CurrentState)
 	}
+	// The aggregate check runs last, on an action the contract has
+	// already accepted. See checkLimits for why the order matters.
+	if err := r.checkLimits(ctx, resolved, contract); err != nil {
+		return outcome.FromError(err, name, resolved.EntityID, resolved.CurrentState)
+	}
 	return outcome.Succeeded(name, resolved.EntityID, resolved.CurrentState)
 }
 
@@ -551,6 +588,21 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 			return auditErr
 		}
 		return action.ErrApprovalRequired
+	}
+	// The aggregate check runs last, after the contract has accepted
+	// the action, and it is audited like any other refusal so the
+	// record and the decision never disagree about what happened.
+	if limitErr := r.checkLimits(ctx, actionCtx, contract); limitErr != nil {
+		_, reason := outcome.Classify(limitErr)
+		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action refused on the aggregate", map[string]any{
+			"action": contract.Name,
+			"reason": string(reason),
+			"error":  limitErr.Error(),
+		})
+		if auditErr != nil {
+			return auditErr
+		}
+		return limitErr
 	}
 	if err := r.appendAudit(ctx, audit.KindActionValidated, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validated", map[string]any{
 		"action":            contract.Name,

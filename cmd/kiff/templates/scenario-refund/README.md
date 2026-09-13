@@ -9,8 +9,9 @@ kiff new {{.ModulePath}} -scenario refund -agent custom-http
 It puts an agent on a real, consequential action — issuing refunds — and makes
 that safe to ship. The agent proposes the refund; KIFF checks the order's
 current state, the parameters, the permission, and the approval requirement
-before the money moves. An eligible refund executes; a repeat or an
-unapproved one is refused with a typed reason.
+before the money moves. An eligible refund executes; an unapproved one is
+refused with a typed reason; and a refund that would take the agent past its
+daily ceiling is refused even though nothing is wrong with it.
 
 ## Run the demo
 
@@ -22,18 +23,40 @@ No agent framework or API key needed — it is pure `curl`. You will watch:
 
 1. **Unguarded** — a refund endpoint with no governance double-refunds an order. The money goes out twice.
 2. **Guarded (through KIFF)** — the same refund is *held* for approval, executes once an operator grants it, and is then *refused* on repeat because the order already moved to `REFUNDED`.
-3. **Replay** — the order's final state is rebuilt from its events alone.
+3. **The aggregate** — a third refund that passes every check and is refused anyway, because the day's ceiling is spent.
+4. **Replay** — the order's final state is rebuilt from its events alone.
 
-That contrast is the whole point: the boundary is what lets you put the agent on the refund path in the first place.
+Step 3 is the one worth your attention. Step 2's repeat refusal is table
+stakes: a unique constraint does it, and so does most tool code. It is in the
+demo to show the boundary reading state, not as a reason to adopt one.
+
+Step 3 cannot be done by checking one call. The refused refund is in the right
+state, with the right permission and valid parameters, needs no approval, and
+is **smaller than the two that just went through**. Nothing is wrong with it —
+`4200 + 99900 + 8800` is over the `110000` daily ceiling in
+`domain.DailyLimits()`. No per-call check produces that refusal, because none
+of them can see the other two.
 
 ## The action
 
 ```text
-ORDER_PLACED -> CREATED -> MARK_PAID -> PAID -> REFUND_ORDER (approval) -> REFUNDED
+ORDER_PLACED -> CREATED -> MARK_PAID -> PAID -> AUTO_REFUND              -> REFUNDED
+                                             -> REFUND_ORDER (approval) -> REFUNDED
 ```
 
 - `MARK_PAID` — low risk, no approval.
+- `AUTO_REFUND` — medium risk, no approval. The small refund an agent issues without a human, which is what makes the daily ceiling the only thing bounding the total.
 - `REFUND_ORDER` — high risk, **human approval required**. Sends real money, so it only runs once, from `PAID`, under an approval.
+
+Plus a limit, in `domain.DailyLimits()`: the agent may refund `110000` minor
+units per calendar day across both refund actions. It is checked last, after
+the contract has already accepted the action, and it refuses actions that are
+correct in every other way. See [Limits](https://github.com/kiff/kiff/blob/main/docs/limits.md).
+
+The ledger behind it is in-process, which is right for this project and for a
+single replica. Two replicas each hold their own and each enforces the full
+ceiling, so the real total is the sum — implement `limit.Ledger` against shared
+storage before you scale out.
 
 The domain lives in [`domain/domain.go`](./domain/domain.go); its executors are real (the project runs and its tests pass out of the box). The mock business side effect — a refund ledger — lives in [`cmd/server`](./cmd/server), reached **only** after KIFF allows the action.
 
