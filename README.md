@@ -356,8 +356,10 @@ asks "why did this happen?"
 
 ## Status
 
-KIFF is at v0.8. The release adds the cloud-facing CLI loop, native Go source
-scanning, and a portable governance skill for coding assistants. The core
+KIFF is at v0.9. The release adds limits — a ceiling on what one actor may do
+in total, which is the one check a per-call boundary cannot make — plus an
+adversarial governance audit skill, an authoritative state machine, an
+authenticated HTTP API, and segregation of duties by default. The core
 action boundary is complete and adversarially tested: the approved bit cannot
 be forged from outside the module — including by reflection or `unsafe`, which
 a compile-time boundary cannot prevent — a pluggable validator cannot waive a
@@ -368,9 +370,10 @@ review it. Those attacks ship as conformance tests that fail the build if the
 boundary regresses.
 
 Known gaps, stated plainly: audit records are durable and append-only but not
-tamper-evident in the OSS stores, and there is no lease or version check
-between a decision and the executor, so a decision can in principle be acted on
-against state that has since moved.
+tamper-evident in the OSS stores; there is no lease or version check between a
+decision and the executor, so a decision can in principle be acted on against
+state that has since moved; and the bundled limit ledger is in-process, so two
+replicas each enforce the full ceiling and the real total is the sum.
 The [Postgres store](./pkg/kiff/store/postgres) is the production reference;
 the file-backed JSONL stores are for demos and local development.
 
