@@ -238,6 +238,25 @@ with a free tier. The CLI talks to it directly: `kiff auth login`, then
 `kiff usage`, `kiff keys` to inspect a tenant. Nothing in this repository
 requires it.
 
+### What the hosted runtime has that this repository does not
+
+Worth stating plainly, because the two are not in lockstep and a gap here is
+not always a gap there. This repository is the boundary; the hosted runtime was
+pushed harder to get something real in front of users, and parts of it have not
+been folded back.
+
+| | This repository | Hosted |
+| --- | --- | --- |
+| Decision boundary, approvals, replay | yes | same code |
+| Aggregate limits | yes (in-process ledger) | shared ledger, statement surface, and a management credential separating who may act from who sets how much |
+| Audit records | append-only, no hash, no signature | each record's data hashed into a causal chain, the chain signed, an hourly root committed to Base Sepolia (a testnet: signed and verifiable, not a settlement guarantee) |
+| Tenancy, billing, retention | not attempted | the product |
+| Lease between a decision and the executor | open | **also open** |
+
+The last row is the one worth reading. Where the hosted runtime is ahead it is
+said above; where it is not, saying so is the only way this table stays worth
+consulting.
+
 ## Executable Reality
 
 | Capability | What KIFF provides |
