@@ -4,7 +4,7 @@
 
 <h1 align="center">KIFF</h1>
 
-<p align="center"><strong>Your agents can have different memories. They cannot have different realities.</strong></p>
+<p align="center"><strong>Decide what an AI agent may do before it does it.</strong></p>
 
 <p align="center">
   <a href="https://github.com/kiff/kiff/actions/workflows/ci.yml"><img src="https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -14,35 +14,57 @@
   <a href="https://github.com/kiff/kiff/releases"><img src="https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
-KIFF is the reality layer for agentic systems. It gives every agent, human, and
-service the same answer to what happened, what is true now, what can happen
-next, and who may make it happen.
+KIFF is an open-source Go engine that decides each consequential action an AI
+agent proposes, before your system runs it. An agent, a person or a service
+proposes a named action, such as refunding an order. KIFF checks it against the
+current state of that order, the actor's permissions, the parameters, any
+approval the action requires, and how much that actor may still do in total. It
+returns `allowed`, `approval_required`, `blocked` or `invalid`, and records the
+decision in one replayable history. Your executor runs only what was allowed.
 
-In KIFF, that executable model is an **operational domain**. Events establish
-state. State determines which named actions are valid. Permissions and
-approvals determine who has authority. Execution results return to the same
-history, so the operation can be explained and replayed.
+The rules live in an **operational domain**. Events establish state. State
+determines which named actions are valid. Permissions, approvals and limits
+determine who may do what, and how much. Execution results return to the same
+history, so every outcome can be explained and replayed.
 
-KIFF does not replace your databases or systems of record. It turns their
-events into shared operational state and governs actions back into them. The
-open-source Go framework provides the domain model, runtime, stores, HTTP API,
-and CLI needed to run that layer yourself.
+KIFF does not replace your databases, your agent framework or your systems of
+record. It sits in front of the consequential calls into them.
 
-## From Memory to Reality
+### KIFF Cards
 
-Memory belongs to an agent. It can be private, incomplete, or different from
-one agent to the next. Operational reality belongs to the system. Every actor
-must be able to answer the same questions:
+On [kiff.dev](https://kiff.dev), this engine checks an agent's **Card**: the
+authority a business gives one agent. A Card says which actions the agent may
+take, how much per action and in total over a window, and what happens to a
+call outside it (it waits for the owner, or it is refused). The owner changes
+or revokes the Card without changing the agent.
 
-| Question every actor must answer | KIFF's answer |
+This repository has the parts a Card is built on: named actions, state,
+approvals, and per-actor limits with a ledger
+([`pkg/kiff/limit`](./pkg/kiff/limit)). Issuing, sharing and revoking Cards,
+the owner answering held calls, a shared ledger, and signed receipts are
+features of the hosted service. The table under
+[Run It Yourself or Hosted](#run-it-yourself-or-hosted) says exactly what
+differs.
+
+## Why the Authority Belongs Outside the Agent
+
+Ask where an agent's limits are written down today and the answer is usually a
+prompt, a config file, or a tool handler. Nobody responsible for the money can
+read them, every change is a deploy, and every new agent writes its own copy.
+
+KIFF keeps that authority outside the agent, in one domain that every actor
+proposes against. The agent can be replaced; the rules for what it may do stay.
+Every actor gets the same answers:
+
+| Question | KIFF's answer |
 | --- | --- |
 | What happened? | Recorded events and execution outcomes |
 | What is true now? | State derived from those events |
-| What can happen next? | Named actions and valid transitions |
-| Who may do it? | Permissions, risk policies, and approvals |
+| What may happen next? | Named actions and valid transitions |
+| Who may do it, and how much? | Permissions, approvals, and limits |
 | Why did it happen? | One decision and audit history |
 
-## When Every Agent Builds Its Own Reality
+## When Every Agent Carries Its Own Rules
 
 The first agent is usually a feature. The next few need a system.
 
@@ -53,29 +75,29 @@ disagree, and multiply the coordination work.
 
 ![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./docs/diagrams/traditional-operational-pattern.png)
 
-## One Reality, Many Actors
+## One Domain, Many Actors
 
 The actors and systems do not change. KIFF replaces the repeated domain copies
 with one operational domain and one validated execution path. Every actor sees
-the same state, proposes the same named actions, and meets the same authority
-and approval rules.
+the same state, proposes the same named actions, and meets the same authority,
+approval, and limit rules.
 
 This does not replace your agent framework, HTTP stack, queue, cron job, or
-systems of record. It gives them a shared reality and evaluates proposed
-actions against current state before your executor runs.
+systems of record. It evaluates proposed actions against current state before
+your executor runs.
 
 ![KIFF provides one domain for events, state, actions, authority, and execution.](./docs/diagrams/kiff-shared-domain.png)
 
-| Without a reality layer | With KIFF | Practical effect |
+| Without KIFF | With KIFF | Practical effect |
 | --- | --- | --- |
 | Each actor carries its own version of state and rules. | Events and derived state are shared. | Actors stop disagreeing about what is true. |
 | Every new actor builds another operational backend. | Actors propose the same named actions. | Add agents without rebuilding the operation. |
-| Decisions live in application code, prompts, and tool handlers. | One authority boundary evaluates every proposal. | Consistent approvals and refusals. |
+| Decisions and limits live in application code, prompts, and tool handlers. | One decision point evaluates every proposal. | Consistent approvals, limits, and refusals. |
 | Logs are scattered across services. | Events, decisions, and results form one history. | Replay and explain an operational outcome. |
 
 ## A Concrete Example
 
-One operational reality, one refund:
+One domain, one refund:
 
 ```text
 order-2 is PAID
@@ -121,6 +143,7 @@ just went through. Nothing is wrong with it. The day is spent.
 
 That refusal cannot come from checking one call, because no single call can see
 the other two. [`pkg/kiff/limit`](./pkg/kiff/limit) holds the ledger that can.
+It is the same check behind a [KIFF Card](#kiff-cards).
 
 ```go
 rt, err := runtime.New(runtime.Config{
@@ -193,8 +216,8 @@ Run `kiff help` for the full command list or `kiff <command> -h` for flags.
 
 ## Connect an Agent
 
-If you already have an agent, you can bring its tool calls into the same
-operational reality without restructuring it. The guard SDK connects KIFF to
+If you already have an agent, you can put its tool calls in front of KIFF
+without restructuring it. The guard SDK connects KIFF to
 the pre-execution seam your framework already exposes:
 
 ```bash
@@ -248,7 +271,7 @@ been folded back.
 | | This repository | Hosted |
 | --- | --- | --- |
 | Decision boundary, approvals, replay | yes | same code |
-| Aggregate limits | yes (in-process ledger) | shared ledger, statement surface, and a management credential separating who may act from who sets how much |
+| Aggregate limits | yes (in-process ledger) | issued as KIFF Cards: shared ledger, statements, Cards shared by several agents, owner approval of held calls, and a management credential separating who may act from who sets how much |
 | Audit records | append-only, no hash, no signature | each record's data hashed into a causal chain, the chain signed, an hourly root committed to Base Sepolia (a testnet: signed and verifiable, not a settlement guarantee) |
 | Tenancy, billing, retention | not attempted | the product |
 | Lease between a decision and the executor | open | **also open** |
@@ -257,7 +280,7 @@ The last row is the one worth reading. Where the hosted runtime is ahead it is
 said above; where it is not, saying so is the only way this table stays worth
 consulting.
 
-## Executable Reality
+## What the Framework Provides
 
 | Capability | What KIFF provides |
 | --- | --- |
@@ -323,7 +346,7 @@ self-approval boundary succeeded.
 
 ## Documentation
 
-- [Why KIFF](./docs/why.md) — why multiple actors need the same operational reality
+- [Why KIFF](./docs/why.md) — why agents, people, and services need one domain to act against
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
 - [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
 - [Limits](./docs/limits.md) — what an actor may do in total, and why no per-call check can answer it
@@ -369,9 +392,9 @@ work while KIFF owns the consequential action boundary.
 
 If your app is simple CRUD, or direct LLM tool calls with no consequential
 state, KIFF is too much structure — ship something smaller. KIFF earns its keep
-when multiple actors must share operational reality, what they may do depends
-on current state, some actions need a human sign-off, and someone eventually
-asks "why did this happen?"
+when agents take consequential actions, what they may do depends on current
+state and on how much they have already done, some actions need a human
+sign-off, and someone eventually asks "why did this happen?"
 
 ## Status
 
