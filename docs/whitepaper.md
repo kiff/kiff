@@ -10,7 +10,7 @@ Code referenced is part of the open-source MIT framework at
 
 ---
 
-> **Scope: framework v0.8.** This document describes that version's
+> **Scope: framework v0.9.** This document describes that version's
 > behavior and limitations. Section 3 includes the approval and state
 > checks revised after an adversarial audit.
 
@@ -174,11 +174,16 @@ The revised runtime checks approval independently of the supplied bit:
   approval by ID. It checks that the record matches the entity and
   action and has status `granted` before deriving the approved value.
 - The capability check rejects a zero `trust.Grant`.
-- An approval check runs before the pluggable `Validator`, so replacing
-  that validator cannot waive the approval requirement.
+- After the pluggable `Validator` accepts an action, the runtime checks
+  the approval requirement again, so a permissive validator cannot waive it.
 
 If a check fails, the context stays unapproved. Store errors propagate
 to the caller rather than allowing execution.
+
+By default, the reviewer must differ from the requester. A requester
+attempting to review their own approval receives `approval.ErrSelfReview`.
+This segregation of duties prevents the requester from providing their
+own sign-off.
 
 ### Stored state
 
@@ -209,7 +214,8 @@ The framework resolves roles from `permission.Policy`, keyed by
 `AssignRole`. The permission check does not trust `Actor.Roles` supplied
 in the action context.
 
-The conformance suite checks that submitting `Roles: ["admin"]` gives
+The unit test in `pkg/kiff/permission/permission_test.go` checks that
+submitting `Roles: ["admin"]` gives
 an actor no admin permissions unless the policy assigned that role.
 `Actor.Roles` remains descriptive metadata for audit and display.
 
@@ -218,7 +224,9 @@ an actor no admin permissions unless the policy assigned that role.
 The host authenticates the actor through a session, API-key record or
 identity-provider claim. It supplies that identity and its assigned
 roles to the policy. KIFF then validates state, parameters, permissions
-and approval in that order. If the host accepts a forged identity or
+and approval in that order, then any aggregate limits. The aggregate
+check runs last, after the action contract accepts the request. If the
+host accepts a forged identity or
 assigns excessive permissions, the framework cannot correct that mistake.
 
 The runtime also requires explicit executors (`ErrExecutorMissing` on
@@ -347,11 +355,14 @@ and the adversarial fixtures test specific attempts to bypass approval.
 The approval bypass demonstrates why compile-time restrictions need
 runtime checks and tests.
 
-The demos cover e-commerce and support workflows. The insurance,
-healthcare, fintech and DevOps examples in section 1 are hypothetical;
-they do not establish sector readiness or regulatory compliance. Passing
-the documented tests also does not establish safety for every integration
-or attack. An adopter must test its own contracts and execution paths.
+The demos cover e-commerce and support workflows. `cookbook/` also
+contains seven runnable recipes with domain tests, including
+`insurance-claims-triage`, `healthcare-prior-auth` and
+`cloud-infra-remediation`. Those tested recipes and the hypothetical
+examples in section 1 do not establish sector readiness or regulatory
+compliance. Passing the documented tests also does not establish safety
+for every integration or attack. An adopter must test its own contracts
+and execution paths.
 
 ---
 
@@ -399,9 +410,9 @@ during that interval.
 <a id="7-where-this-goes"></a>
 ## 7. Future work
 
-Further work includes testing domains outside e-commerce, evaluating
-additional persistence backends and documenting the protocol independently
-of its Go types. SQLite could support single-binary deployments, while
+Further work includes evaluating additional persistence backends and
+documenting the protocol independently of its Go types. SQLite could
+support single-binary deployments, while
 DynamoDB could serve AWS-based applications. These are possible
 extensions, not capabilities established by the examples in this paper.
 
