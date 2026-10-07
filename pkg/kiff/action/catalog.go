@@ -2,6 +2,7 @@ package action
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"sync"
 )
@@ -22,6 +23,11 @@ func NewCatalog() *Catalog {
 func (c *Catalog) Register(contract ActionContract) error {
 	if contract.Name == "" {
 		return errors.Join(ErrInvalidContract, errors.New("action contract name is required"))
+	}
+	for _, p := range contract.Parameters {
+		if err := p.checkUnit(); err != nil {
+			return errors.Join(ErrInvalidContract, fmt.Errorf("%s: %w", contract.Name, err))
+		}
 	}
 
 	c.mu.Lock()
