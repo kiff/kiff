@@ -10,32 +10,26 @@ Code referenced is part of the open-source MIT framework at
 
 ---
 
-> **As of v0.8.** Version-specific claims in this document are stated
-> once, here. The trust-boundary section was materially revised after an
-> adversarial audit of this framework; §3 says what changed and why.
+> **Scope: framework v0.9.** This document describes that version's
+> behavior and limitations. Section 3 includes the approval and state
+> checks revised after an adversarial audit.
 
 ## Abstract
 
-Operational software increasingly involves multiple actors — humans,
-services, integrations, AI agents — writing to the same state. The default
-shape of this software is brittle: each actor mutates state through its own
-path, governance is enforced by convention, and the audit trail is whatever
-log the engineer remembered to add.
+Humans, services, integrations and AI agents can act on the same order,
+claim or account. Each action needs checks against the entity's current
+state, the actor's permissions and any required approval. When those
+checks differ between callers, an action may run without the review or
+state check the business requires.
 
-KIFF is a small Go framework that puts a runtime between actors and shared
-state. Actors propose actions. The runtime validates state, parameters,
-permissions, and approvals before any executor runs. Every step — proposal,
-validation, approval, execution, failure — is appended to an immutable
-audit trail with trace correlation. State can be replayed from events.
+KIFF is a Go framework that validates proposed actions before calling
+their executors. It provides events, state transitions, decisions,
+action contracts, approvals and audit records. Events can be replayed
+to reconstruct an entity's state.
 
-This document describes the protocol, the trust boundary it enforces,
-and the artifacts that prove the design is real: a working framework,
-two end-to-end demos with real LLM proposals, a Postgres backend, a shared
-conformance test suite, and a CLI that inspects any KIFF server.
-
-The argument is small. Operational governance belongs in the runtime, not
-in the prompt or in convention. The runtime is small enough to read in a
-weekend.
+This paper describes the validation sequence, its trust boundary and
+the evidence supplied by the framework, demos and tests. It also
+identifies the checks an application must perform outside the framework.
 
 ---
 
@@ -44,156 +38,100 @@ weekend.
 1. [The problem](#1-the-problem)
 2. [The coordination loop](#2-the-coordination-loop)
 3. [The trust boundary](#3-the-trust-boundary)
-4. [Mechanics, not semantics](#4-mechanics-not-semantics)
-5. [Evidence: what we built](#5-evidence-what-we-built)
-6. [Honest limits](#6-honest-limits)
-7. [Where this goes](#7-where-this-goes)
+4. [Domain definitions](#4-mechanics-not-semantics)
+5. [Implementation and tests](#5-evidence-what-we-built)
+6. [Limits](#6-honest-limits)
+7. [Future work](#7-where-this-goes)
 8. [Appendix A: the action contract](#appendix-a-the-action-contract)
-9. [Appendix B: what KIFF is not](#appendix-b-what-kiff-is-not)
+9. [Appendix B: integration boundaries](#appendix-b-what-kiff-is-not)
 
 ---
 
 ## 1. The problem
 
-Coordination failures around shared state look the same across very
-different industries. The vocabulary changes; the operational shape does
-not. Five examples, in five sectors, with the same underlying story:
+An actor's access to a tool does not establish whether a particular
+request is allowed. A refund tool may accept an amount even when the
+order is unpaid; a restart command may work during a deployment freeze.
+The application needs to check the request before the side effect occurs.
 
-**E-commerce.** A support agent (human or AI) issues a $999 refund on an
-order whose payment never cleared. Nothing in the path between the agent
-and the payment processor checked the order's state. The refund executes.
-The customer is delighted, then confused, then files a second dispute.
+The following hypothetical examples illustrate checks that operational
+systems may need:
 
-**Insurance.** A claims-handling service auto-approves a $50,000 payout
-because the claim text matched a low-friction template. The state of the
-claim — under fraud review by a different team — was visible in another
-system but not consulted. Funds move; the fraud team finds out the next
-morning.
+| Context | Proposed action | Check needed before execution |
+|---|---|---|
+| E-commerce | Refund an unpaid order | Confirm the order's payment state |
+| Insurance | Pay a claim under fraud review | Confirm the claim is eligible for payment |
+| Healthcare | Create an order that conflicts with an active prescription | Check the relevant clinical state |
+| Fintech | Transfer an amount above a dual-control threshold | Obtain the required review |
+| Internal DevOps | Restart a service during a deployment freeze | Check whether the restart is permitted |
 
-**Healthcare.** A clinical workflow tool ingests a lab result and writes
-an order that conflicts with an active prescription. There is no shared
-state both modules read from before writing. Two clinicians have to
-reconcile what happened by reading two audit logs that don't share a
-trace ID.
+These checks apply to requests from humans and software as well as AI
+agents. Teams implement them with state machines, validators, review
+queues and audit stores. KIFF connects those components through a shared
+action contract and runtime.
 
-**Fintech.** An automated treasury-management service moves funds between
-two corporate accounts to optimize float. The transfer exceeds the
-threshold that should have triggered dual control, but dual control was
-implemented in a spreadsheet by the operations team, not in the service.
-The transfer settles; the CFO gets a flagged email three hours later.
+### Scope of enforcement
 
-**Internal DevOps.** An on-call engineer's AI assistant restarts a
-production service to clear what looked like a memory leak. The deploy
-freeze that was active for the next two hours was a calendar event, not a
-runtime check. The restart triggers a cascade. Twelve minutes of
-downtime.
+KIFF evaluates requests submitted to its gate. In an embedded application,
+the runtime validates an action before invoking its registered executor.
+When an application uses a decision API or the guard SDK, the calling
+code must honor the verdict; the guard's pre-tool hook withholds a call
+on a non-`allowed` verdict.
 
-These are not AI failures. The AI assistant in the last example is
-incidental; the human engineer makes the same mistake. The common pattern
-is that *the actor and the executor were the same component*, with no
-runtime between them that could refuse the action.
-
-Every team eventually builds something to address this: a state-machine
-table, a webhook that emits to an audit log, a Slack approval bot, a
-review queue, a "do not run during freeze" check. The components are
-real and they work. But they are built once per company, in different
-languages, with different ergonomics, and the cost of wiring them
-together is large enough that most teams build the minimum viable version
-and stop.
-
-The result is what the old vendor-built systems looked like: governance
-that lives in convention, not in code; audit trails that explain part of
-what happened; replay capability that exists in theory because the events
-were stored, but no software can actually reconstruct the entity.
-
-KIFF is the same components, written once, in idiomatic Go, with the
-contracts visible to every actor.
-
-One scoping note belongs up front, because it shapes everything below.
-KIFF is an **advisory contract gate, not a whole-system enforcer.** It
-evaluates a proposed action against state, parameters, permissions, and
-approvals, and returns a verdict; honoring that verdict is the caller's
-responsibility. Enforcement is real where the caller routes through the
-gate — for AI agents, the guard SDK sits in the agent's pre-tool hook and
-withholds the tool call on any non-`allowed` verdict, so the gate governs
-the agent's tool-call surface. KIFF does not, and cannot, prevent a
-side effect reached by a code path that never asks. It governs what your
-agents do through the gate; it does not make a bad action physically
-impossible through a path you didn't route. That boundary is a design
-choice, not a gap, and the rest of this document stays inside it.
+A code path that invokes a tool without consulting KIFF remains outside
+this boundary. Integration must route the relevant actions through the
+gate and control any credentials or alternative execution paths that
+could bypass it.
 
 ---
 
 ## 2. The coordination loop
 
-The framework has six primitives. They are not invented; they are what
-operational systems already have, named consistently and connected by a
-small runtime.
+The framework connects six types of record:
 
 ```
 event → state → decision → action → approval → audit
 ```
 
-**Events** are normalized records of what happened. They are append-only,
-timestamped, attributed to a source. They carry domain-specific payloads
-inside a stable structural envelope.
+**Events** record what happened. Each append-only record includes a
+timestamp, source and domain-specific payload inside a common envelope.
 
-**State** is the maintained, shared, auditable condition of an entity. It
-is updated by events through deterministic transitions. State is the
-single source of truth all actors read from before deciding anything.
+**State** describes an entity's current condition. Deterministic
+transitions update it from events, giving the runtime a stored value
+against which to validate an action.
 
-**Decisions** are auditable records of intent. An agent that wants to
-issue a refund records a decision with its reasoning, its evidence, its
-confidence. The decision exists whether or not the action ever runs. This
-is what gives the system the answer to "why did you try this?" — not just
-"what did you do?".
+**Decisions** record an actor's intent, including any submitted reasoning,
+evidence and confidence. A decision remains available even if its proposed
+action never runs. The record preserves the actor's explanation; it does
+not verify that the explanation is correct.
 
-**Actions** are explicit contracts, not free-form tool calls. A contract
-declares the action's name, the states in which it is allowed, the
-parameters it requires, the permissions it requires, its risk level, and
-whether it requires human approval. The full type is reproduced in
-[Appendix A](#appendix-a-the-action-contract).
+**Actions** declare a name, allowed states, required parameters,
+permissions, risk level, approval requirement and executor. The runtime
+checks the contract before execution. See [Appendix A](#appendix-a-the-action-contract).
 
-**Approvals** are first-class records, not booleans. An approval has an
-identity, an entity, an action, a requester, a reviewer, a status, a
-reason, and timestamps. The runtime, and only the runtime, can mark an
-action context as approved — and only after looking up a granted
-approval record from the store.
+**Approvals** record the requester, reviewer, entity, action, status,
+reason and timestamps. The runtime resolves a granted approval from the
+store before marking the action context approved.
 
-**Audit** is part of the protocol, not a logging concern. Every event
-ingested, every state transition, every decision recorded, every action
-validated, every approval requested or reviewed, every execution
-result, and every failure produces an audit record. Records carry
-`trace_id`, `correlation_id`, and `causation_id`. One filter call returns
-the full chain that started from any inbound request.
+**Audit records** cover ingestion, state transitions, decisions,
+validation, approval requests and reviews, execution results and
+failures. Their `trace_id`, `correlation_id` and `causation_id` fields
+link the steps of a request.
 
-The loop runs left to right. An event arrives, state advances, a
-decision is recorded (by an agent or a human), an action is validated,
-approval is requested if needed, the executor runs, the result is
-audited. Any step can fail; the failure is also audited. Six months
-later, the entity can be replayed from events alone and the materialized
-state can be checked against the replayed state.
-
-This is not a framework that asks you to learn a new programming model.
-It is the model you would have built yourself, written once.
+An event updates state, an actor records a decision and the runtime
+validates the proposed action. If the action needs approval, execution
+waits for a granted record. The executor then runs and its outcome is
+audited. Replaying the entity's events allows comparison with its
+materialized state.
 
 ---
 
 ## 3. The trust boundary
 
-The single technical claim KIFF stands on:
+An action that requires approval must resolve a granted record from the
+approval store. A caller-supplied flag cannot substitute for that record.
 
-> Callers cannot self-approve.
-
-A naive system would let any caller pass `approved: true` along with the
-action they want to run. KIFF refuses to expose that field.
-
-Inside the runtime, an `ActionContext` has an unexported `approved`
-boolean. The Go compiler enforces that fields with lower-case names are
-not visible outside the package, so no other package can construct an
-`ActionContext` with `approved: true` directly. The bit is also the only
-thing `DefaultValidator` accepts as proof of approval — a caller cannot
-substitute anything else.
+`ActionContext` carries an unexported `approved` field:
 
 ```go
 // pkg/kiff/action/action.go (excerpt)
@@ -209,17 +147,15 @@ type ActionContext struct {
 }
 ```
 
-An earlier version of this section stopped here, and it was wrong.
+Go prevents a package outside `action` from setting that field in a
+struct literal. `GrantApproval` also requires a capability type from an
+`internal/` package, which external callers cannot name. These compiler
+restrictions alone do not establish a runtime security boundary.
 
-The unexported field closes the front door (a struct literal). The side
-door — a setter — is guarded by a capability: `GrantApproval` takes a
-value of a type that lives in an `internal/` package, so only code inside
-the module can mint one. A caller that merely imports the `action`
-package cannot name that type, let alone construct it.
+### The approval bypass and its fix
 
-Both of those are **compiler rules**, and reflection runs after the
-compiler has finished. You do not need to name a type to obtain one — the
-method's own signature carries it:
+An adversarial audit used reflection to call the setter from a separate
+module:
 
 ```go
 // From a separate module. No unsafe, four lines.
@@ -227,187 +163,147 @@ m := reflect.ValueOf(&ctx).MethodByName("GrantApproval")
 m.Call([]reflect.Value{reflect.Zero(m.Type().In(0))})
 ```
 
-An adversarial audit of this framework used exactly that, plus an
-`unsafe` variant, to execute an approval-required action against an
-**empty approval store** — and the audit trail recorded both attempts as
-`action_validated` and `action_executed`. A governance layer that emits a
-clean receipt for a bypass is worse than none, because the receipt is
-what someone trusts months later.
+This attack and an `unsafe` variant executed an approval-required action
+against an empty approval store. Both attempts produced
+`action_validated` and `action_executed` audit records. The earlier
+implementation therefore allowed a bypass while recording it as valid.
 
-So the boundary does not rest on unreachability. It rests on the runtime
-**refusing to believe the bit**:
+The revised runtime checks approval independently of the supplied bit:
 
-- `applyApproval` **clears any inbound approved value** and re-derives it
-  from the approval store, after looking the record up by ID, verifying
-  it matches the entity and action, and confirming its status is
-  `granted`. A forged bit is overwritten before anything reads it, so
-  forging it accomplishes nothing.
-- The capability is checked: a zero `trust.Grant` is not a grant.
-- A **non-overridable approval check** runs above the pluggable
-  `Validator`. Approval is the one decision an embedder must not be able
-  to replace — an earlier design left it inside that seam, which meant
-  twelve lines of ordinary Go could waive it.
+- `applyApproval` clears any inbound approved value and looks up the
+  approval by ID. It checks that the record matches the entity and
+  action and has status `granted` before deriving the approved value.
+- The capability check rejects a zero `trust.Grant`.
+- After the pluggable `Validator` accepts an action, the runtime checks
+  the approval requirement again, so a permissive validator cannot waive it.
 
-If any check fails the bit stays false. If the approval store returns an
-error, the runtime propagates it; it does not silently treat a missing
-approval as not-required.
+If a check fails, the context stays unapproved. Store errors propagate
+to the caller rather than allowing execution.
 
-The same discipline now covers the state an action is judged against.
-`CurrentState` was a caller-supplied string the runtime never verified,
-which meant a proposer could authorize a state-dependent action by
-naming a favourable state. The state machine is now authoritative:
-`ValidateAction` reads the stored state and refuses a disagreeing
-assertion with `ErrStateMismatch`.
+By default, the reviewer must differ from the requester. A requester
+attempting to review their own approval receives `approval.ErrSelfReview`.
+This segregation of duties prevents the requester from providing their
+own sign-off.
 
-This is testable at two levels, and the first is not sufficient alone.
-The compile-time suite confirms that neither a struct literal
-(`ActionContext{approved: true}`) nor a setter call from outside the
-framework compiles. The runtime suite goes further: three fixtures build
-and *run* from a separate module against an empty approval store —
-reflection, `unsafe`, and a permissive validator — and each must report
-refusal. They fail without the fix and pass with it, so CI breaks if the
-boundary regresses. A separate test confirms that calling `ExecuteAction`
-with an invented
-approval ID returns `action.ErrApprovalRequired` rather than running the
-executor. The test exists because the boundary is the framework's most
-important property.
+### Stored state
 
-### Authority is enforced the same way
+The runtime also verifies the state used for validation. Earlier code
+accepted a caller's `CurrentState` string without checking it, allowing
+the caller to name a state in which its action was permitted.
+`ValidateAction` now reads stored state and returns `ErrStateMismatch`
+when the caller's assertion disagrees with it.
 
-Authority — does this actor hold the permission the action requires —
-is enforced by the framework with the same structural discipline as
-approval. The permission check resolves the actor's roles from the
-`permission.Policy`, keyed by `Actor.ID`, from membership the policy
-owns (`AssignRole`). It does **not** read `Actor.Roles` off the
-caller-built context. A caller cannot self-grant a permission by putting
-a role on the actor it submits, exactly as it cannot set the `approved`
-bit. The conformance suite asserts it: an actor carrying
-`Roles: ["admin"]` it assigned itself receives no admin permission
-unless the policy assigned that actor the role.
+### Tests
 
-`Actor.Roles` remains as descriptive metadata for audit and display; it
-carries no authorization power.
+Compile-time tests check that an external caller cannot set
+`ActionContext{approved: true}` or directly invoke the protected setter.
+Runtime fixtures execute reflection, `unsafe` and permissive-validator
+attacks from a separate module against an empty approval store. Each
+must receive a refusal. These fixtures fail against the earlier
+implementation and pass after the fix.
+
+A separate test checks that an invented approval ID causes
+`ExecuteAction` to return `action.ErrApprovalRequired` without running
+the executor. Both compiler and runtime tests are needed: the compiler
+tests passed even when the reflection bypass existed.
+
+### Permissions
+
+The framework resolves roles from `permission.Policy`, keyed by
+`Actor.ID`. Role membership belongs to the policy and is assigned through
+`AssignRole`. The permission check does not trust `Actor.Roles` supplied
+in the action context.
+
+The unit test in `pkg/kiff/permission/permission_test.go` checks that
+submitting `Roles: ["admin"]` gives
+an actor no admin permissions unless the policy assigned that role.
+`Actor.Roles` remains descriptive metadata for audit and display.
 
 ### Host responsibilities
 
-With authority resolved inside the framework, the host's job narrows to
-the one thing only it can do: **authentication.** The host establishes
-*who* the actor is — an authenticated session, an API-key record, an
-identity-provider claim — and assigns that identity's roles into the
-`permission.Policy`. The framework then decides what that identity may
-do. Authentication is irreducibly the host's (it varies per deployment);
-authorization is the framework's. The framework guarantees deterministic
-gate ordering (state → parameters → permissions → approval), an
-unforgeable `approved` bit, policy-resolved authority, and audit on
-every step; the host guarantees that the identity feeding the policy is
-real.
+The host authenticates the actor through a session, API-key record or
+identity-provider claim. It supplies that identity and its assigned
+roles to the policy. KIFF then validates state, parameters, permissions
+and approval in that order, then any aggregate limits. The aggregate
+check runs last, after the action contract accepts the request. If the
+host accepts a forged identity or
+assigns excessive permissions, the framework cannot correct that mistake.
 
-The same shape applies to other guarantees: actions require explicit
-executor functions (a missing executor returns `ErrExecutorMissing`
-rather than a silent no-op), audit IDs combine an atomic counter with
-random bytes (collision-resistant under concurrent writes), and the
-runtime validates a domain definition when one is supplied (an invalid
-state machine fails fast, not after the first event).
-
-These are small properties. Each one is one decision. The framework's
-value is that the decisions are made consistently across packages and
-backed by tests, not that any one of them is novel.
+The runtime also requires explicit executors (`ErrExecutorMissing` on
+a missing executor), uses atomic counters and random bytes for audit IDs,
+and validates a supplied domain definition before processing events.
 
 ---
 
-## 4. Mechanics, not semantics
+<a id="4-mechanics-not-semantics"></a>
+## 4. Domain definitions
 
-The most common protocol-design mistake is normalizing too much. The
-instinct is reasonable: if KIFF defines a coordination layer, why not
-also define what an order, a claim, or a clinical encounter is?
+Each application defines the business vocabulary its contracts use:
 
-The answer is that business semantics do not portably abstract.
+- entity types, such as `Order`, `Claim` or `Service`;
+- event types, such as `ORDER_PAID` or `CLAIM_FILED`;
+- states, such as `PAID`, `UNDER_REVIEW` or `RESOLVED`;
+- action contracts, such as `REFUND_ORDER` or `RESTART_SERVICE`;
+- permission identifiers, such as `orders.refund`.
 
-A refund and a fraud hold and a prescription order share none of their
-business meaning. Forcing them into a common ontology produces a
-specification that has to change every time a new domain is added — and
-that fails the moment a domain has a concept the ontology did not
-anticipate.
+KIFF provides the record formats and validation sequence. Events carry
+an ID, type, entity, source, actor, timestamp, metadata and payload.
+Transitions update state; contracts define action requirements;
+approval records track review; audit records link the resulting steps.
 
-KIFF normalizes the *operational structure*, not the meaning. Every
-domain that uses the framework defines its own:
-
-- entity types (`Order`, `Claim`, `Encounter`, `Account`, `Service`)
-- event types (`ORDER_PAID`, `CLAIM_FILED`, `LAB_RESULT_RECEIVED`)
-- states (`PAID`, `UNDER_REVIEW`, `RESOLVED`)
-- action contracts (`REFUND_ORDER`, `APPROVE_CLAIM`, `RESTART_SERVICE`)
-- permissions (dotted lowercase identifiers like `orders.refund`)
-
-KIFF only defines how those are *structured*: events have a stable
-envelope (id, type, entity, source, actor, timestamp, metadata,
-payload), states are values updated by deterministic transitions,
-actions are contracts with the seven fields above, approvals are upsert
-records, audit is append-only with trace correlation.
-
-The analogy is TCP/IP. The protocol does not know whether the bytes are
-a transaction confirmation or a video frame. It defines the structure
-inside which those things travel. KIFF is the same kind of layer for
-operational coordination.
-
-This boundary is what makes the framework's coordination story work
-across the five sectors above without becoming a 200-page specification.
-The mechanics generalize. The vocabulary does not.
+A domain must supply its own eligibility rules. For example, a refund
+contract needs payment-state checks, while an outreach contract may
+require verified consent. Sharing the runtime does not establish those
+rules or make one domain's checks sufficient for another.
 
 ---
 
-## 5. Evidence: what we built
+<a id="5-evidence-what-we-built"></a>
+## 5. Implementation and tests
 
-The artifacts in the repository are the
-evidence the design is real, not aspirational.
+The repository provides the following implementations, examples and
+tests for the version covered by this paper.
 
 ### 5.1 The framework
 
-About 6,000 lines of Go under `pkg/kiff/`. Seventeen packages, each with
-one job, each with tests. The entire core protocol — events, state,
-decisions, actions, approvals, audit, runtime, store interfaces, HTTP
-API, observability wrapper, test helpers — runs against `go 1.23` with
-one external dependency (`pgx/v5` for the Postgres backend, optional).
+`pkg/kiff/` contains the core records, runtime, store interfaces, HTTP
+API, observability wrapper and test helpers. The Postgres backend uses
+`pgx/v5`; applications can use the in-memory and file-backed stores
+without that backend.
 
-Anything implementing the four `Store` interfaces (`event.Store`,
-`decision.Store`, `approval.Store`, `audit.Store`) is a valid backend.
-Three implementations exist: in-memory (default), file-backed JSONL
-(local persistence), Postgres (production). All three pass the same
-shared conformance suite (`pkg/kiff/store/storetest`), which has 21
-cases covering ordering, filtering, payload round-trips, upsert
-semantics, validation rejection, and context cancellation.
+The `event.Store`, `decision.Store`, `approval.Store` and `audit.Store`
+interfaces have in-memory, JSONL and Postgres implementations. The shared
+conformance suite checks ordering, filtering, payload round-trips,
+upserts, validation rejection and context cancellation.
 
 ### 5.2 The refund demo
 
-Located at `examples/refund-agno/`. Two runs of the same Agno-shaped
-agent against the same prompts, same model, same fixture.
+`examples/refund-agno/` runs an agent against a mock order database with
+the same prompts, model and fixture in two configurations.
 
-**Run A — without KIFF.** The agent's `refund_order` tool mutates a mock
-database directly. A $999 refund on an unpaid order succeeds because
-nothing checks the order's state.
+**Direct tool access.** The agent's `refund_order` tool mutates the mock
+database. A $999 refund on an unpaid order succeeds because the tool
+does not check payment state.
 
-**Run B — through KIFF.** The agent's tool POSTs to a small HTTP server
-that wraps `pkg/kiff/runtime`. Small refunds (≤ $100) hit `AUTO_REFUND`
-and execute immediately. Refunds above the ceiling hit `REFUND_ORDER`,
-which has `ApprovalRequirement: ApprovalRequired`. The runtime returns
-`approval_required` to the agent. A human grants the approval. The
-same call from the agent now executes. The audit timeline shows the
-proposal, the validation gate, the approval cycle, the execution, and
-the rebuild check — `materialized = REFUNDED`, `replayed = REFUNDED`,
-`events = 3 ✓`.
+**Through KIFF.** The tool sends its request to an HTTP server wrapping
+`pkg/kiff/runtime`. Small refunds (≤ $100) use `AUTO_REFUND` and execute
+immediately when their checks pass. Larger refunds use `REFUND_ORDER`,
+which requires approval. The runtime returns `approval_required`;
+after a human grants approval, the agent can repeat the request and
+execute it.
 
-The fixture is deterministic (`agent.OfflineProvider`) so the demo runs
-without an LLM API key. The same code runs against AWS Bedrock when
-credentials are set. The point is that the *governance behavior* is
-identical regardless of where the proposal came from.
+The timeline records the proposal, validation, approval and execution.
+Its rebuild check reports `materialized = REFUNDED`,
+`replayed = REFUNDED`, `events = 3 ✓`.
 
-The demo is a single `make demo` command. Output reproduced in Appendix
-C of the demo's own README; the canonical 90-second screencast on the
-landing page is a recording of this command.
+`agent.OfflineProvider` makes the fixture deterministic and runnable
+without an LLM API key. With credentials configured, the same example
+can use AWS Bedrock. Run it with `make demo`; the example's README
+includes sample output.
 
 ### 5.3 The breadth demo
 
-Located at `examples/support-ops/`. One agent with five tools running
-on a five-ticket batch produces five distinct outcomes:
+`examples/support-ops/` processes five support tickets with five tools:
 
 | Ticket | Tool | Outcome | Reason |
 |---|---|---|---|
@@ -417,180 +313,120 @@ on a five-ticket batch produces five distinct outcomes:
 | 4 | `escalate_to_human` | executed | escalation never needs approval |
 | 5 | `close_ticket` | executed | only legal in `RESOLVED` |
 
-Ticket 3 is the most interesting case. The `SEND_OUTREACH` action has a
-custom validator that rejects the action when `consent_verified` is
-missing or false — *before* an approval is ever opened. Approvals are
-for authority decisions; eligibility checks happen earlier. The
-breadth demo demonstrates that a heterogeneous tool surface can flow
-through the same runtime cleanly, including domain-specific validators.
+The `SEND_OUTREACH` validator rejects missing or false
+`consent_verified` before opening an approval request. This shows the
+order of eligibility and approval checks: review cannot make an
+ineligible request valid.
 
 ### 5.4 The conformance suite
 
-`pkg/kiff/store/storetest/` defines the contract every persistence
-backend must satisfy. Adding a new backend is a known-cost exercise:
-implement the four `Store` interfaces, write a test factory that creates
-a clean instance of each, register the factories with the suite. The
-suite confirms the new backend behaves identically to the in-memory and
-file-backed reference implementations.
-
-This matters because backends accumulate. A small contract that holds
-across implementations is the difference between a real boundary and a
-"plug your own here" hand-wave.
+`pkg/kiff/store/storetest/` defines the persistence tests shared by the
+backends. To check a new backend, implement the four store interfaces,
+provide factories for clean instances and run the suite. Passing it
+establishes agreement on the behaviors covered by its test cases.
 
 ### 5.5 The Postgres backend
 
-`pkg/kiff/store/postgres/`. About 600 lines plus `schema.sql`. Four
-tables (`kiff_events`, `kiff_decisions`, `kiff_approvals`, `kiff_audit`)
-with `JSONB` payloads, indexes only on the columns the suite filters
-on. Connection pooling via `pgx/v5/pgxpool`. Conformance tests gated by
-`KIFF_POSTGRES_TEST_URL` so the default `go test ./...` does not need a
-running database.
+`pkg/kiff/store/postgres/` uses four tables: `kiff_events`,
+`kiff_decisions`, `kiff_approvals` and `kiff_audit`. Payloads use `JSONB`,
+and connections use `pgx/v5/pgxpool`.
 
-Verified against `postgres:16-alpine`. Every conformance subtest passes.
-Schema is idempotent (`CREATE TABLE IF NOT EXISTS`). Production
-migrations are the operator's tool of choice (`golang-migrate`, `goose`,
-Atlas); KIFF does not bundle one.
+The conformance tests use `KIFF_POSTGRES_TEST_URL` and have been run
+against `postgres:16-alpine`. Default `go test ./...` does not require
+a running database. The schema uses `CREATE TABLE IF NOT EXISTS`;
+operators manage production migrations separately.
 
 ### 5.6 The operator surface
 
-Two pieces, intentionally minimal:
+`pkg/kiff/httpapi` serves read-only HTML at `/admin` and
+`/admin/entities/{id}`. These pages list pending approvals and entity
+timelines, including denials and failures. Production deployments must
+protect access to them.
 
-**`/admin` and `/admin/entities/{id}`**, served by `pkg/kiff/httpapi`.
-Read-only HTML rendered with `html/template`. Lists pending approvals,
-shows entity timelines, color-codes denials and failures. Production
-deployments put auth in front of this; KIFF does not pretend to be a
-multi-tenant UI.
+The inspection command `kiff timeline -base <url> -entity <id>` reads
+`/entities/{id}/timeline` and `/demo/rebuild` from a KIFF server. It
+displays audit records and the state rebuild result in a terminal table.
 
-**`kiff timeline -base <url> -entity <id>`**, the inspection CLI. Hits
-the `/entities/{id}/timeline` and `/demo/rebuild` endpoints on any
-running KIFF server. Renders a compact terminal table with the audit
-trail and the rebuild check. Twenty seconds from typing the command to
-having the answer to "why is this entity in this state?".
+### 5.7 What the evidence establishes
 
-### 5.7 What this evidence does and does not prove
+The examples exercise the proposal, validation, approval and execution
+sequence. The conformance suite compares three persistence backends,
+and the adversarial fixtures test specific attempts to bypass approval.
+The approval bypass demonstrates why compile-time restrictions need
+runtime checks and tests.
 
-It proves the protocol can be implemented small (six primitives, seventeen
-packages, one external dependency). It proves the trust boundary is
-testable, and that testing it changes it: the compile-time suite passed
-throughout while the boundary was breakable, and the runtime suite —
-attacks that build and run from outside the module — is what now holds
-it. `docs/why.md` states the thesis; §3 states what enforces it. It proves
-the persistence interface is real (three backends pass the same suite).
-It proves the agent integration story works in two demos with real LLM
-proposals.
-
-It does not yet prove the protocol generalizes to all five sectors in
-§1. Four of those sectors — insurance, healthcare, fintech, and internal
-DevOps — are hypothetical for KIFF today. The evidence in §5 is concrete
-for e-commerce shapes; the rest is reasoned from the structural argument
-in §4. The cross-sector examples in §1 are structural analogies, not
-proof of sector readiness or compliance with sector-specific
-regulations. The next twelve months will close this gap or surface where
-the protocol breaks down. We expect both.
+The demos cover e-commerce and support workflows. `cookbook/` also
+contains seven runnable recipes with domain tests, including
+`insurance-claims-triage`, `healthcare-prior-auth` and
+`cloud-infra-remediation`. Those tested recipes and the hypothetical
+examples in section 1 do not establish sector readiness or regulatory
+compliance. Passing the documented tests also does not establish safety
+for every integration or attack. An adopter must test its own contracts
+and execution paths.
 
 ---
 
-## 6. Honest limits
+<a id="6-honest-limits"></a>
+## 6. Limits
 
-The framework does not handle the following. These are design
-boundaries, not missing features — each one has a composition story
-with a tool that already solves it.
+The framework version covered here leaves these responsibilities to
+the application or supporting infrastructure.
 
-**Durable execution.** KIFF is not a workflow engine. If your domain
-needs steps that survive crashes, replay on retry, or coordinate
-across multiple processes over hours or days, KIFF should sit
-*underneath* a workflow engine (Temporal, Inngest, Restate), not
-replace it. The workflow handles durability; KIFF handles whether each
-step is allowed.
+**Durable execution.** A workflow engine must handle steps that survive
+crashes or coordinate multiple processes over long periods. KIFF can
+check whether each step is allowed; it does not provide that engine's
+scheduling and recovery mechanisms.
 
-**Multi-tenant identity.** KIFF has actors and permissions but no
-notion of organizations, projects, or scopes. The HTTP API authenticates
-— it requires an `Authenticator`, and the principal it establishes
-overrides any actor in the request body — but authentication is not
-tenancy. The framework does not impose a tenant model because the model
-varies too much across adopters.
+**Multi-tenant identity.** The framework supplies actors and permissions
+without an organization, project or tenant model. Its HTTP API requires
+an `Authenticator`, whose principal overrides the actor in the request
+body. The host must implement tenancy and identity management.
 
-**Distributed state.** State today is centralized. The runtime assumes
-a single source of truth per entity. Distributed state (replicated,
-eventually consistent, or sharded across regions) is out of scope.
-Most adopters do not need it; the ones who do should compose KIFF with
-a state backend that handles the replication.
+**Distributed state.** The runtime assumes a single authoritative state
+per entity. Replication, regional sharding and eventual consistency
+require an appropriate state backend and application design.
 
-**Event ordering across producers.** KIFF preserves insertion order
-within a single store. Cross-producer ordering (clock skew across
-sources, exactly-once delivery, idempotency keys) is the producer's
-responsibility. The framework refuses to pretend it has solved
-distributed-systems problems it has not solved.
+**Event ordering across producers.** A store preserves insertion order.
+Producers must handle cross-source ordering, clock skew and duplicate
+delivery. This does not provide exactly-once delivery across systems.
 
-**A complete observability story.** `pkg/kiff/observability` wraps the
-audit store with `slog` and a counter registry. There are no traces, no
-spans, no metrics histograms. Production deployments instrument their
-own observability layer; KIFF gives them the audit records to
-instrument from.
+**Observability.** `pkg/kiff/observability` wraps the audit store with
+`slog` and counters. Applications must add tracing, spans and metric
+histograms when they need them.
 
-**Tamper-evident audit.** Records are durable and append-only by
-construction, and that is all. There is no hash chain, no signature, and
-no key, so an operator with store access can rewrite history. Signed,
-verifiable receipts are a [KIFF Cloud](https://kiff.dev) feature, not a
-property of the open-source stores. This is the most significant open
-gap in the framework.
+**Audit integrity.** Framework stores are append-only through their
+interfaces. They do not provide hash chains or signatures, so an
+operator with direct store access can rewrite records. Tamper evidence
+requires an additional signing or verification mechanism.
 
-**Time-of-check to time-of-use.** There is no lease, version, or
-compare-and-swap between a decision and the executor. Idempotency covers
-a retried identical request; it does not cover two different proposals
-racing against one entity. The window is as wide as the executor's
-slowest call.
-
-These are not bugs. They are explicit non-goals. Each has a
-real design reason; each has a composition story with the tools that
-already solve it. The protocol's value depends on staying small.
+**Time-of-check to time-of-use.** There is no lease, version check or
+compare-and-swap between a decision and execution. Idempotency covers
+an identical retried request; it does not serialize different proposals
+against the same entity. Applications must account for state changes
+during that interval.
 
 ---
 
-## 7. Where this goes
+<a id="7-where-this-goes"></a>
+## 7. Future work
 
-The next six months, ordered by likelihood:
+Further work includes evaluating additional persistence backends and
+documenting the protocol independently of its Go types. SQLite could
+support single-binary deployments, while
+DynamoDB could serve AWS-based applications. These are possible
+extensions, not capabilities established by the examples in this paper.
 
-**Get to twenty-five real adopters.** The framework is in good shape.
-The bottleneck now is not code; it is people writing domains on top of
-it. The launch sequence — public push, hosted demo, screencast, Show HN
-— is the next major effort.
-
-**A second persistence backend.** SQLite is the most likely candidate,
-because it covers single-binary deployments and edge use cases that
-Postgres does not. DynamoDB for AWS-native deployments lands behind
-SQLite if the adoption signal supports it.
-
-**One more sector demo.** A second worked example outside e-commerce.
-The two strongest candidates are a simple fintech-ops domain (a small
-treasury rule that gates large transfers behind dual control) and a
-clinical-workflow domain (a tiny EHR ingest path with active-state
-checks). The choice depends on which adopter pulls hardest in the
-launch period.
-
-**A managed runtime.** [KIFF Cloud](https://kiff.dev) — hosted runtime,
-multi-tenant admin UI, audit retention, signed receipts, compliance
-exports — is the commercial product. Nothing in this document requires
-it: the framework is MIT and self-hosts on Postgres. The division is
-that tamper-evident receipts and retention are operated there, and the
-action boundary described here is operated by whoever runs the runtime.
-
-**Specification work.** The current type signatures are the spec. A
-proper protocol document, language-independent, that other
-implementations can read against, is on the roadmap once the API is
-stable. The Markdown for that document already exists in fragmented
-form across `docs/architecture.md`, `docs/conventions.md`, and this
-whitepaper.
-
-What is *not* on the roadmap: an LLM SDK in the core, a workflow
-engine, a managed agent platform, a model gateway, an app builder. KIFF
-is one thing. The next six months are about doing that thing publicly.
+The framework's interfaces and the documents in `docs/architecture.md`
+and `docs/conventions.md` currently describe its contract. A separate
+protocol specification would make that contract easier to implement
+in another language. Adoption and additional domain tests should inform
+that work.
 
 ---
 
 ## Appendix A: the action contract
 
-Reproduced verbatim from `pkg/kiff/action/action.go`:
+Core fields from `pkg/kiff/action/action.go`:
 
 ```go
 // ActionContract describes when and how an action is allowed to run.
@@ -605,78 +441,49 @@ type ActionContract struct {
 }
 ```
 
-Field by field:
-
-- **`Name`** — the operational identifier, stable across versions.
-  Shows up in audit records, HTTP routes, and proposal payloads.
-
-- **`AllowedStates`** — the only states from which this action is
-  meaningful. The runtime returns `action.ErrStateNotAllowed` if the
-  current state is not in this list. State is checked before
-  parameters, permissions, or approvals; an action that does not
-  belong in the current state never reaches the rest of the gate.
-
-- **`RequiredParameters`** — the parameters that must be present and
-  non-nil. Missing parameters fail validation with
-  `action.ErrMissingParameter`. The executor never has to write
-  defensive nil-checks.
-
-- **`RequiredPermissions`** — permissions the actor must hold. The
-  runtime queries the configured `permission.Policy` interface. A
-  missing permission returns `action.ErrPermissionDenied`.
-
-- **`Risk`** — operational metadata. Drives reporting, dashboards, and
-  downstream tooling. Does not affect the runtime path.
-
-- **`ApprovalRequirement`** — `ApprovalNever` or `ApprovalRequired`.
-  When set to `ApprovalRequired`, execution returns
-  `action.ErrApprovalRequired` until a granted approval record is
-  resolved by the runtime.
-
-- **`Executor`** — the side-effect function. Takes a validated
-  `ActionContext`, returns an `ActionResult`. The executor never
-  re-validates state, parameters, permissions, or approval; the
-  runtime did. Its only job is to do the thing and describe the
-  outcome, including any follow-up events that drive the next state
-  transition.
-
-The contract is the operational document for the action. A new engineer
-joining the team can read down a contract and answer every governance
-question for that action in under thirty seconds.
+- **`Name`** identifies the action in audit records, HTTP routes and
+  proposal payloads.
+- **`AllowedStates`** lists the states from which it may run. The
+  runtime returns `action.ErrStateNotAllowed` for any other state,
+  before checking parameters, permissions or approval.
+- **`RequiredParameters`** lists values that must be present and
+  non-nil. Missing values produce `action.ErrMissingParameter`.
+  Domain validators must check any additional requirements on those values.
+- **`RequiredPermissions`** lists permissions resolved through
+  `permission.Policy`. A missing permission produces
+  `action.ErrPermissionDenied`.
+- **`Risk`** supplies metadata for reporting and downstream tooling;
+  it does not change the runtime's validation sequence.
+- **`ApprovalRequirement`** is `ApprovalNever` or `ApprovalRequired`.
+  An approval-required action returns `action.ErrApprovalRequired`
+  until the runtime resolves a granted record.
+- **`Executor`** performs the side effect after validation and returns
+  an `ActionResult`, including any follow-up events. The executor must
+  handle failures and any safeguards required by the external system,
+  including changes since validation.
 
 ---
 
-## Appendix B: what KIFF is not
+<a id="appendix-b-what-kiff-is-not"></a>
+## Appendix B: integration boundaries
 
-Five categories KIFF deliberately does not occupy:
+**Agent frameworks** provide model access, prompts, tools and agent
+execution. An agent built with LangGraph, Agno, OpenAI Agents SDK or
+another harness can submit actions to KIFF for validation.
 
-**Not an agent framework.** No prompt builder, no model SDK, no tool
-registry, no harness. Agents are clients of KIFF; they are not what
-KIFF is. Use LangGraph, Agno, OpenAI Agents SDK, or your own harness.
+**Workflow engines** provide durable execution, retries, timers and
+recovery across steps. They can use KIFF to validate individual steps.
 
-**Not a workflow engine.** No durable execution, no retries, no
-timers, no saga support. KIFF composes underneath workflow engines
-that own those concerns.
+**Agent hosting** runs the agent's code and manages its sessions and
+infrastructure. The framework does not deploy or orchestrate agents.
 
-**Not a managed agent platform.** No deploy story for the agent's code,
-no session durability, no harness orchestration. Use Modal, Lambda,
-Dari, your own infrastructure.
+**Model gateways** route requests between model providers and may shape
+or cache them. KIFF's action validation does not require it to route
+model requests.
 
-**Not a model gateway.** No routing between providers, no request
-shaping, no caching. Talk to your model provider directly.
-
-**Not an app builder.** No UI scaffolding, no admin SDK beyond the
-read-only `/admin` page. KIFF's HTTP API is JSON; build whatever
-frontend you want.
-
-The reason this list matters: every operational team eventually
-encounters pressure to add one of these capabilities to the governance
-layer. The discipline is to refuse, because the moment KIFF tries to
-replace any of these tools it stops being small enough to read in a
-weekend, and the small-enough-to-read property is what makes it
-trustworthy.
-
-KIFF composes. It is not a platform.
+**Application frontends** provide the user interface. Beyond the
+read-only operator pages, applications build their own frontend against
+the JSON HTTP API.
 
 ---
 
