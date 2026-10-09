@@ -49,6 +49,67 @@ type ParameterSpec struct {
 
 	// AllowedValues restricts a string/enum to this set.
 	AllowedValues []string
+
+	// Unit and Scale say what an int amount means, for people reading it:
+	// Unit "EUR" with Scale 2 makes 8000 read as "80.00 EUR". Unit is a
+	// currency code or a short word ("points"); Scale is the number of
+	// decimal places the integer carries (0 to 6, 2 for cents). They are
+	// display only: validation and limits always use the whole number.
+	// Both empty means a bare number. Catalog.Register checks them.
+	Unit  string
+	Scale int
+}
+
+var paramUnit = regexp.MustCompile(`^[A-Za-z]{1,16}$`)
+
+// checkUnit reports a Unit or Scale that cannot describe this parameter:
+// only an int carries a unit, a unit is letters only, a scale is 0 to 6
+// and needs a unit to mean anything.
+func (spec ParameterSpec) checkUnit() error {
+	if spec.Unit == "" && spec.Scale == 0 {
+		return nil
+	}
+	switch {
+	case spec.Type != ParamInt:
+		return fmt.Errorf("parameter %q: unit/scale apply to int only", spec.Name)
+	case spec.Unit == "":
+		return fmt.Errorf("parameter %q: scale needs a unit", spec.Name)
+	case !paramUnit.MatchString(spec.Unit):
+		return fmt.Errorf("parameter %q: unit %q must be letters only, at most 16", spec.Name, spec.Unit)
+	case spec.Scale < 0 || spec.Scale > 6:
+		return fmt.Errorf("parameter %q: scale %d must be 0 to 6", spec.Name, spec.Scale)
+	}
+	return nil
+}
+
+// FormatAmount writes n as a person should read it: in the parameter's
+// unit when it declares one (8000 with EUR, scale 2: "80.00 EUR"), else
+// as the bare whole number.
+func (spec ParameterSpec) FormatAmount(n int64) string {
+	if spec.Unit == "" {
+		return strconv.FormatInt(n, 10)
+	}
+	if spec.Scale <= 0 {
+		return strconv.FormatInt(n, 10) + " " + spec.Unit
+	}
+	sign := ""
+	if n < 0 {
+		sign = "-"
+	}
+	digits := strconv.FormatUint(absInt64(n), 10)
+	if len(digits) <= spec.Scale {
+		digits = strings.Repeat("0", spec.Scale-len(digits)+1) + digits
+	}
+	cut := len(digits) - spec.Scale
+	return sign + digits[:cut] + "." + digits[cut:] + " " + spec.Unit
+}
+
+// absInt64 is |n| as a uint64, correct for math.MinInt64 too.
+func absInt64(n int64) uint64 {
+	if n < 0 {
+		return uint64(-(n + 1)) + 1
+	}
+	return uint64(n)
 }
 
 // IntParam builds a required integer parameter spec (the common money/amount
