@@ -74,8 +74,7 @@ clean:
 	rm -rf $(BIN_DIR) $(PORT_FILE) $(SERVER_LOG)
 
 # demo-cloud runs the agent against a Kiff Cloud instance. The
-# tenant must already be bootstrapped (see kiff-cloud/apps/api/
-# scripts/bootstrap-tenant.sh) and KIFF_CLOUD_URL +
+# tenant must already be set up with the cafe domain, and KIFF_CLOUD_URL +
 # KIFF_CLOUD_API_KEY must be in the environment.
 #
 # Unlike demo-offline / demo-bedrock, this target does NOT boot the
@@ -85,12 +84,8 @@ demo-cloud:
 	@if [ -z "$$KIFF_CLOUD_URL" ] || [ -z "$$KIFF_CLOUD_API_KEY" ]; then \
 		echo "demo-cloud: KIFF_CLOUD_URL and KIFF_CLOUD_API_KEY must be set"; \
 		echo ""; \
-		echo "  bootstrap a tenant on a running kiff-cloud:"; \
-		echo "    bash apps/api/scripts/bootstrap-tenant.sh \\\\"; \
-		echo "      --slug=cafe \\\\"; \
-		echo "      --domain=apps/api/scripts/cafe.kiff.yaml"; \
-		echo ""; \
-		echo "  then export the values it printed and re-run demo-cloud."; \
+		echo "  set up a KIFF Cloud tenant with the cafe domain,"; \
+		echo "  then export its URL and API key and re-run demo-cloud."; \
 		exit 2; \
 	fi
 	@cd $(EXAMPLE_DIR)/agent && AGNO_MODEL_PROVIDER=$${AGNO_MODEL_PROVIDER:-offline} $(PYTHON) -m run_with_kiff

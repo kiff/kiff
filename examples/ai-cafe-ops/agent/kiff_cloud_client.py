@@ -18,11 +18,11 @@ routes. The framework's runtime surface lives at:
 So this client reproduces the demo server's tool-routing logic
 (auto-vs-approval for inventory, catalog/working-hours pre-checks)
 in Python and invokes the framework surface directly. The cloud's
-DefaultRegistry binds executors that mirror the framework's
-contracts (kiffhq/kiff-cloud#70) so the wire shape is identical.
+executors mirror the framework's contracts, so the wire shape is
+identical.
 
-The cloud's tenant must already exist with cafe.kiff.yaml uploaded
-(see kiff-cloud/apps/api/scripts/bootstrap-tenant.sh). The client
+The cloud's tenant must already exist with the cafe domain set up.
+The client
 seeds the five demo shifts at startup.
 """
 

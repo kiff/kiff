@@ -122,25 +122,18 @@ and working-hours window — not on the model's words.
 
 ## Kiff Cloud demo
 
-The same agent can run against a hosted Kiff Cloud instance instead of a local example server. The cloud's `/v1/*` surface speaks the framework's protocol; the agent's tool-routing logic (auto-vs-approval for inventory, catalog and working-hours pre-checks) lives in `kiff_cloud_client.KiffCloudClient`. The cloud's `DefaultRegistry` binds executors that mirror the contracts here, and a YAML domain in the cloud repo (`apps/api/scripts/cafe.kiff.yaml`) captures the same six events / three states / six actions / three roles.
+The same agent can run against a hosted Kiff Cloud instance instead of a local example server. The cloud's `/v1/*` surface speaks the framework's protocol; the agent's tool-routing logic (auto-vs-approval for inventory, catalog and working-hours pre-checks) lives in `kiff_cloud_client.KiffCloudClient`. The hosted cafe domain captures the same six events / three states / six actions / three roles.
 
 Prerequisites:
 
-1. A running `kiff-cloud` API binary (`go run ./cmd/api` from `kiff-cloud/apps/api/`).
-2. A bootstrapped tenant with the cafe YAML uploaded:
-   ```bash
-   cd kiff-cloud
-   bash apps/api/scripts/bootstrap-tenant.sh \
-     --slug=cafe \
-     --domain=apps/api/scripts/cafe.kiff.yaml
-   ```
-   The script prints `tenant_id`, `key_id`, `api_key`. Save the API key.
+1. A KIFF Cloud tenant with the cafe domain set up, and an API key for it.
+2. `KIFF_CLOUD_URL` and `KIFF_CLOUD_API_KEY` in the environment.
 
 Run:
 
 ```bash
 export KIFF_CLOUD_URL=http://localhost:8080/v1
-export KIFF_CLOUD_API_KEY=kiff_live_...   # the value bootstrap-tenant.sh printed
+export KIFF_CLOUD_API_KEY=kiff_live_...   # your tenant's API key
 make demo-cloud
 ```
 
