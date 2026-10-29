@@ -938,3 +938,37 @@ func TestAuditFilterByTraceIDReturnsFullChain(t *testing.T) {
 		}
 	}
 }
+
+// A refused action's audit record carries its typed reason, so a reader of
+// the trail tells a state refusal from any other failure without matching
+// the error's text.
+func TestRuntimeAuditsTheReasonAnActionWasRefused(t *testing.T) {
+	policy := permission.NewSimplePolicy()
+	policy.GrantActor("agent", "mission.execute_move")
+	rt := mustNew(t, Config{PermissionPolicy: policy})
+	contract := action.ActionContract{
+		Name: "EXECUTE_MOVE", AllowedStates: []string{"READY"},
+		RequiredPermissions: []permission.Permission{"mission.execute_move"},
+		Executor: func(context.Context, action.ActionContext) (action.ActionResult, error) {
+			return action.ActionResult{}, nil
+		},
+	}
+	for _, c := range []struct {
+		entity, state, actor, want string
+	}{
+		{"wrong-state", "DONE", "agent", "state_not_allowed"},
+		{"no-permission", "READY", "stranger", "permission_denied"},
+	} {
+		_, err := rt.ExecuteAction(context.Background(), action.ActionContext{
+			ActionName: "EXECUTE_MOVE", EntityID: c.entity, EntityType: "MissionAttempt",
+			CurrentState: c.state, Actor: actor.Actor{ID: c.actor},
+		}, contract)
+		if err == nil {
+			t.Fatalf("%s: expected a refusal", c.entity)
+		}
+		records, _ := rt.Audit.Query(context.Background(), audit.Filter{EntityID: c.entity, Kind: audit.KindActionFailed})
+		if len(records) != 1 || records[0].Data["reason"] != c.want {
+			t.Fatalf("%s: audit %+v, want reason %q", c.entity, records, c.want)
+		}
+	}
+}

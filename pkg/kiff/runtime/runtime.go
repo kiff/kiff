@@ -540,8 +540,10 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 	var err error
 	actionCtx, err = r.resolveState(ctx, actionCtx)
 	if err != nil {
+		_, reason := outcome.Classify(err)
 		auditErr := r.appendAudit(ctx, audit.KindActionFailed, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, "action validation failed", map[string]any{
 			"action": contract.Name,
+			"reason": string(reason),
 			"error":  err.Error(),
 		})
 		if auditErr != nil {
@@ -561,8 +563,12 @@ func (r *Runtime) ValidateAction(ctx context.Context, actionCtx action.ActionCon
 			kind = audit.KindApprovalRequired
 			message = "approval required"
 		}
+		// The reason is the typed one (outcome.Classify), so a reader of the
+		// trail never has to match the error's text.
+		_, reason := outcome.Classify(validationErr)
 		auditErr := r.appendAudit(ctx, kind, actionCtx.EntityID, actionCtx.EntityType, actionCtx.Actor.ID, message, map[string]any{
 			"action":            contract.Name,
+			"reason":            string(reason),
 			"error":             validationErr.Error(),
 			"approval_id":       actionCtx.ApprovalID,
 			"requires_approval": result.RequiresApproval,
