@@ -33,3 +33,5 @@ If you are adopting KIFF for the first time, you do not need to read these. Star
 - [Brick 26](./brick-26.md) — Governed launch cookbook and action-safety primitives
 - [Brick 27](./brick-27.md) — Cloud-facing CLI: apply and the Tier-1 operator commands
 - [Brick 28](./brick-28.md) — Sign in to a KIFF cloud: kiff auth
+- [Brick 29](./brick-29.md) — Scan Go agent actions from the KIFF CLI
+- [Brick 30](./brick-30.md) — Bound what an actor may do in total
