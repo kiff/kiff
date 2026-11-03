@@ -44,6 +44,29 @@ order — and answers with an HTTP status you branch on:
 | permission denied | `403` | the actor does not hold a required permission |
 | state not allowed | `400` | the entity is not in a state that permits this action |
 | missing parameter | `400` | a contract-required parameter is absent |
+| executor missing, invalid contract | `422` | the action's contract can't run as registered |
+
+A refusal answers with the typed decision envelope from `pkg/kiff/outcome`, so a
+caller switches on fields rather than on error text:
+
+```json
+{
+  "outcome": "blocked",
+  "reason": "state_not_allowed",
+  "action": "REFUND_ORDER",
+  "entity_id": "order-2",
+  "current_state": "REFUNDED",
+  "error": "action state not allowed"
+}
+```
+
+`outcome` is `allowed`, `approval_required`, `blocked` (state, permission) or
+`invalid` (a missing or invalid parameter, a contract that can't run); `reason` is one of
+`outcome.Reason`'s codes (`state_not_allowed`, `missing_parameter`,
+`invalid_parameter`, `permission_denied`, `approval_required`,
+`executor_missing`, `invalid_contract`, …); `next_step` is
+`request_approval` when an approval would let the action through. `error` is
+kept for older callers.
 
 > Authority note: KIFF does **not** take authority from the request body.
 > `actor.roles` is descriptive metadata for audit/display only and carries no
@@ -223,9 +246,32 @@ audited. Pull the chain for any entity:
 GET /entities/{entityID}/timeline
 ```
 
+A refused validation's record carries the same typed `reason` as the HTTP
+envelope, beside its `error` text, so a reader of the trail can tell a state
+refusal from a permission refusal without matching strings.
+
 That is the whole loop — event → state → decision → validated action →
 approval → audit — reachable from any language over HTTP, with no Go in your
 application.
+
+## Every route
+
+`httpapi.Handler` serves these, all behind the same authentication:
+
+| Route | What it does |
+|---|---|
+| `POST /events/raw` | Ingest a raw input through its adapter; the event's actor is the authenticated principal. `201 {"event"}` |
+| `GET /entities/{entityID}/allowed-actions` | The action contracts allowed from the entity's current state. `{"actions"}` |
+| `POST /entities/{entityID}/actions/{actionName}/validate` | Decide the action without running it (above) |
+| `POST /entities/{entityID}/actions/{actionName}/execute` | Validate, then run the executor and audit the result. `{"outcome": "allowed", "result"}`, or the refusal envelope |
+| `POST /entities/{entityID}/actions/{actionName}/approvals` | Request an approval for the action. `201 {"approval"}` |
+| `GET /entities/{entityID}/approvals` | The entity's approvals. `{"approvals"}` |
+| `POST /approvals/{approvalID}/grant` | Grant it; the requester can't review their own request. `{"approval"}` |
+| `POST /approvals/{approvalID}/deny` | Deny it, with an optional `reason`. `{"approval"}` |
+| `GET /entities/{entityID}/timeline` | The entity's audit chain. `{"timeline"}` |
+| `GET /admin`, `GET /admin/entities/{entityID}` | A plain HTML view of entities, their timeline and approvals |
+
+Anything else is `404 {"error": "route not found"}`.
 
 See also: [architecture](./architecture.md), [conventions](./conventions.md),
 and the [`agentic-ops` template](../cmd/kiff/templates/agentic-ops/) for a Go
