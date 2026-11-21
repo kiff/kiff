@@ -8,6 +8,17 @@ The framework is intentionally small. There is no HTTP server, database adapter,
 Event ingested -> State changed -> Decision recorded -> Action validated -> Execution audited
 ```
 
+## What the Framework Provides
+
+| Capability | What KIFF provides |
+| --- | --- |
+| Shared state | Events, state transitions, replay, and `memory`, `file`, or `postgres` stores |
+| Named actions | Typed parameters, allowed states, required permissions, risk, and explicit executors |
+| Human authority | Dynamic approvals, and segregation of duties enforced by default — the actor that requested an approval cannot review it. Reviewer permissions are opt-in per contract, because only the domain knows which permission is sufficient |
+| Reliable execution | Validation before side effects and idempotency protection for consequential retries |
+| Explainable history | Proposals, decisions, approvals, execution results, and failures as durable protocol data. Records are append-only by construction; tamper-evidence (hash-chained, signed receipts) is a [KIFF Cloud](https://kiff.dev) feature, not a property of the OSS stores |
+| Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI. The API authenticates through a pluggable `Authenticator`, and the principal it establishes overrides any actor in the request body |
+
 ## Package Map
 
 ### `pkg/kiff/event`

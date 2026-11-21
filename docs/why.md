@@ -97,3 +97,52 @@ make demo
 The refund is only an example. The reusable result is the domain: its events,
 state, actions, authority, execution boundary, and history are ready for every
 actor that follows.
+
+## Why the Authority Belongs Outside the Agent
+
+Ask where an agent's limits are written down today and the answer is usually a
+prompt, a config file, or a tool handler. Nobody responsible for the money can
+read them, every change is a deploy, and every new agent writes its own copy.
+
+KIFF keeps that authority outside the agent, in one domain that every actor
+proposes against. The agent can be replaced; the rules for what it may do stay.
+Every actor gets the same answers:
+
+| Question | KIFF's answer |
+| --- | --- |
+| What happened? | Recorded events and execution outcomes |
+| What is true now? | State derived from those events |
+| What may happen next? | Named actions and valid transitions |
+| Who may do it, and how much? | Permissions, approvals, and limits |
+| Why did it happen? | One decision and audit history |
+
+## When Every Agent Carries Its Own Rules
+
+The first agent is usually a feature. The next few need a system.
+
+When three actors join the same process, the common pattern is three backend
+copies. Each owns an interpretation of state, rules, actions, and a custom path
+into the same systems. That works in isolation. Together, those copies drift,
+disagree, and multiply the coordination work.
+
+![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./diagrams/traditional-operational-pattern.png)
+
+## One Domain, Many Actors
+
+The actors and systems do not change. KIFF replaces the repeated domain copies
+with one operational domain and one validated execution path. Every actor sees
+the same state, proposes the same named actions, and meets the same authority,
+approval, and limit rules.
+
+This does not replace your agent framework, HTTP stack, queue, cron job, or
+systems of record. It evaluates proposed actions against current state before
+your executor runs.
+
+![KIFF provides one domain for events, state, actions, authority, and execution.](./diagrams/kiff-shared-domain.png)
+
+| Without KIFF | With KIFF | Practical effect |
+| --- | --- | --- |
+| Each actor carries its own version of state and rules. | Events and derived state are shared. | Actors stop disagreeing about what is true. |
+| Every new actor builds another operational backend. | Actors propose the same named actions. | Add agents without rebuilding the operation. |
+| Decisions and limits live in application code, prompts, and tool handlers. | One decision point evaluates every proposal. | Consistent approvals, limits, and refusals. |
+| Logs are scattered across services. | Events, decisions, and results form one history. | Replay and explain an operational outcome. |

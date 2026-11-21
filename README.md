@@ -9,9 +9,6 @@
 <p align="center">
   <a href="https://github.com/kiff/kiff/actions/workflows/ci.yml"><img src="https://github.com/kiff/kiff/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://pkg.go.dev/github.com/kiff/kiff"><img src="https://pkg.go.dev/badge/github.com/kiff/kiff.svg" alt="Go Reference"></a>
-  <a href="./LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License: MIT"></a>
-  <a href="./go.mod"><img src="https://img.shields.io/github/go-mod/go-version/kiff/kiff" alt="Go version"></a>
-  <a href="https://github.com/kiff/kiff/releases"><img src="https://img.shields.io/github/v/release/kiff/kiff?include_prereleases&sort=semver" alt="Release"></a>
 </p>
 
 KIFF is an open-source Go engine that decides each consequential action an AI
@@ -30,74 +27,21 @@ history, so every outcome can be explained and replayed.
 KIFF does not replace your databases, your agent framework or your systems of
 record. It sits in front of the consequential calls into them.
 
-### KIFF Cards
+## Try It
 
-On [kiff.dev](https://kiff.dev), this engine checks an agent's **Card**: the
-authority a business gives one agent. A Card says which actions the agent may
-take, how much per action and in total over a window, and what happens to a
-call outside it (it waits for the owner, or it is refused). The owner changes
-or revokes the Card without changing the agent.
+```bash
+go install github.com/kiff/kiff/cmd/kiff@latest
+kiff new -scenario refund github.com/acme/refunds
+cd refunds
+go mod tidy
+make demo
+```
 
-This repository has the parts a Card is built on: named actions, state,
-approvals, and per-actor limits with a ledger
-([`pkg/kiff/limit`](./pkg/kiff/limit)). Issuing, sharing and revoking Cards,
-the owner answering held calls, a shared ledger, and signed receipts are
-features of the hosted service. The table under
-[Run It Yourself or Hosted](#run-it-yourself-or-hosted) says exactly what
-differs.
+That creates a runnable refund domain with an `Order`, a `MARK_PAID` action, an
+approval-gated `REFUND_ORDER` action, a headless HTTP API, and a demo script.
+Use `kiff new <module>` without `-scenario` for a smaller starter project.
 
-## Why the Authority Belongs Outside the Agent
-
-Ask where an agent's limits are written down today and the answer is usually a
-prompt, a config file, or a tool handler. Nobody responsible for the money can
-read them, every change is a deploy, and every new agent writes its own copy.
-
-KIFF keeps that authority outside the agent, in one domain that every actor
-proposes against. The agent can be replaced; the rules for what it may do stay.
-Every actor gets the same answers:
-
-| Question | KIFF's answer |
-| --- | --- |
-| What happened? | Recorded events and execution outcomes |
-| What is true now? | State derived from those events |
-| What may happen next? | Named actions and valid transitions |
-| Who may do it, and how much? | Permissions, approvals, and limits |
-| Why did it happen? | One decision and audit history |
-
-## When Every Agent Carries Its Own Rules
-
-The first agent is usually a feature. The next few need a system.
-
-When three actors join the same process, the common pattern is three backend
-copies. Each owns an interpretation of state, rules, actions, and a custom path
-into the same systems. That works in isolation. Together, those copies drift,
-disagree, and multiply the coordination work.
-
-![Without a shared operational domain, each actor builds and maintains its own state, rules, and integrations.](./docs/diagrams/traditional-operational-pattern.png)
-
-## One Domain, Many Actors
-
-The actors and systems do not change. KIFF replaces the repeated domain copies
-with one operational domain and one validated execution path. Every actor sees
-the same state, proposes the same named actions, and meets the same authority,
-approval, and limit rules.
-
-This does not replace your agent framework, HTTP stack, queue, cron job, or
-systems of record. It evaluates proposed actions against current state before
-your executor runs.
-
-![KIFF provides one domain for events, state, actions, authority, and execution.](./docs/diagrams/kiff-shared-domain.png)
-
-| Without KIFF | With KIFF | Practical effect |
-| --- | --- | --- |
-| Each actor carries its own version of state and rules. | Events and derived state are shared. | Actors stop disagreeing about what is true. |
-| Every new actor builds another operational backend. | Actors propose the same named actions. | Add agents without rebuilding the operation. |
-| Decisions and limits live in application code, prompts, and tool handlers. | One decision point evaluates every proposal. | Consistent approvals, limits, and refusals. |
-| Logs are scattered across services. | Events, decisions, and results form one history. | Replay and explain an operational outcome. |
-
-## A Concrete Example
-
-One domain, one refund:
+## A refund, step by step
 
 ```text
 order-2 is PAID
@@ -114,13 +58,8 @@ order-2 is PAID
 ```
 
 The useful action runs. The risky one waits for a human. The path rebuilds
-from the event log.
-
-Be clear about that third line, because it is the one most likely to be
-oversold. Refusing a repeat on an already-refunded order is table stakes: a
-unique constraint does it, and whatever framework handed your agent the refund
-tool very likely does it too. It is shown here because it is the boundary
-reading state, not because it is a reason to adopt one.
+from the event log. (Refusing the repeat is table stakes; it's shown because
+the boundary reads state.)
 
 ## The Check No Per-Call Check Can Make
 
@@ -145,58 +84,16 @@ That refusal cannot come from checking one call, because no single call can see
 the other two. [`pkg/kiff/limit`](./pkg/kiff/limit) holds the ledger that can.
 It is the same check behind a [KIFF Card](#kiff-cards).
 
-```go
-rt, err := runtime.New(runtime.Config{
-    Domain: &definition,
-    Limits: runtime.StaticLimits{{
-        ID:      "refund-agent-daily",
-        Subject: "refund-agent",
-        Actions: []string{"AUTO_REFUND"},
-        Aggregates: []limit.Aggregate{{
-            Quantity: limit.Quantity{Parameter: "amount"},
-            Max:      110000, // minor units
-            Window:   limit.WindowCalendarDay,
-        }},
-    }},
-    LimitLedger: limit.NewMemoryLedger(),
-})
-```
+The rules, the wiring and five properties to know before you rely on it:
+[docs/limits.md](./docs/limits.md). Run the live tour: `go run ./cmd/kiff-tour`.
 
-Four properties are worth knowing before you rely on it:
+## KIFF Cards
 
-- **A limit constrains; it never confers.** An actor with no limit is
-  unaffected, so a first limit cannot break a running system.
-- **A revoked limit refuses.** It does not vanish and leave the actor
-  unbounded. The obvious implementation filters to the limits in force and
-  reads the empty set as "nothing applies, so allow" — which makes revoking a
-  limit the act that removes the bound.
-- **An unreadable ledger refuses.** Allowing on an unknown balance is the thing
-  a limit exists to prevent.
-- **`MemoryLedger` is correct for one process, and only that.** Two replicas
-  each hold their own ledger and each enforces the full ceiling, so the real
-  total is the sum. Implement `limit.Ledger` against shared storage when you
-  run more than one — a bound on a sequence has to live where the whole
-  sequence is visible.
-
-Run the live tour:
-
-```bash
-go run ./cmd/kiff-tour
-```
-
-## Try It
-
-```bash
-go install github.com/kiff/kiff/cmd/kiff@latest
-kiff new -scenario refund github.com/acme/refunds
-cd refunds
-go mod tidy
-make demo
-```
-
-That creates a runnable refund domain with an `Order`, a `MARK_PAID` action, an
-approval-gated `REFUND_ORDER` action, a headless HTTP API, and a demo script.
-Use `kiff new <module>` without `-scenario` for a smaller starter project.
+On [kiff.dev](https://kiff.dev), this engine checks an agent's **Card**: the
+authority a business gives one agent. A Card says which actions the agent may
+take, how much per action and in total over a window, and what happens to a
+call outside it (it waits for the owner, or it is refused). The owner changes
+or revokes the Card without changing the agent.
 
 ## One CLI, End to End
 
@@ -224,128 +121,29 @@ the pre-execution seam your framework already exposes:
 pip install kiff-guard          # or: npm install @kiff/kiff-guard
 ```
 
-```python
-from kiff_guard import Guard
-from kiff_guard.adapters.agno import agno_hook
+Mode `observe` records; `enforce` refuses before the call runs.
 
-guard = Guard(mode="observe")   # observe records; enforce refuses before the call runs
-agent = Agent(model=..., tools=[refund_order], tool_hooks=[agno_hook(guard)])
-```
-
-### Supported agent frameworks
-
-KIFF Guard ships 11 framework adapters across Python and TypeScript:
-
-| | | |
-|:---:|:---:|:---:|
-| **Agno**<br><sub>Python adapter</sub> | **LangGraph / LangChain**<br><sub>Python adapter</sub> | **OpenAI Agents SDK**<br><sub>Python adapter</sub> |
-| **Google ADK**<br><sub>Python adapter</sub> | **Pydantic AI**<br><sub>Python adapter</sub> | **Strands Agents**<br><sub>Python adapter</sub> |
-| **Microsoft Agent Framework**<br><sub>Python adapter</sub> | **Hermes**<br><sub>Python adapter</sub> | **Haystack Agents**<br><sub>Python adapter</sub> |
-| **LlamaIndex**<br><sub>Python adapter</sub> | **OpenClaw**<br><sub>TypeScript adapter</sub> | **Custom / no framework**<br><sub>No adapter required</sub> |
-
-The adapters are thin integrations at each framework's pre-tool-call boundary;
-KIFF's decision logic stays in the shared guard core. A custom stack can call
-that core directly or use plain HTTP without an adapter. See the
-[SDK quickstarts and adapter docs](https://github.com/kiff/kiff-guard#readme)
-(MIT).
+Adapters for 11 Python and TypeScript agent frameworks, each with a quickstart,
+or plain HTTP with no adapter: [kiff-guard](https://github.com/kiff/kiff-guard#readme) (MIT).
 
 ## Run It Yourself or Hosted
 
 The framework and guard SDK are MIT. Self-host your operational domain with the
-`postgres` store and your own HTTP stack for as long as you like.
-
-If you would rather not operate the state, approvals, receipts, and retention
-yourself, [KIFF Cloud](https://kiff.dev) runs them as a hosted control plane
-with a free tier. The CLI talks to it directly: `kiff auth login`, then
-`kiff apply` to push a domain contract, and `kiff domains`, `kiff runtimes`,
-`kiff usage`, `kiff keys` to inspect a tenant. Nothing in this repository
-requires it.
-
-### What the hosted runtime has that this repository does not
-
-Worth stating plainly, because the two are not in lockstep and a gap here is
-not always a gap there. This repository is the boundary; the hosted runtime was
-pushed harder to get something real in front of users, and parts of it have not
-been folded back.
+`postgres` store and your own HTTP stack. Or use [KIFF Cloud](https://kiff.dev),
+which runs the state, approvals, receipts and retention for you: `kiff auth
+login`, then `kiff apply`. Nothing in this repository requires it.
 
 | | This repository | Hosted |
 | --- | --- | --- |
 | Decision boundary, approvals, replay | yes | same code |
 | Aggregate limits | yes (in-process ledger) | issued as KIFF Cards: shared ledger, statements, Cards shared by several agents, owner approval of held calls, and a management credential separating who may act from who sets how much |
-| Audit records | append-only, no hash, no signature | each record's data hashed into a causal chain, the chain signed, an hourly root committed to Base Sepolia (a testnet: signed and verifiable, not a settlement guarantee) |
+| Audit records | append-only, no hash, no signature | each record's data hashed into a causal chain, the chain signed |
 | Tenancy, billing, retention | not attempted | the product |
 | Lease between a decision and the executor | open | **also open** |
 
-The last row is the one worth reading. Where the hosted runtime is ahead it is
-said above; where it is not, saying so is the only way this table stays worth
-consulting.
-
-## What the Framework Provides
-
-| Capability | What KIFF provides |
-| --- | --- |
-| Shared state | Events, state transitions, replay, and `memory`, `file`, or `postgres` stores |
-| Named actions | Typed parameters, allowed states, required permissions, risk, and explicit executors |
-| Human authority | Dynamic approvals, and segregation of duties enforced by default — the actor that requested an approval cannot review it. Reviewer permissions are opt-in per contract, because only the domain knows which permission is sufficient |
-| Reliable execution | Validation before side effects and idempotency protection for consequential retries |
-| Explainable history | Proposals, decisions, approvals, execution results, and failures as durable protocol data. Records are append-only by construction; tamper-evidence (hash-chained, signed receipts) is a [KIFF Cloud](https://kiff.dev) feature, not a property of the OSS stores |
-| Open interfaces | An optional `net/http` API and CLI for agents, services, operators, and CI. The API authenticates through a pluggable `Authenticator`, and the principal it establishes overrides any actor in the request body |
-
-## Check the Agent Boundary
-
-Use `kiff scan .` inside a Go agent repository to find explicit agent tools
-that can reach consequential operations without a recognized decision earlier
-in the function. Mark a handler with `//kiff:tool`, pass it to a common tool
-registration call, or identify it with `-tool FunctionName`. The initial Go
-scanner emits terminal, JSON, and SARIF reports and can enforce a CI threshold:
-
-```bash
-kiff scan .
-kiff scan -format sarif -output kiff-scan.sarif -fail-on high .
-```
-
-This is static analysis: a clean result means no supported path was found, not
-that the application is safe or that every framework-specific registration
-shape is understood.
-
-For Python agent repositories, use the separate
-[kiff-scan](https://github.com/kiff/kiff-scan) tool instead:
-
-```bash
-uvx kiff-scan scan .
-```
-
-It also ships a GitHub Action: `uses: kiff/kiff-scan@v0.1.1`.
-
-### Coding Assistant Integrations
-
-These integrations help developers run KIFF's scanners, understand findings,
-and fix the code. They are development tools, not runtime agent adapters.
-
-| | | |
-|:---:|:---:|:---:|
-| **[Codex](./docs/assistant-integrations.md#codex)**<br><sub>Agent Skill</sub> | **[Claude Code](./docs/assistant-integrations.md#claude-code)**<br><sub>Plugin / skill</sub> | **[Kiro](./docs/assistant-integrations.md#kiro)**<br><sub>Power / Agent Plugin</sub> |
-
-All three ship the same two skills. See the
-[installation guide](./docs/assistant-integrations.md) for setup and example
-prompts.
-
-- **`kiff-governance`** — run the scanners, explain findings, and route
-  consequential actions through a real decision boundary. Development workflow.
-- **`kiff-audit`** — an adversarial governance audit: extract the guarantees a
-  codebase claims, map its trust boundary, construct and execute attacks against
-  those guarantees, run the language's test and vulnerability tooling, and
-  produce an evidence-backed report with P0/P1 findings and a verdict.
-
-`kiff-audit` is deliberately not a linter. It treats a claimed guarantee as false
-until an attack against it has failed, and it reports what it could not establish
-as `not assessable` rather than as a pass. The
-[reference audit](./skills/kiff-audit/examples/kiff-framework-audit.md) is a real
-engagement against this repository in which three of four attacks on the
-self-approval boundary succeeded.
-
 ## Documentation
 
+- [Check the agent boundary](./docs/scan.md) — `kiff scan` for Go agent repositories, and kiff-scan for Python
 - [Why KIFF](./docs/why.md) — why agents, people, and services need one domain to act against
 - [The governed action boundary](./docs/governed-action-boundary.md) — how decisions, approvals, and replay work
 - [The side-effect boundary](./docs/side-effect-boundary.md) — deployment topology: agents propose, executors own credentials
@@ -354,39 +152,11 @@ self-approval boundary succeeded.
 - [Build a domain](./docs/build-a-domain.md) — the authoring guide, end to end
 - [Scaffold from a descriptor](./docs/scaffold-a-domain.md) — generate a domain from JSON
 - [Govern over HTTP](./docs/governing-over-http.md) — drive KIFF from TypeScript, Python, or any stack
-- [Coding assistant integrations](./docs/assistant-integrations.md) — install and use the Codex, Claude Code, and Kiro skill
+- [Coding assistant integrations](./docs/assistant-integrations.md) — install the scanner and audit skills in a coding assistant
 - [Architecture & packages](./docs/architecture.md) — the package map and responsibilities
 - [Philosophy](./docs/philosophy.md) and [Comparisons](./docs/comparisons.md) — what KIFF is, and where it stops
 
-## Examples
-
-- [examples/refund](./examples/refund/) — one entity, three states, two actions
-- [examples/mission](./examples/mission/) — a larger stateful coordination domain
-- [examples/llm-bridge](./examples/llm-bridge/) — the tool-call bridge pattern
-
-## Cookbook
-
-Use the cookbook when you want to see what KIFF lets a team launch, not just
-what it can audit after the fact. These recipes model agents proposing useful
-work while KIFF owns the consequential action boundary.
-
-- [accounts-payable-payout](./cookbook/accounts-payable-payout/) — a
-  Claude Haiku AP agent with a money-moving payout boundary, finance approval,
-  and lifecycle view
-- [security-incident-response](./cookbook/security-incident-response/) —
-  containment decisions, session reset, and access revocation through an
-  identity-service boundary
-- [procurement-purchase-order](./cookbook/procurement-purchase-order/) —
-  purchase-order creation through an ERP service with manager approval
-- [insurance-claims-triage](./cookbook/insurance-claims-triage/) — claim
-  evidence, coverage/risk scoring, and payout execution
-- [healthcare-prior-auth](./cookbook/healthcare-prior-auth/) — clinical
-  documentation, payer criteria, and portal submission
-- [cloud-infra-remediation](./cookbook/cloud-infra-remediation/) —
-  infrastructure remediation with approval-gated isolation
-- [vendor-bank-change](./cookbook/vendor-bank-change/) — vendor payment-detail
-  changes with finance-controlled execution
-- [cookbook index](./cookbook/) — recipe standards, feature map, and later candidates
+More: [examples/](./examples/) and the [cookbook](./cookbook/).
 
 ## Who It Is Not For
 
@@ -398,18 +168,9 @@ sign-off, and someone eventually asks "why did this happen?"
 
 ## Status
 
-KIFF is at v0.9. The release adds limits — a ceiling on what one actor may do
-in total, which is the one check a per-call boundary cannot make — plus an
-adversarial governance audit skill, an authoritative state machine, an
-authenticated HTTP API, and segregation of duties by default. The core
-action boundary is complete and adversarially tested: the approved bit cannot
-be forged from outside the module — including by reflection or `unsafe`, which
-a compile-time boundary cannot prevent — a pluggable validator cannot waive a
-required approval, the state machine is authoritative for validation rather
-than the caller, the HTTP API authenticates and the principal overrides any
-actor in the request body, and the actor that requested an approval cannot
-review it. Those attacks ship as conformance tests that fail the build if the
-boundary regresses.
+KIFF is at v0.9. The core action boundary is complete and adversarially
+tested; the attacks ship as conformance tests that fail the build if it
+regresses ([docs/changelog/](./docs/changelog/README.md)).
 
 Known gaps, stated plainly: audit records are durable and append-only but not
 tamper-evident in the OSS stores; there is no lease or version check between a
@@ -421,4 +182,4 @@ the file-backed JSONL stores are for demos and local development.
 
 ## License
 
-MIT. Use it. Fork it. Ship with it.
+MIT.
