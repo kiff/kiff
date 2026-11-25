@@ -34,6 +34,17 @@ jobs:
       - name: Test
         run: go test ./... -count=1
 
+  public-text:
+    name: public text
+    runs-on: ubuntu-latest
+    # This repository is public: its code, docs and examples say each rule as
+    # itself, never who set it, when, or where it was discussed. The check
+    # first proves itself on planted lines, so it can't pass by matching nothing.
+    steps:
+      - uses: actions/checkout@v4
+      - name: tools/public-text.sh
+        run: tools/public-text.sh
+
   vet:
     name: vet and gofmt
     runs-on: ubuntu-latest
